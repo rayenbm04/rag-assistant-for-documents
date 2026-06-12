@@ -5,10 +5,12 @@ rag-backend/*.pyc
 rag-backend/.env
 rag-backend/chroma_db/
 rag-backend/uploads/
+rag-backend/uploaded_docs/
 rag-backend/storage/
 
 # Node frontend
 rag-frontend/node_modules/
+rag-frontend/dist/
 
 # OS
 .DS_Store
