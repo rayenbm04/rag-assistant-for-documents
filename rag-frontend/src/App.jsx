@@ -308,9 +308,7 @@ const handleCancelIndexing = useCallback(async (filename) => {
       clearInterval(pollingRef.current[filename])
       delete pollingRef.current[filename]
     }
-    setFiles(prev => prev.map(f =>
-      f.name === filename ? { ...f, status: 'cancelled' } : f
-    ))
+    setFiles(prev => prev.filter(f => f.name !== filename))
   } catch (e) {
     console.error("Cancel failed:", e)
   }
