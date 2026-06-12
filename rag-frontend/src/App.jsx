@@ -181,15 +181,19 @@ function App() {
   }, [])
 
   const handleRemoveFile = useCallback(async (id, filename) => {
-  try {
-    await fetch(`${API}/documents/${encodeURIComponent(filename)}`, {
-      method: "DELETE"
-    })
-  } catch (e) {
-    console.error("Delete failed:", e)
-  }
-  setFiles(prev => prev.filter(f => f.id !== id))
-}, [])
+    try {
+      const res = await fetch(`${API}/documents/${encodeURIComponent(filename)}`, {
+        method: "DELETE"
+      })
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`)
+      }
+      setFiles(prev => prev.filter(f => f.id !== id))
+    } catch (e) {
+      console.error("Delete failed:", e)
+      alert("Failed to delete the file from the server. It might be locked or busy.")
+    }
+  }, [])
 
 const handleCancel = useCallback((e) => {
   if (e && e.preventDefault) e.preventDefault()
