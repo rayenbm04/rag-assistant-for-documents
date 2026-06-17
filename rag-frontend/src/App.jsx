@@ -47,7 +47,12 @@ function generateId() {
 
 function App() {
   const [question, setQuestion] = useState('')
-  const [history, setHistory] = useState([])
+  const [history, setHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('rag-chat-history')
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
+  })
   const [files, setFiles] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -64,6 +69,15 @@ function App() {
 
   // Keep historyRef in sync so handleSubmit always reads the latest history
   useEffect(() => { historyRef.current = history }, [history])
+
+  // Persist chat history to localStorage on every change
+  useEffect(() => {
+    try {
+      // Only persist completed entries (no pending null answers)
+      const toSave = history.filter(e => e.answer !== null)
+      localStorage.setItem('rag-chat-history', JSON.stringify(toSave))
+    } catch {}
+  }, [history])
 
   const scrollToBottom = useCallback(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -334,11 +348,24 @@ const handleCancelIndexing = useCallback(async (filename) => {
     <div className="app">
       <nav className="navbar">
         <div className="navbar-logo">RAG Assistant</div>
-        {anyIndexing && (
-          <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginLeft: 'auto' }}>
-            Indexing documents...
-          </span>
-        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {anyIndexing && (
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Indexing documents...
+            </span>
+          )}
+          {history.length > 0 && !isLoading && (
+            <button
+              className="clear-history-btn"
+              onClick={() => {
+                setHistory([])
+                localStorage.removeItem('rag-chat-history')
+              }}
+            >
+              Clear chat
+            </button>
+          )}
+        </div>
       </nav>
 
       <div className="main-container">

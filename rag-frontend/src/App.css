@@ -552,6 +552,22 @@ body {
   .chat-messages { padding: 20px; }
   .input-bar { padding: 12px 20px 20px; }
 }
+.clear-history-btn {
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.clear-history-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
 .cancel-button {
   padding: 13px 26px;
   font-size: 14px;
