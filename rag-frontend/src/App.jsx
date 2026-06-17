@@ -397,7 +397,7 @@ function App() {
           } else if (data.type === 'done') {
             updateHistory(prev => prev.map(entry =>
               entry.id === tempId
-                ? { ...entry, answer: (entry.answer ?? '').trim(), sources: data.sources || [], warning: data.warning || null }
+                ? { ...entry, answer: (entry.answer ?? '').trim(), sources: data.sources || [], warning: data.warning || null, mode: data.mode || 'standard' }
                 : entry
             ))
             scrollTimerRef.current = setTimeout(scrollToBottom, 100)
@@ -561,6 +561,11 @@ function App() {
                   )}
                   {entry.sources?.length > 0 && entry.answer !== null && (
                     <div className="sources">
+                      {entry.mode === 'comparison' && (
+                        <span className="source-pill comparison-badge" title="Per-file balanced retrieval was used">
+                          ⇄ Comparing {entry.sources.length} docs
+                        </span>
+                      )}
                       {entry.sources.map((src, i) => (
                         <span key={i} className="source-pill"><SourceIcon />{src}</span>
                       ))}

@@ -475,6 +475,84 @@ async def generate_title(req: TitleRequest):
     return {"title": title}
 
 
+_COMPARISON_KEYWORDS = {
+    'compare', 'comparison', 'contrast', 'difference', 'differences',
+    'versus', ' vs ', ' vs.', 'similar', 'similarity', 'both documents',
+    'both files', 'each document', 'each file', 'across documents',
+    'across files', 'which document', 'which file', 'between the two',
+}
+
+def is_comparison_query(question: str, num_files: int) -> bool:
+    """Return True when the question likely asks for a cross-document comparison."""
+    if num_files < 2:
+        return False
+    q = question.lower()
+    return any(kw in q for kw in _COMPARISON_KEYWORDS)
+
+
+async def retrieve_per_file(
+    standalone: str,
+    question_files: list[str],
+    chunks_per_file: int,
+) -> tuple[list, str, list[str]]:
+    """
+    Retrieve `chunks_per_file` chunks from each file independently,
+    then assemble a labeled context so the LLM knows what belongs to what.
+    Returns (all_nodes, labeled_context, sources).
+    """
+    all_nodes: list = []
+    context_parts: list[str] = []
+
+    loop = asyncio.get_event_loop()
+
+    for fname in question_files:
+        file_filter = MetadataFilters(
+            filters=[MetadataFilter(key="file_name", value=fname, operator=FilterOperator.EQ)],
+            condition=FilterCondition.OR,
+        )
+        vec_ret = index.as_retriever(similarity_top_k=chunks_per_file, filters=file_filter)
+
+        file_bm25_nodes = get_nodes_for_files([fname])
+        if file_bm25_nodes:
+            bm25_ret = BM25Retriever.from_defaults(
+                nodes=file_bm25_nodes, similarity_top_k=chunks_per_file
+            )
+            ret = QueryFusionRetriever(
+                [vec_ret, bm25_ret],
+                similarity_top_k=chunks_per_file,
+                num_queries=1,
+                mode="reciprocal_rerank",
+                use_async=True,
+            )
+        else:
+            ret = vec_ret
+
+        file_nodes = await ret.aretrieve(standalone)
+
+        # Per-file reranking — keep scores balanced across files
+        if reranker and len(file_nodes) > 1:
+            captured = list(file_nodes)
+            q_str    = standalone
+            k        = chunks_per_file
+
+            def _rerank_file(nodes_in=captured, q=q_str, top=k):
+                pairs  = [(q, n.get_content()) for n in nodes_in]
+                scores = reranker.predict(pairs)
+                ranked = sorted(zip(nodes_in, scores), key=lambda x: x[1], reverse=True)
+                return [n for n, _ in ranked[:top]]
+
+            file_nodes = await loop.run_in_executor(None, _rerank_file)
+
+        if file_nodes:
+            all_nodes.extend(file_nodes)
+            file_text = "\n\n".join(n.get_content() for n in file_nodes)
+            context_parts.append(f"=== Document: {fname} ===\n{file_text}")
+
+    labeled_context = "\n\n".join(context_parts)
+    sources = list({n.metadata.get("file_name", "unknown") for n in all_nodes})
+    return all_nodes, labeled_context, sources
+
+
 async def condense_question(question: str, history: list[HistoryEntry]) -> str:
     """Rewrite a follow-up question into a standalone question using chat history."""
     if not history:
@@ -529,54 +607,62 @@ async def ask(q: Question):
             # 1. Condense follow-up into standalone question for retrieval
             standalone = await condense_question(question, history)
 
-            # 2. Retrieve relevant chunks — hybrid BM25 + vector, scoped to session files
-            #    Fetch more candidates when reranking so the cross-encoder has room to work.
-            candidates_k = SIMILARITY_TOP_K * 2 if reranker else SIMILARITY_TOP_K
+            # 2. Retrieve relevant chunks — two modes:
+            #    • Comparison: per-file balanced retrieval with labeled context
+            #    • Standard:   unified hybrid (BM25 + vector) with cross-encoder rerank
+            comparison_mode = is_comparison_query(question, len(question_files))
 
-            filters = MetadataFilters(
-                filters=[
-                    MetadataFilter(key="file_name", value=fname, operator=FilterOperator.EQ)
-                    for fname in question_files
-                ],
-                condition=FilterCondition.OR
-            )
-            vector_retriever = index.as_retriever(
-                similarity_top_k=candidates_k, filters=filters
-            )
-
-            # BM25 over the session's chunks (keyword matching)
-            session_nodes = get_nodes_for_files(question_files)
-            if session_nodes:
-                bm25_retriever = BM25Retriever.from_defaults(
-                    nodes=session_nodes,
-                    similarity_top_k=candidates_k
-                )
-                retriever = QueryFusionRetriever(
-                    [vector_retriever, bm25_retriever],
-                    similarity_top_k=candidates_k,
-                    num_queries=1,          # disable query expansion (no extra LLM call)
-                    mode="reciprocal_rerank",
-                    use_async=True,
+            if comparison_mode:
+                chunks_per_file = max(2, SIMILARITY_TOP_K // len(question_files))
+                print(f"[compare] {len(question_files)} files × {chunks_per_file} chunks each")
+                nodes, context, sources = await retrieve_per_file(
+                    standalone, question_files, chunks_per_file
                 )
             else:
-                retriever = vector_retriever   # fallback if ChromaDB returns nothing
+                candidates_k = SIMILARITY_TOP_K * 2 if reranker else SIMILARITY_TOP_K
 
-            nodes = await retriever.aretrieve(standalone)
+                filters = MetadataFilters(
+                    filters=[
+                        MetadataFilter(key="file_name", value=fname, operator=FilterOperator.EQ)
+                        for fname in question_files
+                    ],
+                    condition=FilterCondition.OR,
+                )
+                vector_retriever = index.as_retriever(
+                    similarity_top_k=candidates_k, filters=filters
+                )
+                session_nodes = get_nodes_for_files(question_files)
+                if session_nodes:
+                    bm25_retriever = BM25Retriever.from_defaults(
+                        nodes=session_nodes, similarity_top_k=candidates_k
+                    )
+                    retriever = QueryFusionRetriever(
+                        [vector_retriever, bm25_retriever],
+                        similarity_top_k=candidates_k,
+                        num_queries=1,
+                        mode="reciprocal_rerank",
+                        use_async=True,
+                    )
+                else:
+                    retriever = vector_retriever
 
-            # 2b. Cross-encoder reranking — re-score (query, chunk) pairs and keep top-K
-            if reranker and len(nodes) > 1:
-                def _rerank(nodes_in):
-                    pairs  = [(standalone, n.get_content()) for n in nodes_in]
-                    scores = reranker.predict(pairs)
-                    ranked = sorted(zip(nodes_in, scores), key=lambda x: x[1], reverse=True)
-                    return [n for n, _ in ranked[:SIMILARITY_TOP_K]]
+                nodes = await retriever.aretrieve(standalone)
 
-                loop  = asyncio.get_event_loop()
-                nodes = await loop.run_in_executor(None, _rerank, nodes)
-                print(f"[rerank] kept {len(nodes)}/{candidates_k} chunks")
+                if reranker and len(nodes) > 1:
+                    _q, _k = standalone, SIMILARITY_TOP_K
 
-            context = "\n\n".join(node.get_content() for node in nodes)
-            sources = list({node.metadata.get("file_name", "unknown") for node in nodes})
+                    def _rerank(nodes_in, q=_q, k=_k):
+                        pairs  = [(q, n.get_content()) for n in nodes_in]
+                        scores = reranker.predict(pairs)
+                        ranked = sorted(zip(nodes_in, scores), key=lambda x: x[1], reverse=True)
+                        return [n for n, _ in ranked[:k]]
+
+                    loop  = asyncio.get_event_loop()
+                    nodes = await loop.run_in_executor(None, _rerank, nodes)
+                    print(f"[rerank] kept {len(nodes)}/{candidates_k} chunks")
+
+                context = "\n\n".join(n.get_content() for n in nodes)
+                sources = list({n.metadata.get("file_name", "unknown") for n in nodes})
 
             # 3. Build final prompt with history + context
             history_section = ""
@@ -586,11 +672,25 @@ async def ask(q: Question):
                 )
                 history_section = f"Conversation history:\n{history_lines}\n\n"
 
+            if comparison_mode:
+                system_instruction = (
+                    "You are a document assistant. You have been given excerpts from multiple documents, "
+                    "each clearly labeled with its filename. "
+                    "Answer using ONLY the provided context. "
+                    "When the question involves comparison, explicitly contrast the documents — "
+                    "highlight agreements, differences, and anything unique to each. "
+                    "If a document lacks relevant information, say so explicitly.\n\n"
+                )
+            else:
+                system_instruction = (
+                    "You are a document assistant. Answer using ONLY the provided context and conversation history.\n"
+                    "Do not use any prior knowledge outside of these.\n"
+                    "If the answer cannot be found, say: "
+                    "'I don't have enough information in the provided documents to answer this.'\n\n"
+                )
+
             final_prompt = (
-                "You are a document assistant. Answer using ONLY the provided context and conversation history.\n"
-                "Do not use any prior knowledge outside of these.\n"
-                "If the answer cannot be found, say: "
-                "'I don't have enough information in the provided documents to answer this.'\n\n"
+                f"{system_instruction}"
                 f"{history_section}"
                 f"Context:\n---------------------\n{context}\n---------------------\n\n"
                 f"Question: {question}\n\nAnswer:"
@@ -617,7 +717,7 @@ async def ask(q: Question):
                 f"Still indexing: {', '.join(still_indexing)}. Results may be incomplete."
                 if still_indexing else None
             )
-            yield f"data: {json.dumps({'type': 'done', 'sources': sources, 'warning': warning})}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'sources': sources, 'warning': warning, 'mode': 'comparison' if comparison_mode else 'standard'})}\n\n"
 
             # 7. RAG eval — LLM-as-judge (faithfulness + answer relevance)
             if ENABLE_EVAL and full_response.strip():
