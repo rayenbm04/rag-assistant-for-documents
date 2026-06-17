@@ -33,6 +33,8 @@ SIMILARITY_TOP_K = int(os.getenv("SIMILARITY_TOP_K", "4"))
 MAX_UPLOAD_MB    = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))
 OLLAMA_BASE_URL  = os.getenv("OLLAMA_BASE_URL",      "http://localhost:11434")
 ENABLE_EVAL      = os.getenv("ENABLE_EVAL",          "true").lower() == "true"
+ENABLE_RERANK    = os.getenv("ENABLE_RERANK",        "true").lower() == "true"
+RERANK_MODEL     = os.getenv("RERANK_MODEL",         "cross-encoder/ms-marco-MiniLM-L-6-v2")
 
 class HistoryEntry(BaseModel):
     question: str
@@ -67,6 +69,16 @@ indexing_status = {}        # {"filename": "indexing" | "ready" | "error"}
 file_hashes = {}            # {"filename": md5_hex} — used to skip re-indexing unchanged files
 executor = ThreadPoolExecutor(max_workers=2)
 token_usage = {"prompt": 0, "completion": 0, "requests": 0}
+
+# ── Cross-encoder reranker (loaded once at startup) ──
+reranker = None
+if ENABLE_RERANK:
+    try:
+        from sentence_transformers import CrossEncoder
+        reranker = CrossEncoder(RERANK_MODEL)
+        print(f"Reranker loaded: {RERANK_MODEL}")
+    except Exception as _rerank_err:
+        print(f"Reranker init failed ({_rerank_err}) — continuing without reranking")
 
 
 def parse_eval_score(text: str) -> float | None:
@@ -518,6 +530,9 @@ async def ask(q: Question):
             standalone = await condense_question(question, history)
 
             # 2. Retrieve relevant chunks — hybrid BM25 + vector, scoped to session files
+            #    Fetch more candidates when reranking so the cross-encoder has room to work.
+            candidates_k = SIMILARITY_TOP_K * 2 if reranker else SIMILARITY_TOP_K
+
             filters = MetadataFilters(
                 filters=[
                     MetadataFilter(key="file_name", value=fname, operator=FilterOperator.EQ)
@@ -526,7 +541,7 @@ async def ask(q: Question):
                 condition=FilterCondition.OR
             )
             vector_retriever = index.as_retriever(
-                similarity_top_k=SIMILARITY_TOP_K, filters=filters
+                similarity_top_k=candidates_k, filters=filters
             )
 
             # BM25 over the session's chunks (keyword matching)
@@ -534,11 +549,11 @@ async def ask(q: Question):
             if session_nodes:
                 bm25_retriever = BM25Retriever.from_defaults(
                     nodes=session_nodes,
-                    similarity_top_k=SIMILARITY_TOP_K
+                    similarity_top_k=candidates_k
                 )
                 retriever = QueryFusionRetriever(
                     [vector_retriever, bm25_retriever],
-                    similarity_top_k=SIMILARITY_TOP_K,
+                    similarity_top_k=candidates_k,
                     num_queries=1,          # disable query expansion (no extra LLM call)
                     mode="reciprocal_rerank",
                     use_async=True,
@@ -547,6 +562,19 @@ async def ask(q: Question):
                 retriever = vector_retriever   # fallback if ChromaDB returns nothing
 
             nodes = await retriever.aretrieve(standalone)
+
+            # 2b. Cross-encoder reranking — re-score (query, chunk) pairs and keep top-K
+            if reranker and len(nodes) > 1:
+                def _rerank(nodes_in):
+                    pairs  = [(standalone, n.get_content()) for n in nodes_in]
+                    scores = reranker.predict(pairs)
+                    ranked = sorted(zip(nodes_in, scores), key=lambda x: x[1], reverse=True)
+                    return [n for n, _ in ranked[:SIMILARITY_TOP_K]]
+
+                loop  = asyncio.get_event_loop()
+                nodes = await loop.run_in_executor(None, _rerank, nodes)
+                print(f"[rerank] kept {len(nodes)}/{candidates_k} chunks")
+
             context = "\n\n".join(node.get_content() for node in nodes)
             sources = list({node.metadata.get("file_name", "unknown") for node in nodes})
 
