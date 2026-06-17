@@ -447,16 +447,12 @@ function App() {
           {history.filter(e => e.answer !== null).length > 0 && (
             <button className="clear-history-btn" onClick={() => window.print()}>Export PDF</button>
           )}
-          {history.length > 0 && !isLoading && (
-            <button className="clear-history-btn" onClick={() => updateHistory([])}>Clear chat</button>
-          )}
         </div>
       </nav>
 
       <div className="main-container">
-        <aside className="sidebar">
-
-          {/* ── Session list ── */}
+        {/* ── Sessions sidebar (left) ── */}
+        <aside className="sidebar-sessions">
           <button className="new-chat-btn" onClick={createSession}>＋ New chat</button>
 
           <div className="session-list">
@@ -483,74 +479,6 @@ function App() {
               </div>
             ))}
           </div>
-
-          <div className="sidebar-divider" />
-
-          {/* ── Documents for current session ── */}
-          <h2 className="sidebar-title">Documents</h2>
-
-          <div
-            className={`upload-zone ${isDragOver ? 'dragover' : ''}`}
-            onClick={() => fileInputRef.current?.click()}
-            onDrop={ev => { ev.preventDefault(); setIsDragOver(false); handleFileSelect(ev.dataTransfer.files) }}
-            onDragOver={ev => { ev.preventDefault(); setIsDragOver(true) }}
-            onDragLeave={ev => { ev.preventDefault(); setIsDragOver(false) }}
-          >
-            <UploadIcon />
-            <p className="upload-text">Click or drag to upload</p>
-            <p className="upload-hint">PDF, Word, TXT or images</p>
-            <input
-              ref={fileInputRef} type="file" accept=".pdf,.txt,.docx,image/*" multiple
-              style={{ display: 'none' }}
-              onChange={ev => { handleFileSelect(ev.target.files); ev.target.value = '' }}
-            />
-          </div>
-
-          {sessionFiles.length > 0 && (
-            <div className="file-list">
-              {sessionFiles.map(file => {
-                const badge = getStatusBadge(file.status)
-                return (
-                  <div
-                    key={file.name}
-                    className={`file-item ${file.status === 'ready' ? 'file-item--clickable' : ''}`}
-                    onClick={() => { if (file.status === 'ready') window.open(`${API}/files/${encodeURIComponent(file.name)}`, '_blank') }}
-                  >
-                    <FileIcon />
-                    <div className="file-info">
-                      <div className="file-name">{file.name}</div>
-                      <div className="file-size" style={{ color: badge?.color }}>
-                        {badge ? badge.label : formatFileSize(file.size)}
-                      </div>
-                    </div>
-                    {file.status === 'ready' && (
-                      <div onClick={ev => { ev.stopPropagation(); handleRemoveFile(file.name) }} style={{ cursor: 'pointer' }}>
-                        <RemoveIcon />
-                      </div>
-                    )}
-                    {(file.status === 'indexing' || file.status === 'uploading') && (
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
-                          {[0, 1, 2].map(i => (
-                            <div key={i} style={{
-                              width: '4px', height: '4px', borderRadius: '50%',
-                              background: 'var(--text-muted)',
-                              animation: `loading-pulse 1.2s infinite ${i * 0.2}s`
-                            }} />
-                          ))}
-                        </div>
-                        {file.status === 'indexing' && (
-                          <span onClick={() => handleCancelIndexing(file.name)} style={{
-                            fontSize: '11px', color: '#854F0B', cursor: 'pointer', textDecoration: 'underline'
-                          }}>cancel</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
         </aside>
 
         <main className="chat-area">
@@ -625,6 +553,74 @@ function App() {
             </div>
           </form>
         </main>
+
+        {/* ── Files sidebar (right) ── */}
+        <aside className="sidebar-files">
+          <h2 className="sidebar-title">Documents</h2>
+
+          <div
+            className={`upload-zone ${isDragOver ? 'dragover' : ''}`}
+            onClick={() => fileInputRef.current?.click()}
+            onDrop={ev => { ev.preventDefault(); setIsDragOver(false); handleFileSelect(ev.dataTransfer.files) }}
+            onDragOver={ev => { ev.preventDefault(); setIsDragOver(true) }}
+            onDragLeave={ev => { ev.preventDefault(); setIsDragOver(false) }}
+          >
+            <UploadIcon />
+            <p className="upload-text">Click or drag to upload</p>
+            <p className="upload-hint">PDF, Word, TXT or images</p>
+            <input
+              ref={fileInputRef} type="file" accept=".pdf,.txt,.docx,image/*" multiple
+              style={{ display: 'none' }}
+              onChange={ev => { handleFileSelect(ev.target.files); ev.target.value = '' }}
+            />
+          </div>
+
+          {sessionFiles.length > 0 && (
+            <div className="file-list">
+              {sessionFiles.map(file => {
+                const badge = getStatusBadge(file.status)
+                return (
+                  <div
+                    key={file.name}
+                    className={`file-item ${file.status === 'ready' ? 'file-item--clickable' : ''}`}
+                    onClick={() => { if (file.status === 'ready') window.open(`${API}/files/${encodeURIComponent(file.name)}`, '_blank') }}
+                  >
+                    <FileIcon />
+                    <div className="file-info">
+                      <div className="file-name">{file.name}</div>
+                      <div className="file-size" style={{ color: badge?.color }}>
+                        {badge ? badge.label : formatFileSize(file.size)}
+                      </div>
+                    </div>
+                    {file.status === 'ready' && (
+                      <div onClick={ev => { ev.stopPropagation(); handleRemoveFile(file.name) }} style={{ cursor: 'pointer' }}>
+                        <RemoveIcon />
+                      </div>
+                    )}
+                    {(file.status === 'indexing' || file.status === 'uploading') && (
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                          {[0, 1, 2].map(i => (
+                            <div key={i} style={{
+                              width: '4px', height: '4px', borderRadius: '50%',
+                              background: 'var(--text-muted)',
+                              animation: `loading-pulse 1.2s infinite ${i * 0.2}s`
+                            }} />
+                          ))}
+                        </div>
+                        {file.status === 'indexing' && (
+                          <span onClick={() => handleCancelIndexing(file.name)} style={{
+                            fontSize: '11px', color: '#854F0B', cursor: 'pointer', textDecoration: 'underline'
+                          }}>cancel</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </aside>
       </div>
 
       {/* ── Dashboard modal ── */}
