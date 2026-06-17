@@ -568,6 +568,86 @@ body {
   border-color: var(--text-muted);
 }
 
+/* ── Session UI ── */
+.new-chat-btn {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-white);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-align: left;
+  margin-bottom: 8px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.new-chat-btn:hover {
+  background: var(--border-light);
+  border-color: var(--border-dashed);
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+  margin-bottom: 4px;
+}
+.session-list::-webkit-scrollbar { width: 4px; }
+.session-list::-webkit-scrollbar-thumb { background: var(--border-dashed); border-radius: 2px; }
+
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.session-item:hover { background: var(--border-light); }
+.session-item.active { background: var(--bg-white); box-shadow: var(--shadow-subtle); }
+
+.session-info { flex: 1; min-width: 0; }
+.session-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.session-delete {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.session-item:hover .session-delete { opacity: 1; }
+.session-delete:hover { color: #e53e3e; }
+
+.sidebar-divider {
+  height: 1px;
+  background: var(--border-light);
+  margin: 10px 0;
+}
+
 /* ── Dashboard modal ── */
 .dashboard-overlay {
   position: fixed;

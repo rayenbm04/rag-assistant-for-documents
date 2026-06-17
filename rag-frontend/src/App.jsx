@@ -4,91 +4,178 @@ import './App.css'
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000"
 
+// ── Icons ──────────────────────────────────────────────────────────────────
 const UploadIcon = () => (
   <svg className="upload-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
   </svg>
 )
-
 const FileIcon = () => (
   <svg className="file-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
   </svg>
 )
-
 const RemoveIcon = () => (
   <svg className="file-remove" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
   </svg>
 )
-
 const ChatIcon = () => (
   <svg className="chat-empty-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
   </svg>
 )
-
 const SourceIcon = () => (
   <svg className="source-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
   </svg>
 )
 
+// ── Helpers ────────────────────────────────────────────────────────────────
 function formatFileSize(bytes) {
   if (!bytes || bytes === 0) return ''
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
-
 function generateId() {
   return Math.random().toString(36).substring(2, 9)
 }
+function createNewSession() {
+  return { id: generateId(), name: 'New chat', createdAt: new Date().toISOString(), fileNames: [], history: [] }
+}
 
+// ── App ────────────────────────────────────────────────────────────────────
 function App() {
-  const [question, setQuestion] = useState('')
-  const [history, setHistory] = useState(() => {
+  // Sessions persisted in localStorage
+  const [sessions, setSessions] = useState(() => {
     try {
-      const saved = localStorage.getItem('rag-chat-history')
-      return saved ? JSON.parse(saved) : []
-    } catch { return [] }
+      const saved = localStorage.getItem('rag-sessions')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      }
+    } catch {}
+    return [createNewSession()]
   })
-  const [files, setFiles] = useState([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const [isDragOver, setIsDragOver] = useState(false)
+
+  const [activeSessionId, setActiveSessionId] = useState(() => {
+    try { return localStorage.getItem('rag-active-session') } catch { return null }
+  })
+
+  // Global file registry: filename → { status, size }
+  // Shared across sessions so we never re-index the same file twice
+  const [globalFiles, setGlobalFiles] = useState({})
+
+  // UI state
+  const [question, setQuestion]       = useState('')
+  const [isLoading, setIsLoading]     = useState(false)
+  const [isDragOver, setIsDragOver]   = useState(false)
   const [showDashboard, setShowDashboard] = useState(false)
   const [dashboardData, setDashboardData] = useState(null)
-  const fileInputRef = useRef(null)
-  const chatEndRef = useRef(null)
-  const abortControllerRef = useRef(null)
-  const scrollTimerRef = useRef(null)
-  const pendingIdRef = useRef(null)
-  const isLoadingRef = useRef(false)
-  const currentQuestionRef = useRef('')
-  const pollingRef = useRef({})
-  const historyRef = useRef([])
-  const historyIndexRef = useRef(-1)   // -1 = current draft
-  const draftQuestionRef = useRef('')  // saves what user was typing before navigating
 
-  // Keep historyRef in sync so handleSubmit always reads the latest history
+  // Refs
+  const fileInputRef        = useRef(null)
+  const chatEndRef          = useRef(null)
+  const abortControllerRef  = useRef(null)
+  const scrollTimerRef      = useRef(null)
+  const pendingIdRef        = useRef(null)
+  const isLoadingRef        = useRef(false)
+  const currentQuestionRef  = useRef('')
+  const pollingRef          = useRef({})
+  const historyRef          = useRef([])
+  const historyIndexRef     = useRef(-1)
+  const draftQuestionRef    = useRef('')
+
+  // Derived
+  const activeSession    = sessions.find(s => s.id === activeSessionId) || sessions[0]
+  const history          = activeSession?.history    || []
+  const sessionFileNames = activeSession?.fileNames  || []
+  const sessionFiles     = sessionFileNames.map(name => ({
+    name, id: name,
+    status: globalFiles[name]?.status || 'ready',
+    size:   globalFiles[name]?.size   || 0,
+  }))
+  const anyIndexing = sessionFiles.some(f => f.status === 'indexing' || f.status === 'uploading')
+
+  // Keep historyRef in sync (fixes stale-closure issue in handleSubmit)
   useEffect(() => { historyRef.current = history }, [history])
 
+  // Persist sessions
+  useEffect(() => { localStorage.setItem('rag-sessions', JSON.stringify(sessions)) }, [sessions])
+  useEffect(() => {
+    if (activeSession?.id) localStorage.setItem('rag-active-session', activeSession.id)
+  }, [activeSession?.id])
+
+  // ── Session helpers ───────────────────────────────────────────────────
+  const updateHistory = useCallback((updater) => {
+    const sid = activeSession?.id
+    setSessions(prev => prev.map(s =>
+      s.id === sid
+        ? { ...s, history: typeof updater === 'function' ? updater(s.history) : updater }
+        : s
+    ))
+  }, [activeSession?.id])
+
+  const createSession = useCallback(() => {
+    const s = createNewSession()
+    setSessions(prev => [s, ...prev])
+    setActiveSessionId(s.id)
+    setQuestion('')
+  }, [])
+
+  const switchSession = useCallback((id) => {
+    // Cancel any in-flight request
+    if (isLoadingRef.current) {
+      const cancelledId = pendingIdRef.current
+      pendingIdRef.current = null
+      isLoadingRef.current = false
+      setIsLoading(false)
+      if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null }
+      if (cancelledId) {
+        setSessions(prev => prev.map(s => ({ ...s, history: s.history.filter(e => e.id !== cancelledId) })))
+      }
+    }
+    setActiveSessionId(id)
+    setQuestion('')
+    historyIndexRef.current = -1
+    draftQuestionRef.current = ''
+  }, [])
+
+  const deleteSession = useCallback((id) => {
+    setSessions(prev => {
+      const remaining = prev.filter(s => s.id !== id)
+      if (remaining.length === 0) {
+        const fresh = createNewSession()
+        setActiveSessionId(fresh.id)
+        return [fresh]
+      }
+      if (activeSession?.id === id) setActiveSessionId(remaining[0].id)
+      return remaining
+    })
+  }, [activeSession?.id])
+
+  const addFileToSession = useCallback((filename) => {
+    const sid = activeSession?.id
+    setSessions(prev => prev.map(s =>
+      s.id === sid && !s.fileNames.includes(filename)
+        ? { ...s, fileNames: [...s.fileNames, filename] }
+        : s
+    ))
+  }, [activeSession?.id])
+
+  // ── Prompt history navigation (arrow keys) ───────────────────────────
   const handleInputKeyDown = useCallback((e) => {
     if (isLoadingRef.current) return
     const completed = historyRef.current.filter(h => h.answer !== null)
     if (completed.length === 0) return
-
     if (e.key === 'ArrowUp') {
       e.preventDefault()
-      if (historyIndexRef.current === -1) {
-        draftQuestionRef.current = e.target.value  // save current draft
-      }
+      if (historyIndexRef.current === -1) draftQuestionRef.current = e.target.value
       const next = Math.min(historyIndexRef.current + 1, completed.length - 1)
       historyIndexRef.current = next
       setQuestion(completed[completed.length - 1 - next].question)
     }
-
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       if (historyIndexRef.current === -1) return
@@ -98,411 +185,331 @@ function App() {
     }
   }, [])
 
-  // Persist chat history to localStorage on every change
-  useEffect(() => {
-    try {
-      // Only persist completed entries (no pending null answers)
-      const toSave = history.filter(e => e.answer !== null)
-      localStorage.setItem('rag-chat-history', JSON.stringify(toSave))
-    } catch {}
-  }, [history])
-
   const scrollToBottom = useCallback(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
-  // load already-indexed documents on startup
+  // ── Load existing indexed docs on startup ────────────────────────────
   useEffect(() => {
     fetch(`${API}/documents`)
       .then(r => r.json())
       .then(docs => {
-        setFiles(docs.map(d => ({
-          id: d.id,
-          name: d.name,
-          size: 0,
-          type: 'existing',
-          status: d.status || 'ready'
-        })))
+        const registry = {}
+        docs.forEach(d => { registry[d.name] = { status: d.status || 'ready', size: 0 } })
+        setGlobalFiles(registry)
       })
       .catch(() => {})
   }, [])
 
-  // poll status for a file until it becomes ready or error
+  // ── Poll indexing status ──────────────────────────────────────────────
   const pollStatus = useCallback((filename) => {
     if (pollingRef.current[filename]) return
-
     pollingRef.current[filename] = setInterval(async () => {
       try {
-        const res = await fetch(`${API}/status/${encodeURIComponent(filename)}`)
+        const res  = await fetch(`${API}/status/${encodeURIComponent(filename)}`)
         const data = await res.json()
-
         if (data.status === 'ready' || data.status === 'error') {
-          // stop polling
           clearInterval(pollingRef.current[filename])
           delete pollingRef.current[filename]
-
-          // update file status in UI
-          setFiles(prev => prev.map(f =>
-            f.name === filename ? { ...f, status: data.status } : f
-          ))
+          setGlobalFiles(prev => ({ ...prev, [filename]: { ...prev[filename], status: data.status } }))
         }
-      } catch (e) {
+      } catch {
         clearInterval(pollingRef.current[filename])
         delete pollingRef.current[filename]
       }
-    }, 2000) // poll every 2 seconds
+    }, 2000)
   }, [])
 
-  // cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      Object.values(pollingRef.current).forEach(clearInterval)
-    }
-  }, [])
+  useEffect(() => () => Object.values(pollingRef.current).forEach(clearInterval), [])
 
+  // ── Upload ────────────────────────────────────────────────────────────
   const uploadToBackend = useCallback(async (file) => {
-    const formData = new FormData()
-    formData.append("file", file)
-    const res = await fetch(`${API}/upload`, {
-      method: "POST",
-      body: formData
-    })
+    const fd = new FormData()
+    fd.append("file", file)
+    const res = await fetch(`${API}/upload`, { method: "POST", body: fd })
     if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
-    return await res.json()
+    return res.json()
   }, [])
 
   const handleFileSelect = useCallback(async (selectedFiles) => {
-    const validFiles = Array.from(selectedFiles).filter(file => {
-      const ext = file.name.split('.').pop().toLowerCase()
-      return (
-        file.type === 'application/pdf' ||
-        file.type.startsWith('image/') ||
-        file.type === 'text/plain' ||
-        file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-        ext === 'txt' ||
-        ext === 'docx'
-      )
+    const valid = Array.from(selectedFiles).filter(f => {
+      const ext = f.name.split('.').pop().toLowerCase()
+      return f.type === 'application/pdf' || f.type.startsWith('image/') ||
+        f.type === 'text/plain' || ext === 'txt' || ext === 'docx' ||
+        f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     })
 
-    for (const f of validFiles) {
-      const tempId = generateId()
-
-      // replace any existing entry with the same name, then add new one
-      setFiles(prev => [...prev.filter(e => e.name !== f.name), {
-        id: tempId,
-        name: f.name,
-        size: f.size,
-        type: f.type,
-        status: 'uploading'
-      }])
-
+    for (const f of valid) {
+      // Already indexed globally → just link to this session, no re-upload
+      if (globalFiles[f.name]?.status === 'ready') {
+        addFileToSession(f.name)
+        continue
+      }
+      // Already indexing → link and let polling handle it
+      if (globalFiles[f.name]?.status === 'indexing') {
+        addFileToSession(f.name)
+        pollStatus(f.name)
+        continue
+      }
+      // New file → upload, register, link
+      setGlobalFiles(prev => ({ ...prev, [f.name]: { status: 'uploading', size: f.size } }))
+      addFileToSession(f.name)
       try {
         const result = await uploadToBackend(f)
-
-        // update to "indexing" once uploaded
-        setFiles(prev => prev.map(existing =>
-          existing.id === tempId
-            ? { ...existing, id: result.id, status: 'indexing' }
-            : existing
-        ))
-
-        // start polling for ready status
-        pollStatus(f.name)
-
-      } catch (err) {
-        setFiles(prev => prev.map(existing =>
-          existing.id === tempId
-            ? { ...existing, status: 'error' }
-            : existing
-        ))
+        setGlobalFiles(prev => ({ ...prev, [f.name]: { ...prev[f.name], status: result.status } }))
+        if (result.status === 'indexing') pollStatus(f.name)
+      } catch {
+        setGlobalFiles(prev => ({ ...prev, [f.name]: { ...prev[f.name], status: 'error' } }))
       }
     }
-  }, [uploadToBackend, pollStatus])
+  }, [globalFiles, addFileToSession, uploadToBackend, pollStatus])
 
-  const handleDrop = useCallback((e) => {
-    e.preventDefault()
-    setIsDragOver(false)
-    handleFileSelect(e.dataTransfer.files)
-  }, [handleFileSelect])
+  // ── Remove file ───────────────────────────────────────────────────────
+  const handleRemoveFile = useCallback(async (filename) => {
+    const sid = activeSession?.id
+    // Unlink from current session
+    setSessions(prev => prev.map(s =>
+      s.id === sid ? { ...s, fileNames: s.fileNames.filter(n => n !== filename) } : s
+    ))
+    // Delete from server only if no other session uses it
+    const otherUses = sessions.some(s => s.id !== sid && s.fileNames.includes(filename))
+    if (!otherUses) {
+      try {
+        await fetch(`${API}/documents/${encodeURIComponent(filename)}`, { method: "DELETE" })
+        setGlobalFiles(prev => { const n = { ...prev }; delete n[filename]; return n })
+      } catch (e) { console.error("Delete failed:", e) }
+    }
+  }, [activeSession?.id, sessions])
 
-  const handleDragOver = useCallback((e) => {
-    e.preventDefault()
-    setIsDragOver(true)
-  }, [])
-
-  const handleDragLeave = useCallback((e) => {
-    e.preventDefault()
-    setIsDragOver(false)
-  }, [])
-
-  const handleRemoveFile = useCallback(async (id, filename) => {
+  // ── Cancel indexing ───────────────────────────────────────────────────
+  const handleCancelIndexing = useCallback(async (filename) => {
     try {
-      const res = await fetch(`${API}/documents/${encodeURIComponent(filename)}`, {
-        method: "DELETE"
-      })
-      if (!res.ok) {
-        throw new Error(`Server returned ${res.status}`)
-      }
-      setFiles(prev => prev.filter(f => f.id !== id))
-    } catch (e) {
-      console.error("Delete failed:", e)
-      alert("Failed to delete the file from the server. It might be locked or busy.")
+      await fetch(`${API}/cancel/${encodeURIComponent(filename)}`, { method: "POST" })
+      if (pollingRef.current[filename]) { clearInterval(pollingRef.current[filename]); delete pollingRef.current[filename] }
+      const sid = activeSession?.id
+      setSessions(prev => prev.map(s =>
+        s.id === sid ? { ...s, fileNames: s.fileNames.filter(n => n !== filename) } : s
+      ))
+      setGlobalFiles(prev => { const n = { ...prev }; delete n[filename]; return n })
+    } catch (e) { console.error("Cancel failed:", e) }
+  }, [activeSession?.id])
+
+  // ── Cancel response ───────────────────────────────────────────────────
+  const handleCancel = useCallback((e) => {
+    if (e?.preventDefault) e.preventDefault()
+    if (scrollTimerRef.current) { clearTimeout(scrollTimerRef.current); scrollTimerRef.current = null }
+    const cancelledId = pendingIdRef.current
+    pendingIdRef.current = null
+    isLoadingRef.current = false
+    if (cancelledId) {
+      setSessions(prev => prev.map(s => ({ ...s, history: s.history.filter(h => h.id !== cancelledId) })))
     }
+    setQuestion(currentQuestionRef.current)
+    setIsLoading(false)
+    if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null }
   }, [])
 
-const handleCancel = useCallback((e) => {
-  if (e && e.preventDefault) e.preventDefault()
-  console.log('[handleCancel] called, pendingIdRef:', pendingIdRef.current, 'isLoadingRef:', isLoadingRef.current)
-  if (scrollTimerRef.current) {
-    clearTimeout(scrollTimerRef.current)
-    scrollTimerRef.current = null
-  }
-  const cancelledId = pendingIdRef.current
-  pendingIdRef.current = null
-  isLoadingRef.current = false
-  if (cancelledId) {
-    setHistory(prev => prev.filter(e => e.id !== cancelledId))
-  }
-  console.log('[handleCancel] calling setQuestion:', currentQuestionRef.current)
-  setQuestion(currentQuestionRef.current)
-  console.log('[handleCancel] calling setIsLoading(false)')
-  setIsLoading(false)
-  if (abortControllerRef.current) {
-    abortControllerRef.current.abort()
-    abortControllerRef.current = null
-  }
-  console.log('[handleCancel] done')
-}, [])
+  // ── Submit ────────────────────────────────────────────────────────────
+  const handleSubmit = useCallback(async (e) => {
+    e.preventDefault()
+    if (!question.trim() || isLoadingRef.current) return
 
-const handleSubmit = useCallback(async (e) => {
-  e.preventDefault()
-  if (!question.trim() || isLoadingRef.current) return
+    const currentQuestion = question.trim()
+    currentQuestionRef.current = currentQuestion
+    historyIndexRef.current    = -1
+    draftQuestionRef.current   = ''
+    isLoadingRef.current       = true
+    setIsLoading(true)
+    setQuestion('')
 
-  const currentQuestion = question.trim()
-  currentQuestionRef.current = currentQuestion
-  historyIndexRef.current = -1
-  draftQuestionRef.current = ''
-  isLoadingRef.current = true
-  setIsLoading(true)
-  setQuestion('')   // clear immediately — disables Send, prevents double-submit
-  setError(null)
+    abortControllerRef.current = new AbortController()
+    const tempId = generateId()
+    pendingIdRef.current = tempId
 
-  abortControllerRef.current = new AbortController()
+    updateHistory(prev => [...prev, { id: tempId, question: currentQuestion, answer: null, sources: [], warning: null }])
+    scrollTimerRef.current = setTimeout(scrollToBottom, 100)
 
-  const tempId = generateId()
-  pendingIdRef.current = tempId
-
-  setHistory(prev => [...prev, {
-    id: tempId,
-    question: currentQuestion,
-    answer: null,
-    sources: [],
-    warning: null
-  }])
-  scrollTimerRef.current = setTimeout(scrollToBottom, 100)
-
-  try {
-    const res = await fetch(`${API}/ask`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        question: currentQuestion,
-        history: historyRef.current
-          .filter(e => e.answer !== null && !e.answer.startsWith('Error:'))
-          .map(e => ({ question: e.question, answer: e.answer }))
-      }),
-      signal: abortControllerRef.current.signal
-    })
-
-    // If cancelled while waiting, stop here
-    if (!pendingIdRef.current) return
-
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.detail || `Server error: ${res.status}`)
+    // Auto-name session from first question
+    const sid = activeSession?.id
+    if (activeSession?.history.length === 0 && activeSession?.name === 'New chat') {
+      const words = currentQuestion.trim().split(/\s+/).slice(0, 5).join(' ')
+      const name  = words.length > 35 ? words.slice(0, 35) + '…' : words
+      setSessions(prev => prev.map(s => s.id === sid ? { ...s, name } : s))
     }
 
-    // ── Stream SSE tokens ──────────────────────────────────────────────────
-    const reader  = res.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    let scrolledOnFirstToken = false
+    try {
+      const res = await fetch(`${API}/ask`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: currentQuestion,
+          history:  historyRef.current
+            .filter(e => e.answer !== null && !e.answer.startsWith('Error:'))
+            .map(e => ({ question: e.question, answer: e.answer })),
+          files: sessionFileNames,  // session-scoped retrieval
+        }),
+        signal: abortControllerRef.current.signal
+      })
 
-    while (true) {
-      // Abort check — handleCancel already removed the entry and set ref to null
-      if (!pendingIdRef.current) { reader.cancel(); break }
+      if (!pendingIdRef.current) return
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.detail || `Server error: ${res.status}`)
+      }
 
-      const { done, value } = await reader.read()
-      if (done) break
+      // Stream SSE tokens
+      const reader  = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let scrolledOnFirst = false
 
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() ?? ''   // keep the potentially incomplete last line
+      while (true) {
+        if (!pendingIdRef.current) { reader.cancel(); break }
+        const { done, value } = await reader.read()
+        if (done) break
 
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue
-        const raw = line.slice(6).trim()
-        if (!raw) continue
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
 
-        let data
-        try { data = JSON.parse(raw) } catch { continue }
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const raw = line.slice(6).trim()
+          if (!raw) continue
+          let data; try { data = JSON.parse(raw) } catch { continue }
 
-        if (data.type === 'token' && data.content) {
-          setHistory(prev => prev.map(entry =>
-            entry.id === tempId
-              ? { ...entry, answer: (entry.answer ?? '') + data.content }
-              : entry
-          ))
-          if (!scrolledOnFirstToken) {
-            scrolledOnFirstToken = true
+          if (data.type === 'token' && data.content) {
+            updateHistory(prev => prev.map(entry =>
+              entry.id === tempId ? { ...entry, answer: (entry.answer ?? '') + data.content } : entry
+            ))
+            if (!scrolledOnFirst) { scrolledOnFirst = true; scrollTimerRef.current = setTimeout(scrollToBottom, 100) }
+          } else if (data.type === 'done') {
+            updateHistory(prev => prev.map(entry =>
+              entry.id === tempId
+                ? { ...entry, answer: (entry.answer ?? '').trim(), sources: data.sources || [], warning: data.warning || null }
+                : entry
+            ))
             scrollTimerRef.current = setTimeout(scrollToBottom, 100)
+          } else if (data.type === 'error') {
+            throw new Error(data.message)
           }
-        } else if (data.type === 'done') {
-          setHistory(prev => prev.map(entry =>
-            entry.id === tempId
-              ? {
-                  ...entry,
-                  answer: (entry.answer ?? '').trim(),
-                  sources: data.sources || [],
-                  warning: data.warning || null
-                }
-              : entry
-          ))
-          scrollTimerRef.current = setTimeout(scrollToBottom, 100)
-        } else if (data.type === 'error') {
-          throw new Error(data.message)
         }
       }
-    }
-    // ── End stream ─────────────────────────────────────────────────────────
 
-  } catch (err) {
-    // If already cancelled by handleCancel, do nothing (UI already cleaned up)
-    if (!pendingIdRef.current) return
-    // Real error — restore question so user can retry
-    setQuestion(currentQuestionRef.current)
-    setHistory(prev => prev.map(entry =>
-      entry.id === tempId
-        ? { ...entry, answer: `Error: ${err.message}` }
-        : entry
-    ))
-  } finally {
-    if (pendingIdRef.current === tempId) {
-      pendingIdRef.current = null
-      isLoadingRef.current = false
-      setIsLoading(false)
-      abortControllerRef.current = null
+    } catch (err) {
+      if (!pendingIdRef.current) return
+      setQuestion(currentQuestionRef.current)
+      updateHistory(prev => prev.map(entry =>
+        entry.id === tempId ? { ...entry, answer: `Error: ${err.message}` } : entry
+      ))
+    } finally {
+      if (pendingIdRef.current === tempId) {
+        pendingIdRef.current = null
+        isLoadingRef.current = false
+        setIsLoading(false)
+        abortControllerRef.current = null
+      }
     }
-  }
-}, [question, scrollToBottom])
-  const getStatusBadge = (status) => {
-  switch (status) {
-    case 'uploading':  return { label: 'Uploading...', color: 'var(--text-muted)' }
-    case 'indexing':   return { label: 'Indexing...', color: '#854F0B' }
-    case 'ready':      return { label: 'Ready', color: '#3B6D11' }
-    case 'error':      return { label: 'Error', color: '#e53e3e' }
-    case 'cancelled':  return { label: 'Cancelled', color: 'var(--text-muted)' }
-    default:           return null
-  }
-}
-const handleCancelIndexing = useCallback(async (filename) => {
-  try {
-    await fetch(`${API}/cancel/${encodeURIComponent(filename)}`, {
-      method: "POST"
-    })
-    // stop polling
-    if (pollingRef.current[filename]) {
-      clearInterval(pollingRef.current[filename])
-      delete pollingRef.current[filename]
-    }
-    setFiles(prev => prev.filter(f => f.name !== filename))
-  } catch (e) {
-    console.error("Cancel failed:", e)
-  }
-}, [])
+  }, [question, scrollToBottom, updateHistory, sessionFileNames, activeSession])
 
+  // ── Dashboard ─────────────────────────────────────────────────────────
   const openDashboard = useCallback(async () => {
     setShowDashboard(true)
-    try {
-      const res = await fetch(`${API}/dashboard`)
-      const data = await res.json()
-      setDashboardData(data)
-    } catch {
-      setDashboardData(null)
-    }
+    try { const res = await fetch(`${API}/dashboard`); setDashboardData(await res.json()) }
+    catch { setDashboardData(null) }
   }, [])
 
-  const anyIndexing = files.some(f => f.status === 'indexing' || f.status === 'uploading')
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'uploading': return { label: 'Uploading...', color: 'var(--text-muted)' }
+      case 'indexing':  return { label: 'Indexing...', color: '#854F0B' }
+      case 'ready':     return { label: 'Ready', color: '#3B6D11' }
+      case 'error':     return { label: 'Error', color: '#e53e3e' }
+      default:          return null
+    }
+  }
 
+  const totalQuestions = sessions.reduce((acc, s) => acc + s.history.filter(e => e.answer !== null).length, 0)
+
+  // ── Render ────────────────────────────────────────────────────────────
   return (
     <div className="app">
       <nav className="navbar">
         <div className="navbar-logo">RAG Assistant</div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {anyIndexing && (
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Indexing documents...
-            </span>
-          )}
-          <button className="clear-history-btn" onClick={openDashboard}>
-            Stats
-          </button>
+          {anyIndexing && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Indexing documents...</span>}
+          <button className="clear-history-btn" onClick={openDashboard}>Stats</button>
           {history.filter(e => e.answer !== null).length > 0 && (
-            <button className="clear-history-btn" onClick={() => window.print()}>
-              Export PDF
-            </button>
+            <button className="clear-history-btn" onClick={() => window.print()}>Export PDF</button>
           )}
           {history.length > 0 && !isLoading && (
-            <button
-              className="clear-history-btn"
-              onClick={() => {
-                setHistory([])
-                localStorage.removeItem('rag-chat-history')
-              }}
-            >
-              Clear chat
-            </button>
+            <button className="clear-history-btn" onClick={() => updateHistory([])}>Clear chat</button>
           )}
         </div>
       </nav>
 
       <div className="main-container">
         <aside className="sidebar">
+
+          {/* ── Session list ── */}
+          <button className="new-chat-btn" onClick={createSession}>＋ New chat</button>
+
+          <div className="session-list">
+            {sessions.map(s => (
+              <div
+                key={s.id}
+                className={`session-item ${s.id === activeSession?.id ? 'active' : ''}`}
+                onClick={() => switchSession(s.id)}
+              >
+                <div className="session-info">
+                  <div className="session-name">{s.name}</div>
+                  <div className="session-meta">
+                    {s.fileNames.length} file{s.fileNames.length !== 1 ? 's' : ''} &middot;{' '}
+                    {s.history.filter(h => h.answer).length} msg{s.history.filter(h => h.answer).length !== 1 ? 's' : ''}
+                  </div>
+                </div>
+                {sessions.length > 1 && (
+                  <button
+                    className="session-delete"
+                    onClick={ev => { ev.stopPropagation(); deleteSession(s.id) }}
+                    title="Delete session"
+                  >✕</button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="sidebar-divider" />
+
+          {/* ── Documents for current session ── */}
           <h2 className="sidebar-title">Documents</h2>
 
           <div
             className={`upload-zone ${isDragOver ? 'dragover' : ''}`}
             onClick={() => fileInputRef.current?.click()}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
+            onDrop={ev => { ev.preventDefault(); setIsDragOver(false); handleFileSelect(ev.dataTransfer.files) }}
+            onDragOver={ev => { ev.preventDefault(); setIsDragOver(true) }}
+            onDragLeave={ev => { ev.preventDefault(); setIsDragOver(false) }}
           >
             <UploadIcon />
             <p className="upload-text">Click or drag to upload</p>
             <p className="upload-hint">PDF, Word, TXT or images</p>
             <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf,.txt,.docx,image/*"
-              multiple
+              ref={fileInputRef} type="file" accept=".pdf,.txt,.docx,image/*" multiple
               style={{ display: 'none' }}
-              onChange={(e) => { handleFileSelect(e.target.files); e.target.value = '' }}
+              onChange={ev => { handleFileSelect(ev.target.files); ev.target.value = '' }}
             />
           </div>
 
-          {files.length > 0 && (
+          {sessionFiles.length > 0 && (
             <div className="file-list">
-              {files.map(file => {
+              {sessionFiles.map(file => {
                 const badge = getStatusBadge(file.status)
                 return (
                   <div
-                    key={file.id}
+                    key={file.name}
                     className={`file-item ${file.status === 'ready' ? 'file-item--clickable' : ''}`}
-                    onClick={() => {
-                      if (file.status === 'ready') {
-                        window.open(`${API}/files/${encodeURIComponent(file.name)}`, '_blank')
-                      }
-                    }}
+                    onClick={() => { if (file.status === 'ready') window.open(`${API}/files/${encodeURIComponent(file.name)}`, '_blank') }}
                   >
                     <FileIcon />
                     <div className="file-info">
@@ -512,34 +519,28 @@ const handleCancelIndexing = useCallback(async (filename) => {
                       </div>
                     </div>
                     {file.status === 'ready' && (
-                     <div onClick={(e) => { e.stopPropagation(); handleRemoveFile(file.id, file.name) }} style={{ cursor: 'pointer' }}>
-                      <RemoveIcon />
+                      <div onClick={ev => { ev.stopPropagation(); handleRemoveFile(file.name) }} style={{ cursor: 'pointer' }}>
+                        <RemoveIcon />
                       </div>
                     )}
                     {(file.status === 'indexing' || file.status === 'uploading') && (
-  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-    <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
-      {[0,1,2].map(i => (
-        <div key={i} style={{
-          width: '4px', height: '4px', borderRadius: '50%',
-          background: 'var(--text-muted)',
-          animation: `loading-pulse 1.2s infinite ${i * 0.2}s`
-        }} />
-      ))}
-    </div>
-    {file.status === 'indexing' && (
-      <span
-        onClick={() => handleCancelIndexing(file.name)}
-        style={{
-          fontSize: '11px', color: '#854F0B',
-          cursor: 'pointer', textDecoration: 'underline'
-        }}
-      >
-        cancel
-      </span>
-    )}
-  </div>
-)}
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                          {[0, 1, 2].map(i => (
+                            <div key={i} style={{
+                              width: '4px', height: '4px', borderRadius: '50%',
+                              background: 'var(--text-muted)',
+                              animation: `loading-pulse 1.2s infinite ${i * 0.2}s`
+                            }} />
+                          ))}
+                        </div>
+                        {file.status === 'indexing' && (
+                          <span onClick={() => handleCancelIndexing(file.name)} style={{
+                            fontSize: '11px', color: '#854F0B', cursor: 'pointer', textDecoration: 'underline'
+                          }}>cancel</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -548,43 +549,33 @@ const handleCancelIndexing = useCallback(async (filename) => {
         </aside>
 
         <main className="chat-area">
-          {/* Visible only when printing */}
           <div className="print-header">
             <div className="print-header-title">RAG Assistant — Chat Export</div>
-            <div className="print-header-date">
-              {new Date().toLocaleString()}
-            </div>
+            <div className="print-header-date">{new Date().toLocaleString()}</div>
           </div>
+
           <div className="chat-messages">
             {history.length === 0 && !isLoading && (
               <div className="chat-empty">
                 <ChatIcon />
                 <h3 className="chat-empty-title">Start a conversation</h3>
-                <p className="chat-empty-text">
-                  Upload documents and ask questions to get answers with source citations.
-                </p>
+                <p className="chat-empty-text">Upload documents and ask questions to get answers with source citations.</p>
               </div>
             )}
 
             {history.map(entry => (
               <div key={entry.id} className="conversation-entry">
-
-                {/* user question */}
                 <div className="message-wrapper user">
                   <div className="message user">
                     <p className="message-content">{entry.question}</p>
                   </div>
                 </div>
-
-                {/* AI answer */}
                 <div className="message-wrapper ai">
                   <div className="message ai">
                     {entry.answer === null ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <div className="loading-dots">
-                          <div className="loading-dot" />
-                          <div className="loading-dot" />
-                          <div className="loading-dot" />
+                          <div className="loading-dot" /><div className="loading-dot" /><div className="loading-dot" />
                         </div>
                         <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                           {anyIndexing ? 'Waiting for indexing to finish…' : 'Generating a response…'}
@@ -596,69 +587,38 @@ const handleCancelIndexing = useCallback(async (filename) => {
                       </div>
                     )}
                   </div>
-
-                  {/* warning — files still indexing */}
                   {entry.warning && (
-                    <p style={{
-                      fontSize: '12px', color: '#854F0B',
-                      margin: '6px 0 0', padding: '6px 10px',
-                      background: '#FAEEDA', borderRadius: '6px'
-                    }}>
+                    <p style={{ fontSize: '12px', color: '#854F0B', margin: '6px 0 0', padding: '6px 10px', background: '#FAEEDA', borderRadius: '6px' }}>
                       ⚠ {entry.warning}
                     </p>
                   )}
-
-                  {/* sources */}
-                  {entry.sources && entry.sources.length > 0 && entry.answer !== null && (
+                  {entry.sources?.length > 0 && entry.answer !== null && (
                     <div className="sources">
-                      {entry.sources.map((source, idx) => (
-                        <span key={idx} className="source-pill">
-                          <SourceIcon />
-                          {source}
-                        </span>
+                      {entry.sources.map((src, i) => (
+                        <span key={i} className="source-pill"><SourceIcon />{src}</span>
                       ))}
                     </div>
                   )}
                 </div>
-
               </div>
             ))}
-
             <div ref={chatEndRef} />
           </div>
 
           <form className="input-bar" onSubmit={handleSubmit}>
             <div className="input-container">
               <input
-                type="text"
-                className="input-field"
+                type="text" className="input-field"
                 placeholder="Ask a question about your documents..."
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                onKeyDown={handleInputKeyDown}
-                disabled={isLoading}
+                value={question} onChange={e => setQuestion(e.target.value)}
+                onKeyDown={handleInputKeyDown} disabled={isLoading}
               />
-    {isLoading ? (
-      <button
-        key="cancel-btn"
-        type="button"
-        className="cancel-button"
-        onClick={handleCancel}
-      >
-        Cancel
-      </button>
-    ) : (
-      <button
-        key="send-btn"
-        type="submit"
-        className="send-button"
-        disabled={!question.trim()}
-      >
-        Send
-      </button>
-    )}
-  </div>
-</form>
+              {isLoading
+                ? <button key="cancel" type="button" className="cancel-button" onClick={handleCancel}>Cancel</button>
+                : <button key="send"   type="submit"  className="send-button"   disabled={!question.trim()}>Send</button>
+              }
+            </div>
+          </form>
         </main>
       </div>
 
@@ -670,40 +630,26 @@ const handleCancelIndexing = useCallback(async (filename) => {
               <h2 className="dashboard-title">Usage Stats</h2>
               <button className="dashboard-close" onClick={() => setShowDashboard(false)}>✕</button>
             </div>
-
-            {!dashboardData ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading…</p>
-            ) : (
+            {!dashboardData ? <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading…</p> : (
               <>
-                {/* Top stat cards */}
                 <div className="dashboard-cards">
-                  <div className="dashboard-card">
-                    <div className="dashboard-card-value">{history.filter(e => e.answer !== null).length}</div>
-                    <div className="dashboard-card-label">Questions asked</div>
-                  </div>
-                  <div className="dashboard-card">
-                    <div className="dashboard-card-value">{dashboardData.documents.ready}</div>
-                    <div className="dashboard-card-label">Documents ready</div>
-                  </div>
-                  <div className="dashboard-card">
-                    <div className="dashboard-card-value">{dashboardData.chunks.total}</div>
-                    <div className="dashboard-card-label">Total chunks</div>
-                  </div>
-                  <div className="dashboard-card">
-                    <div className="dashboard-card-value">{dashboardData.config.similarity_top_k}</div>
-                    <div className="dashboard-card-label">Chunks per query</div>
-                  </div>
+                  {[
+                    { label: 'Questions asked',  value: totalQuestions },
+                    { label: 'Documents ready',  value: dashboardData.documents.ready },
+                    { label: 'Total chunks',     value: dashboardData.chunks.total },
+                    { label: 'Chunks per query', value: dashboardData.config.similarity_top_k },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="dashboard-card">
+                      <div className="dashboard-card-value">{value}</div>
+                      <div className="dashboard-card-label">{label}</div>
+                    </div>
+                  ))}
                 </div>
 
-                {/* Models */}
                 <div className="dashboard-section">
                   <h3 className="dashboard-section-title">Active models</h3>
                   <div className="dashboard-model-list">
-                    {[
-                      { label: 'LLM', value: dashboardData.models.llm },
-                      { label: 'Embeddings', value: dashboardData.models.embed },
-                      { label: 'Vision', value: dashboardData.models.vision },
-                    ].map(({ label, value }) => (
+                    {[['LLM', dashboardData.models.llm], ['Embeddings', dashboardData.models.embed], ['Vision', dashboardData.models.vision]].map(([label, value]) => (
                       <div key={label} className="dashboard-model-row">
                         <span className="dashboard-model-label">{label}</span>
                         <code className="dashboard-model-value">{value}</code>
@@ -712,9 +658,8 @@ const handleCancelIndexing = useCallback(async (filename) => {
                   </div>
                 </div>
 
-                {/* Token usage */}
                 <div className="dashboard-section">
-                  <h3 className="dashboard-section-title">Token usage (this session)</h3>
+                  <h3 className="dashboard-section-title">Token usage (this server session)</h3>
                   <div className="dashboard-cards" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
                     {[
                       { label: 'Prompt tokens',     value: dashboardData.tokens.prompt.toLocaleString() },
@@ -729,7 +674,6 @@ const handleCancelIndexing = useCallback(async (filename) => {
                   </div>
                 </div>
 
-                {/* Cost comparison */}
                 {dashboardData.tokens.total > 0 && (
                   <div className="dashboard-section">
                     <h3 className="dashboard-section-title">Estimated cost on paid models</h3>
@@ -742,27 +686,21 @@ const handleCancelIndexing = useCallback(async (filename) => {
                         { model: 'Gemini 1.5 Pro',   input: 1.25,  output: 5.00  },
                         { model: 'Gemini 1.5 Flash', input: 0.075, output: 0.30  },
                       ].map(({ model, input, output }) => {
-                        const cost = (
-                          (dashboardData.tokens.prompt     / 1_000_000) * input +
-                          (dashboardData.tokens.completion / 1_000_000) * output
-                        )
+                        const cost = (dashboardData.tokens.prompt / 1e6) * input + (dashboardData.tokens.completion / 1e6) * output
                         return (
                           <div key={model} className="dashboard-doc-row">
                             <span className="dashboard-doc-name">{model}</span>
-                            <span className="dashboard-doc-chunks">
-                              ${cost < 0.001 ? '<$0.001' : cost.toFixed(4)}
-                            </span>
+                            <span className="dashboard-doc-chunks">${cost < 0.001 ? '<$0.001' : cost.toFixed(4)}</span>
                           </div>
                         )
                       })}
                     </div>
                     <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      Prices per 1M tokens (input / output). Resets on server restart.
+                      Prices per 1M tokens. Resets on server restart.
                     </p>
                   </div>
                 )}
 
-                {/* Per-document chunks */}
                 {Object.keys(dashboardData.documents.file_chunks).length > 0 && (
                   <div className="dashboard-section">
                     <h3 className="dashboard-section-title">Documents</h3>

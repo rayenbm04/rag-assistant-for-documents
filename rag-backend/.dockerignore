@@ -1,0 +1,12 @@
+venv/Lib/
+venv/Scripts/
+venv/Include/
+venv/pyvenv.cfg
+__pycache__/
+*.pyc
+*.pyo
+.git
+chroma_db/
+uploads/
+tests/
+.env

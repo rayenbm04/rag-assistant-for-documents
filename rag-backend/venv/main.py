@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 import chromadb
 import ollama
 from llama_index.core import VectorStoreIndex, Settings, Document, PromptTemplate
+from llama_index.core.vector_stores.types import MetadataFilters, MetadataFilter, FilterOperator, FilterCondition
 from llama_index.core.storage.storage_context import StorageContext
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.llms.ollama import Ollama
@@ -27,6 +28,7 @@ CHROMA_DIR       = os.getenv("CHROMA_DIR",           "./chroma_db")
 ALLOWED_ORIGINS  = os.getenv("ALLOWED_ORIGINS",      "http://localhost:5173").split(",")
 SIMILARITY_TOP_K = int(os.getenv("SIMILARITY_TOP_K", "4"))
 MAX_UPLOAD_MB    = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))
+OLLAMA_BASE_URL  = os.getenv("OLLAMA_BASE_URL",      "http://localhost:11434")
 
 class HistoryEntry(BaseModel):
     question: str
@@ -35,11 +37,12 @@ class HistoryEntry(BaseModel):
 class Question(BaseModel):
     question: str
     history: list[HistoryEntry] = []
+    files: list[str] = []   # session's file names; empty = no documents in chat
 
 cancelled_files = set()   # filenames that should stop indexing
 
-Settings.llm = Ollama(model=LLM_MODEL, request_timeout=120.0, additional_kwargs={"num_gpu": 99})
-Settings.embed_model = OllamaEmbedding(model_name=EMBED_MODEL, ollama_additional_kwargs={"num_gpu": 99})
+Settings.llm = Ollama(model=LLM_MODEL, base_url=OLLAMA_BASE_URL, request_timeout=120.0, additional_kwargs={"num_gpu": 99})
+Settings.embed_model = OllamaEmbedding(model_name=EMBED_MODEL, base_url=OLLAMA_BASE_URL, ollama_additional_kwargs={"num_gpu": 99})
 
 app = FastAPI(title="RAG Assistant API")
 app.add_middleware(CORSMiddleware,
@@ -429,19 +432,17 @@ async def condense_question(question: str, history: list[HistoryEntry]) -> str:
 
 @app.post("/ask")
 async def ask(q: Question):
-    files_exist = len([f for f in os.listdir(UPLOAD_DIR) if not f.startswith('.')]) > 0
-    any_indexing = any(s == "indexing" for s in indexing_status.values())
+    # Session has no files linked
+    if not q.files:
+        raise HTTPException(400, "No documents in this chat. Upload a file to get started.")
 
-    # Nothing uploaded and nothing in progress → hard error
-    if not files_exist and not any_indexing:
-        raise HTTPException(400, "No documents uploaded yet. Please upload a file first.")
-
-    # Wait for any in-progress indexing to finish (poll every 2 s, up to 10 min)
-    if any_indexing:
-        print("[/ask] Waiting for indexing to finish before answering...")
+    # Wait only for THIS session's files that are still indexing
+    session_indexing = [f for f in q.files if indexing_status.get(f) == "indexing"]
+    if session_indexing:
+        print(f"[/ask] Waiting for {session_indexing} to finish indexing...")
         wait_timeout = 600
         elapsed = 0
-        while any(s == "indexing" for s in indexing_status.values()):
+        while any(indexing_status.get(f) == "indexing" for f in q.files):
             await asyncio.sleep(2)
             elapsed += 2
             if elapsed >= wait_timeout:
@@ -451,17 +452,25 @@ async def ask(q: Question):
     if not index:
         raise HTTPException(400, "No documents indexed yet. Please upload a file first.")
 
-    # Capture question/history now so the generator closes over correct values
-    question = q.question
-    history  = q.history
+    # Capture for generator closure
+    question       = q.question
+    history        = q.history
+    question_files = q.files
 
     async def event_stream():
         try:
             # 1. Condense follow-up into standalone question for retrieval
             standalone = await condense_question(question, history)
 
-            # 2. Retrieve relevant chunks
-            retriever = index.as_retriever(similarity_top_k=SIMILARITY_TOP_K)
+            # 2. Retrieve relevant chunks — scoped to this session's files
+            filters = MetadataFilters(
+                filters=[
+                    MetadataFilter(key="file_name", value=fname, operator=FilterOperator.EQ)
+                    for fname in question_files
+                ],
+                condition=FilterCondition.OR
+            )
+            retriever = index.as_retriever(similarity_top_k=SIMILARITY_TOP_K, filters=filters)
             nodes = await retriever.aretrieve(standalone)
             context = "\n\n".join(node.get_content() for node in nodes)
             sources = list({node.metadata.get("file_name", "unknown") for node in nodes})

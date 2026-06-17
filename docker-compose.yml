@@ -1,0 +1,31 @@
+services:
+  backend:
+    build: ./rag-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist uploads and vector DB across container restarts
+      - ./rag-backend/uploads:/app/uploads
+      - ./rag-backend/chroma_db:/app/chroma_db
+    environment:
+      # Point to Ollama running on the host machine
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_HOST:     http://host.docker.internal:11434
+      ALLOWED_ORIGINS: http://localhost
+    env_file:
+      - path: ./rag-backend/.env
+        required: false   # falls back to defaults if .env is absent
+    extra_hosts:
+      # Needed on Linux; Docker Desktop on Windows/Mac handles this automatically
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: ./rag-frontend
+      args:
+        # Browser talks directly to the backend — use the host-visible port
+        VITE_API_URL: http://localhost:8000
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
