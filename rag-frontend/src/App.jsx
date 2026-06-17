@@ -118,11 +118,16 @@ function App() {
   }, [activeSession?.id])
 
   const createSession = useCallback(() => {
+    // Don't create a new session if the current one is already empty
+    if (activeSession && activeSession.history.length === 0 && activeSession.fileNames.length === 0) {
+      setActiveSessionId(activeSession.id)
+      return
+    }
     const s = createNewSession()
     setSessions(prev => [s, ...prev])
     setActiveSessionId(s.id)
     setQuestion('')
-  }, [])
+  }, [activeSession])
 
   const switchSession = useCallback((id) => {
     // Cancel any in-flight request

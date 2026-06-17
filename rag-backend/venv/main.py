@@ -12,6 +12,9 @@ import chromadb
 import ollama
 from llama_index.core import VectorStoreIndex, Settings, Document, PromptTemplate
 from llama_index.core.vector_stores.types import MetadataFilters, MetadataFilter, FilterOperator, FilterCondition
+from llama_index.core.retrievers import QueryFusionRetriever
+from llama_index.core.schema import TextNode
+from llama_index.retrievers.bm25 import BM25Retriever
 from llama_index.core.storage.storage_context import StorageContext
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.llms.ollama import Ollama
@@ -229,6 +232,24 @@ def extract_docx_content(file_path, filename):
             parts.append(" | ".join(c for c in cells if c))
 
     return "\n".join(parts)
+
+
+def get_nodes_for_files(file_names: list) -> list:
+    """Fetch text nodes from ChromaDB so BM25 can index them for keyword search."""
+    nodes = []
+    for fname in file_names:
+        try:
+            results = chroma_collection.get(
+                where={"file_name": fname},
+                include=["documents", "metadatas"]
+            )
+            for doc_id, text, meta in zip(
+                results["ids"], results["documents"], results["metadatas"]
+            ):
+                nodes.append(TextNode(id_=doc_id, text=text or "", metadata=meta or {}))
+        except Exception as e:
+            print(f"BM25 node fetch error for {fname}: {e}")
+    return nodes
 
 
 def add_document_to_index(file_path, filename):
@@ -462,7 +483,7 @@ async def ask(q: Question):
             # 1. Condense follow-up into standalone question for retrieval
             standalone = await condense_question(question, history)
 
-            # 2. Retrieve relevant chunks — scoped to this session's files
+            # 2. Retrieve relevant chunks — hybrid BM25 + vector, scoped to session files
             filters = MetadataFilters(
                 filters=[
                     MetadataFilter(key="file_name", value=fname, operator=FilterOperator.EQ)
@@ -470,7 +491,27 @@ async def ask(q: Question):
                 ],
                 condition=FilterCondition.OR
             )
-            retriever = index.as_retriever(similarity_top_k=SIMILARITY_TOP_K, filters=filters)
+            vector_retriever = index.as_retriever(
+                similarity_top_k=SIMILARITY_TOP_K, filters=filters
+            )
+
+            # BM25 over the session's chunks (keyword matching)
+            session_nodes = get_nodes_for_files(question_files)
+            if session_nodes:
+                bm25_retriever = BM25Retriever.from_defaults(
+                    nodes=session_nodes,
+                    similarity_top_k=SIMILARITY_TOP_K
+                )
+                retriever = QueryFusionRetriever(
+                    [vector_retriever, bm25_retriever],
+                    similarity_top_k=SIMILARITY_TOP_K,
+                    num_queries=1,          # disable query expansion (no extra LLM call)
+                    mode="reciprocal_rerank",
+                    use_async=True,
+                )
+            else:
+                retriever = vector_retriever   # fallback if ChromaDB returns nothing
+
             nodes = await retriever.aretrieve(standalone)
             context = "\n\n".join(node.get_content() for node in nodes)
             sources = list({node.metadata.get("file_name", "unknown") for node in nodes})
