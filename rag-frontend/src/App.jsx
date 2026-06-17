@@ -68,9 +68,35 @@ function App() {
   const currentQuestionRef = useRef('')
   const pollingRef = useRef({})
   const historyRef = useRef([])
+  const historyIndexRef = useRef(-1)   // -1 = current draft
+  const draftQuestionRef = useRef('')  // saves what user was typing before navigating
 
   // Keep historyRef in sync so handleSubmit always reads the latest history
   useEffect(() => { historyRef.current = history }, [history])
+
+  const handleInputKeyDown = useCallback((e) => {
+    if (isLoadingRef.current) return
+    const completed = historyRef.current.filter(h => h.answer !== null)
+    if (completed.length === 0) return
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (historyIndexRef.current === -1) {
+        draftQuestionRef.current = e.target.value  // save current draft
+      }
+      const next = Math.min(historyIndexRef.current + 1, completed.length - 1)
+      historyIndexRef.current = next
+      setQuestion(completed[completed.length - 1 - next].question)
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      if (historyIndexRef.current === -1) return
+      const next = historyIndexRef.current - 1
+      historyIndexRef.current = next
+      setQuestion(next === -1 ? draftQuestionRef.current : completed[completed.length - 1 - next].question)
+    }
+  }, [])
 
   // Persist chat history to localStorage on every change
   useEffect(() => {
@@ -254,6 +280,8 @@ const handleSubmit = useCallback(async (e) => {
 
   const currentQuestion = question.trim()
   currentQuestionRef.current = currentQuestion
+  historyIndexRef.current = -1
+  draftQuestionRef.current = ''
   isLoadingRef.current = true
   setIsLoading(true)
   setQuestion('')   // clear immediately — disables Send, prevents double-submit
@@ -554,6 +582,7 @@ const handleCancelIndexing = useCallback(async (filename) => {
                 placeholder="Ask a question about your documents..."
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={handleInputKeyDown}
                 disabled={isLoading}
               />
     {isLoading ? (
