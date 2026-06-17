@@ -1,6 +1,6 @@
 # RAG Multimodal Assistant
 
-A local Retrieval-Augmented Generation (RAG) assistant that answers questions about your uploaded documents (PDFs and images). Everything runs locally via [Ollama](https://ollama.com) — no cloud APIs required.
+A local Retrieval-Augmented Generation (RAG) assistant that answers questions about your uploaded documents. Everything runs locally via [Ollama](https://ollama.com) — no cloud APIs required.
 
 ---
 
@@ -12,7 +12,7 @@ rag-backend/    FastAPI + LlamaIndex + ChromaDB
 Ollama          Local LLM inference (Mistral, LLaVA, nomic-embed-text)
 ```
 
-**Flow:** Upload a file → backend extracts text (PDF) or describes it visually (image via LLaVA) → chunks are embedded and stored in ChromaDB → questions are answered by retrieving relevant chunks and passing them to Mistral.
+**Flow:** Upload a file → backend extracts text → chunks are embedded and stored in ChromaDB → questions are answered by retrieving relevant chunks and passing them to the LLM, with full conversation history included.
 
 ---
 
@@ -28,7 +28,7 @@ ollama pull nomic-embed-text              # ~274 MB — embeddings
 ollama pull llava                         # ~4.7 GB — image understanding
 ```
 
-> **GPU note:** tested on RTX 4070 (8 GB VRAM). The `mistral:7b-instruct-q4_K_M` quantization fits comfortably alongside the embed model. If you have less VRAM, try a smaller quantization (e.g. `q3_K_M`).
+> **GPU note:** tested on RTX 4070 (8 GB VRAM). The `mistral:7b-instruct-q4_K_M` quantization fits comfortably alongside the embed model. If you have less VRAM, try a smaller quantization (e.g. `q3_K_M`). To swap models, change `LLM_MODEL` in `.env` and restart uvicorn.
 
 ### 2. Python 3.10+
 
@@ -75,12 +75,11 @@ cd rag-frontend
 
 npm install
 
-# Copy the example env file
 copy .env.local.example .env.local   # Windows
 # cp .env.local.example .env.local   # macOS/Linux
 ```
 
-The only frontend variable is `VITE_API_URL` (default: `http://localhost:8000`). Change it if your backend runs on a different host or port.
+The only frontend variable is `VITE_API_URL` (default: `http://localhost:8000`).
 
 ---
 
@@ -92,7 +91,7 @@ Open two terminals:
 ```bash
 cd rag-backend
 venv\Scripts\activate
-uvicorn main:app --reload
+uvicorn venv/main:app --reload
 ```
 
 **Terminal 2 — frontend:**
@@ -109,28 +108,41 @@ Open http://localhost:5173 in your browser.
 
 | Type | Processing |
 |---|---|
-| PDF | Text extracted with `pdfplumber`; each page image also described by LLaVA |
+| PDF | Text extracted with `pdfplumber`; image-only pages sent to LLaVA |
 | PNG / JPG / JPEG / WEBP / GIF | Described by LLaVA vision model |
+| DOCX | Paragraphs and tables extracted with `python-docx` |
+| TXT | Read directly as plain text |
 
 ---
 
-## Project Structure
+## Features
 
-```
-rag-assistant/
-├── rag-backend/
-│   ├── main.py              # FastAPI app — upload, indexing, /ask endpoint
-│   ├── requirements.txt
-│   ├── .env.example
-│   └── venv/
-├── rag-frontend/
-│   ├── src/
-│   │   ├── App.jsx          # Main React component
-│   │   └── App.css          # Styles
-│   ├── .env.local.example
-│   └── package.json
-└── README.md
-```
+**Document Q&A**
+Upload documents and ask questions in natural language. Answers are grounded in retrieved chunks with source citations.
+
+**Conversational memory**
+Follow-up questions like "explain that further" or "do the same for the second document" work correctly. Each question is condensed into a standalone query using the last 5 turns of history before retrieval.
+
+**File preview**
+Click any indexed document in the sidebar to open it in a new browser tab (PDFs and images render natively).
+
+**Chat history persistence**
+Conversations survive page refreshes via `localStorage`. A "Clear chat" button appears in the navbar when history is present.
+
+**Prompt history navigation**
+Press ↑ / ↓ in the input field to cycle through previous prompts, just like a terminal.
+
+**Upload deduplication**
+Re-uploading the same file (identical content) skips re-indexing and returns "ready" immediately. The hash cache resets on server restart.
+
+**Queued prompts during indexing**
+Sending a question while a file is still indexing queues the request — the backend waits for indexing to finish, then answers. The UI shows "Waiting for indexing to finish…" → "Generating a response…".
+
+**Markdown rendering**
+AI responses render markdown: headers, bold/italic, bullet lists, code blocks, tables, blockquotes.
+
+**Usage dashboard**
+Click **Stats** in the navbar to see: questions asked, documents indexed, total chunks, chunks-per-query, active models, and token usage with estimated cost on paid models (GPT-4o, Claude, Gemini, etc.).
 
 ---
 
@@ -140,11 +152,48 @@ rag-assistant/
 |---|---|---|
 | `POST` | `/upload` | Upload a file; returns `{id, name, status}` |
 | `GET` | `/status/{filename}` | Poll indexing status: `indexing` → `ready` |
-| `POST` | `/ask` | `{question, filenames[]}` → `{answer, sources[]}` |
-| `DELETE` | `/document/{filename}` | Remove a file and its chunks from the index |
+| `GET` | `/files/{filename}` | Serve an uploaded file for browser preview |
+| `POST` | `/ask` | `{question, history[]}` → `{answer, sources[]}` |
+| `GET` | `/documents` | List all uploaded documents |
+| `DELETE` | `/documents/{filename}` | Remove a file and its chunks |
+| `DELETE` | `/documents/all` | Wipe everything |
+| `GET` | `/dashboard` | Stats: models, chunks, token usage, config |
+| `POST` | `/cancel/{filename}` | Cancel an in-progress indexing job |
 
 ---
 
-## Deduplication
+## Running Tests
 
-Re-uploading a file with the same content (same MD5 hash) that is already indexed returns `"status": "ready"` immediately without re-indexing. Note that the hash cache is in-memory and resets on server restart.
+```bash
+cd rag-backend
+venv\Scripts\activate
+pip install pytest httpx
+pytest tests/ -v
+```
+
+Tests cover: `.txt` extraction, `.docx` extraction, token tracking, and API endpoints (`/status`, `/documents`, `/dashboard`, `/upload`, `/ask`). All external services (Ollama, ChromaDB, LlamaIndex) are mocked so tests run offline.
+
+---
+
+## Project Structure
+
+```
+rag-assistant/
+├── rag-backend/
+│   ├── venv/
+│   │   └── main.py          # FastAPI app
+│   ├── tests/
+│   │   ├── conftest.py      # Mocks for offline testing
+│   │   ├── test_extraction.py
+│   │   └── test_api.py
+│   ├── requirements.txt
+│   ├── pytest.ini
+│   └── .env.example
+├── rag-frontend/
+│   ├── src/
+│   │   ├── App.jsx
+│   │   └── App.css
+│   ├── .env.local.example
+│   └── package.json
+└── README.md
+```
