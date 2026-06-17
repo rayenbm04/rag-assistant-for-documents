@@ -1,4 +1,4 @@
-import os, shutil, base64, asyncio, hashlib, json
+import os, shutil, base64, asyncio, hashlib, json, re
 import pdfplumber
 from PIL import Image
 from docx import Document as DocxDocument
@@ -32,6 +32,7 @@ ALLOWED_ORIGINS  = os.getenv("ALLOWED_ORIGINS",      "http://localhost:5173").sp
 SIMILARITY_TOP_K = int(os.getenv("SIMILARITY_TOP_K", "4"))
 MAX_UPLOAD_MB    = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))
 OLLAMA_BASE_URL  = os.getenv("OLLAMA_BASE_URL",      "http://localhost:11434")
+ENABLE_EVAL      = os.getenv("ENABLE_EVAL",          "true").lower() == "true"
 
 class HistoryEntry(BaseModel):
     question: str
@@ -66,6 +67,16 @@ indexing_status = {}        # {"filename": "indexing" | "ready" | "error"}
 file_hashes = {}            # {"filename": md5_hex} — used to skip re-indexing unchanged files
 executor = ThreadPoolExecutor(max_workers=2)
 token_usage = {"prompt": 0, "completion": 0, "requests": 0}
+
+
+def parse_eval_score(text: str) -> float | None:
+    """Extract a 0.0–1.0 score from LLM output. Robust to prose around the number."""
+    text = text.strip()
+    # Match a decimal like 0.85 or 1.0, or an integer 0 or 1
+    match = re.search(r'\b(1\.?0*|0?\.\d+)\b', text)
+    if match:
+        return round(min(max(float(match.group(1)), 0.0), 1.0), 2)
+    return None
 
 
 def record_tokens(result):
@@ -429,6 +440,29 @@ def serve_file(filename: str):
     return FileResponse(path)
 
 
+class TitleRequest(BaseModel):
+    question: str
+    files: list[str] = []
+
+@app.post("/title")
+async def generate_title(req: TitleRequest):
+    """Generate a specific 2-5 word session title from the question and file names."""
+    files_hint = ""
+    if req.files:
+        names = ", ".join(req.files)
+        files_hint = f"Files involved: {names}\n"
+    prompt = (
+        "Write a 2 to 5 word title that captures the specific action AND the subject. "
+        "Include the document name or key subject so the user knows exactly what this chat is about. "
+        "Return ONLY the title — no punctuation, no quotes, no explanation.\n\n"
+        f"{files_hint}"
+        f"Request: {req.question}\n\nTitle:"
+    )
+    result = await Settings.llm.acomplete(prompt)
+    title = str(result).strip().strip('"\'').strip('.')
+    return {"title": title}
+
+
 async def condense_question(question: str, history: list[HistoryEntry]) -> str:
     """Rewrite a follow-up question into a standalone question using chat history."""
     if not history:
@@ -556,6 +590,40 @@ async def ask(q: Question):
                 if still_indexing else None
             )
             yield f"data: {json.dumps({'type': 'done', 'sources': sources, 'warning': warning})}\n\n"
+
+            # 7. RAG eval — LLM-as-judge (faithfulness + answer relevance)
+            if ENABLE_EVAL and full_response.strip():
+                try:
+                    eval_ctx = context[:1500]
+                    eval_ans = full_response[:800]
+
+                    faith_prompt = (
+                        "You are evaluating a RAG system response.\n\n"
+                        f"Retrieved context:\n{eval_ctx}\n\n"
+                        f"AI answer:\n{eval_ans}\n\n"
+                        "Faithfulness: is every claim in the answer directly supported by the context above? "
+                        "Penalise any statement not grounded in the context.\n"
+                        "Reply with ONLY a decimal number from 0.0 (not faithful) to 1.0 (fully faithful)."
+                    )
+                    rel_prompt = (
+                        "You are evaluating a RAG system response.\n\n"
+                        f"User question: {question}\n\n"
+                        f"AI answer:\n{eval_ans}\n\n"
+                        "Answer relevance: does the answer directly and completely address the question?\n"
+                        "Reply with ONLY a decimal number from 0.0 (irrelevant) to 1.0 (perfectly relevant)."
+                    )
+
+                    faith_result = await Settings.llm.acomplete(faith_prompt)
+                    faith_score  = parse_eval_score(str(faith_result))
+
+                    rel_result   = await Settings.llm.acomplete(rel_prompt)
+                    rel_score    = parse_eval_score(str(rel_result))
+
+                    print(f"[eval] faithfulness={faith_score}  relevance={rel_score}")
+                    if faith_score is not None and rel_score is not None:
+                        yield f"data: {json.dumps({'type': 'eval', 'faithfulness': faith_score, 'answer_relevance': rel_score})}\n\n"
+                except Exception as eval_err:
+                    print(f"[eval] error: {eval_err}")
 
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"

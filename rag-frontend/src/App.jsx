@@ -32,6 +32,12 @@ const SourceIcon = () => (
 )
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+function evalColor(score) {
+  if (score >= 0.8) return 'eval-badge--high'
+  if (score >= 0.5) return 'eval-badge--mid'
+  return 'eval-badge--low'
+}
+
 function formatFileSize(bytes) {
   if (!bytes || bytes === 0) return ''
   if (bytes < 1024) return `${bytes} B`
@@ -162,11 +168,16 @@ function App() {
 
   const addFileToSession = useCallback((filename) => {
     const sid = activeSession?.id
-    setSessions(prev => prev.map(s =>
-      s.id === sid && !s.fileNames.includes(filename)
-        ? { ...s, fileNames: [...s.fileNames, filename] }
-        : s
-    ))
+    setSessions(prev => prev.map(s => {
+      if (s.id !== sid || s.fileNames.includes(filename)) return s
+      // Auto-name session from filename if still untitled and no messages yet
+      const shouldRename = s.name === 'New chat' && s.history.length === 0
+      const nameFromFile = filename.replace(/\.[^/.]+$/, '') // strip extension
+      const name = shouldRename
+        ? (nameFromFile.length > 35 ? nameFromFile.slice(0, 35) + '…' : nameFromFile)
+        : s.name
+      return { ...s, name, fileNames: [...s.fileNames, filename] }
+    }))
   }, [activeSession?.id])
 
   // ── Prompt history navigation (arrow keys) ───────────────────────────
@@ -334,13 +345,8 @@ function App() {
     updateHistory(prev => [...prev, { id: tempId, question: currentQuestion, answer: null, sources: [], warning: null }])
     scrollTimerRef.current = setTimeout(scrollToBottom, 100)
 
-    // Auto-name session from first question
     const sid = activeSession?.id
-    if (activeSession?.history.length === 0 && activeSession?.name === 'New chat') {
-      const words = currentQuestion.trim().split(/\s+/).slice(0, 5).join(' ')
-      const name  = words.length > 35 ? words.slice(0, 35) + '…' : words
-      setSessions(prev => prev.map(s => s.id === sid ? { ...s, name } : s))
-    }
+    const isFirstMessage = activeSession?.history.length === 0
 
     try {
       const res = await fetch(`${API}/ask`, {
@@ -395,6 +401,28 @@ function App() {
                 : entry
             ))
             scrollTimerRef.current = setTimeout(scrollToBottom, 100)
+            // Generate a short title from the first message in the background
+            if (isFirstMessage) {
+              fetch(`${API}/title`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question: currentQuestion, files: sessionFileNames })
+              })
+                .then(r => r.json())
+                .then(({ title }) => {
+                  if (title) setSessions(prev => prev.map(s => s.id === sid ? { ...s, name: title } : s))
+                })
+                .catch(() => {})
+            }
+          } else if (data.type === 'eval') {
+            setSessions(prev => prev.map(s => ({
+              ...s,
+              history: s.history.map(entry =>
+                entry.id === tempId
+                  ? { ...entry, eval: { faithfulness: data.faithfulness, answer_relevance: data.answer_relevance } }
+                  : entry
+              )
+            })))
           } else if (data.type === 'error') {
             throw new Error(data.message)
           }
@@ -436,6 +464,14 @@ function App() {
 
   const totalQuestions = sessions.reduce((acc, s) => acc + s.history.filter(e => e.answer !== null).length, 0)
 
+  const evalEntries = sessions.flatMap(s => s.history.filter(e => e.eval))
+  const avgFaithfulness = evalEntries.length
+    ? evalEntries.reduce((a, e) => a + e.eval.faithfulness, 0) / evalEntries.length
+    : null
+  const avgRelevance = evalEntries.length
+    ? evalEntries.reduce((a, e) => a + e.eval.answer_relevance, 0) / evalEntries.length
+    : null
+
   // ── Render ────────────────────────────────────────────────────────────
   return (
     <div className="app">
@@ -463,19 +499,17 @@ function App() {
                 onClick={() => switchSession(s.id)}
               >
                 <div className="session-info">
-                  <div className="session-name">{s.name}</div>
+                  <div className="session-name" title={s.name}>{s.name}</div>
                   <div className="session-meta">
                     {s.fileNames.length} file{s.fileNames.length !== 1 ? 's' : ''} &middot;{' '}
                     {s.history.filter(h => h.answer).length} msg{s.history.filter(h => h.answer).length !== 1 ? 's' : ''}
                   </div>
                 </div>
-                {sessions.length > 1 && (
-                  <button
-                    className="session-delete"
-                    onClick={ev => { ev.stopPropagation(); deleteSession(s.id) }}
-                    title="Delete session"
-                  >✕</button>
-                )}
+                <button
+                  className="session-delete"
+                  onClick={ev => { ev.stopPropagation(); if (window.confirm('Delete this chat?')) deleteSession(s.id) }}
+                  title="Delete session"
+                >✕</button>
               </div>
             ))}
           </div>
@@ -530,6 +564,18 @@ function App() {
                       {entry.sources.map((src, i) => (
                         <span key={i} className="source-pill"><SourceIcon />{src}</span>
                       ))}
+                    </div>
+                  )}
+                  {entry.eval && entry.answer !== null && (
+                    <div className="eval-scores">
+                      <span className={`eval-badge ${evalColor(entry.eval.faithfulness)}`}
+                        title="Faithfulness — how well the answer is grounded in the retrieved context">
+                        F {Math.round(entry.eval.faithfulness * 100)}%
+                      </span>
+                      <span className={`eval-badge ${evalColor(entry.eval.answer_relevance)}`}
+                        title="Answer relevance — how directly the answer addresses the question">
+                        R {Math.round(entry.eval.answer_relevance * 100)}%
+                      </span>
                     </div>
                   )}
                 </div>
@@ -646,6 +692,25 @@ function App() {
                     </div>
                   ))}
                 </div>
+
+                {evalEntries.length > 0 && (
+                  <div className="dashboard-section">
+                    <h3 className="dashboard-section-title">RAG quality (avg over {evalEntries.length} response{evalEntries.length !== 1 ? 's' : ''})</h3>
+                    <div className="dashboard-cards" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                      {[
+                        { label: 'Avg faithfulness', value: avgFaithfulness, title: 'How well answers are grounded in retrieved context' },
+                        { label: 'Avg relevance',    value: avgRelevance,    title: 'How directly answers address the questions' },
+                      ].map(({ label, value, title }) => (
+                        <div key={label} className="dashboard-card" title={title}>
+                          <div className={`dashboard-card-value eval-score-value ${evalColor(value)}`}>
+                            {Math.round(value * 100)}%
+                          </div>
+                          <div className="dashboard-card-label">{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="dashboard-section">
                   <h3 className="dashboard-section-title">Active models</h3>

@@ -457,6 +457,55 @@ body {
   flex-shrink: 0;
 }
 
+/* ── Eval scores ── */
+.eval-scores {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.eval-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  cursor: default;
+}
+
+.eval-badge--high {
+  background: #EDFAF0;
+  color: #276030;
+  border-color: #B6E8C2;
+}
+
+.eval-badge--mid {
+  background: #FEF6E4;
+  color: #7A4E0C;
+  border-color: #F5D08E;
+}
+
+.eval-badge--low {
+  background: #FEF0F0;
+  color: #9B2020;
+  border-color: #F5BABA;
+}
+
+.eval-pending {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* dashboard eval score colour */
+.eval-score-value.eval-badge--high { color: #276030; }
+.eval-score-value.eval-badge--mid  { color: #7A4E0C; }
+.eval-score-value.eval-badge--low  { color: #9B2020; }
+
 /* ── Input bar ── */
 .input-bar {
   padding: 16px 32px 24px;
