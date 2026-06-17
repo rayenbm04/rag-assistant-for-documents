@@ -146,9 +146,17 @@ function App() {
   }, [])
 
   const handleFileSelect = useCallback(async (selectedFiles) => {
-    const validFiles = Array.from(selectedFiles).filter(file =>
-      file.type === 'application/pdf' || file.type.startsWith('image/')
-    )
+    const validFiles = Array.from(selectedFiles).filter(file => {
+      const ext = file.name.split('.').pop().toLowerCase()
+      return (
+        file.type === 'application/pdf' ||
+        file.type.startsWith('image/') ||
+        file.type === 'text/plain' ||
+        file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        ext === 'txt' ||
+        ext === 'docx'
+      )
+    })
 
     for (const f of validFiles) {
       const tempId = generateId()
@@ -397,11 +405,11 @@ const handleCancelIndexing = useCallback(async (filename) => {
           >
             <UploadIcon />
             <p className="upload-text">Click or drag to upload</p>
-            <p className="upload-hint">PDF or images</p>
+            <p className="upload-hint">PDF, Word, TXT or images</p>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,image/*"
+              accept=".pdf,.txt,.docx,image/*"
               multiple
               style={{ display: 'none' }}
               onChange={(e) => { handleFileSelect(e.target.files); e.target.value = '' }}

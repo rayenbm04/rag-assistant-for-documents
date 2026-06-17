@@ -1,6 +1,7 @@
 import os, shutil, base64, asyncio, hashlib
 import pdfplumber
 from PIL import Image
+from docx import Document as DocxDocument
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -200,6 +201,33 @@ def extract_image_content(file_path, filename):
     return f"Image file: {filename}\n\n{description}"
 
 
+def extract_txt_content(file_path, filename):
+    """Read plain text file directly."""
+    print(f"Reading text file: {filename}")
+    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        text = f.read()
+    return f"Text file: {filename}\n\n{text}"
+
+
+def extract_docx_content(file_path, filename):
+    """Extract text and tables from a Word document."""
+    print(f"Reading Word document: {filename}")
+    doc = DocxDocument(file_path)
+    parts = [f"Document: {filename}\n"]
+
+    for para in doc.paragraphs:
+        if para.text.strip():
+            parts.append(para.text)
+
+    for i, table in enumerate(doc.tables):
+        parts.append(f"\n[Table {i + 1}]")
+        for row in table.rows:
+            cells = [cell.text.strip() for cell in row.cells]
+            parts.append(" | ".join(c for c in cells if c))
+
+    return "\n".join(parts)
+
+
 def add_document_to_index(file_path, filename):
     global index
     try:
@@ -214,6 +242,12 @@ def add_document_to_index(file_path, filename):
                 raise InterruptedError("Cancelled by user")
             text = extract_image_content(file_path, filename)
             doc_type = "image"
+        elif extension == 'txt':
+            text = extract_txt_content(file_path, filename)
+            doc_type = "txt"
+        elif extension == 'docx':
+            text = extract_docx_content(file_path, filename)
+            doc_type = "docx"
         else:
             text = f"[Unsupported file: {filename}]"
             doc_type = "unknown"
