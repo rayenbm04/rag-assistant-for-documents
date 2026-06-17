@@ -1,0 +1,24 @@
+# Web framework
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.9
+pydantic>=2.0.0
+
+# Environment config
+python-dotenv>=1.0.0
+
+# Document processing
+pdfplumber>=0.10.0
+Pillow>=10.0.0
+
+# Vector store
+chromadb>=0.4.0
+
+# Ollama client
+ollama>=0.1.0
+
+# LlamaIndex RAG engine
+llama-index-core>=0.10.0
+llama-index-vector-stores-chroma>=0.1.0
+llama-index-llms-ollama>=0.1.0
+llama-index-embeddings-ollama>=0.1.0

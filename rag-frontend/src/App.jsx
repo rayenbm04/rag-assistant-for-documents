@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import './App.css'
 
-const API = "http://localhost:8000"
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000"
 
 const UploadIcon = () => (
   <svg className="upload-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">

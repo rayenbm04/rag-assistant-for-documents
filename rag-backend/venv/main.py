@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from dotenv import load_dotenv
 import chromadb
 import ollama
 from llama_index.core import VectorStoreIndex, Settings, Document
@@ -12,23 +13,36 @@ from llama_index.core.storage.storage_context import StorageContext
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.llms.ollama import Ollama
 from llama_index.embeddings.ollama import OllamaEmbedding
+
+# ── Load environment variables from .env ──
+load_dotenv()
+
+LLM_MODEL        = os.getenv("LLM_MODEL",           "mistral:7b-instruct-q4_K_M")
+EMBED_MODEL      = os.getenv("EMBED_MODEL",          "nomic-embed-text")
+VISION_MODEL     = os.getenv("VISION_MODEL",         "llava")
+UPLOAD_DIR       = os.getenv("UPLOAD_DIR",           "./uploads")
+CHROMA_DIR       = os.getenv("CHROMA_DIR",           "./chroma_db")
+ALLOWED_ORIGINS  = os.getenv("ALLOWED_ORIGINS",      "http://localhost:5173").split(",")
+SIMILARITY_TOP_K = int(os.getenv("SIMILARITY_TOP_K", "4"))
+MAX_UPLOAD_MB    = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))
+
 class Question(BaseModel):
     question: str
-# add after indexing_status dict
-cancelled_files = set()   # filenames that should stop indexing
-Settings.llm = Ollama(model="mistral:7b-instruct-q4_K_M", request_timeout=120.0, additional_kwargs={"num_gpu": 99})
-Settings.embed_model = OllamaEmbedding(model_name="nomic-embed-text", ollama_additional_kwargs={"num_gpu": 99})
 
-app = FastAPI()
+cancelled_files = set()   # filenames that should stop indexing
+
+Settings.llm = Ollama(model=LLM_MODEL, request_timeout=120.0, additional_kwargs={"num_gpu": 99})
+Settings.embed_model = OllamaEmbedding(model_name=EMBED_MODEL, ollama_additional_kwargs={"num_gpu": 99})
+
+app = FastAPI(title="RAG Assistant API")
 app.add_middleware(CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"], allow_headers=["*"])
 
-UPLOAD_DIR = "./uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ── ChromaDB ──
-chroma_client = chromadb.PersistentClient(path="./chroma_db")
+chroma_client = chromadb.PersistentClient(path=CHROMA_DIR)
 chroma_collection = chroma_client.get_or_create_collection("rag_docs")
 vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
 storage_context = StorageContext.from_defaults(vector_store=vector_store)
@@ -277,7 +291,7 @@ async def ask(q: Question):
     if not index or not files_exist:
         raise HTTPException(400, "No documents uploaded yet. Please upload a file first.")
 
-    engine = index.as_query_engine(similarity_top_k=4)
+    engine = index.as_query_engine(similarity_top_k=SIMILARITY_TOP_K)
     response = await engine.aquery(q.question)
 
     sources = list({
