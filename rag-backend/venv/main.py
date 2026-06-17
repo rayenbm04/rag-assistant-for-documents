@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 import chromadb
 import ollama
-from llama_index.core import VectorStoreIndex, Settings, Document
+from llama_index.core import VectorStoreIndex, Settings, Document, PromptTemplate
 from llama_index.core.storage.storage_context import StorageContext
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.llms.ollama import Ollama
@@ -84,20 +84,36 @@ def analyze_image_with_llava(image_b64, context_hint=""):
 
 {"Context: " + context_hint if context_hint else ""}
 
-Extract and describe:
-1. ALL text visible in the image — copy it exactly as written
-2. Colors: describe ALL colors used — background color, text color, element colors, color coding (e.g. "the button is blue", "text is white on dark background", "React logo is cyan/teal", "the chart bar is red")
-3. If it is a UML diagram: identify the type, list all classes/actors/entities with their attributes and methods, describe all relationships and multiplicities
-4. If it is an architecture diagram or schema: describe every component, service, connection and data flow
-5. If it is a table: reproduce the full content with all rows and columns
-6. If it is a mathematical formula: write it out completely
-7. If it is a screenshot: describe the interface, all visible text, buttons and data shown
-8. The overall purpose and meaning of this image
+Follow these steps in order:
+
+STEP 1 — TEXT: Copy ALL visible text exactly as written, word for word.
+
+STEP 2 — COLORS (most important): For EVERY distinct element in the image, state its exact color.
+Go through the image methodically:
+- Background color
+- Border or outline colors
+- Each shape, icon, or graphic element and its color
+- Each character, figure, or person and their clothing color
+- Text color(s)
+- Any decorative elements (stars, hearts, dots) and their colors
+Use specific color names: teal, cyan, navy, coral, amber, lime, etc. — not just "blue" or "green".
+
+STEP 3 — STRUCTURE: Describe the layout and what each element represents.
+
+STEP 4 — TYPE-SPECIFIC details:
+- UML diagram: list all classes/actors, attributes, methods, relationships
+- Architecture diagram: every component, connection, data flow
+- Table: reproduce all rows and columns
+- Chart/graph: describe axes, values, legend, each data series and its color
+- Screenshot: all visible UI elements, buttons, text, data
+- Logo/illustration: describe every visual element and what it depicts
+
+STEP 5 — PURPOSE: What is the overall meaning or purpose of this image?
 
 Be exhaustive — your description will be the ONLY source of information about this image when answering user questions."""
 
     response = ollama.chat(
-        model="llava",
+        model=VISION_MODEL,
         messages=[{
             "role": "user",
             "content": prompt,
@@ -127,15 +143,19 @@ def extract_pdf_content(file_path, filename):
             if text.strip():
                 full_content += f"\n[Text content]\n{text}\n"
 
-            has_images = len(page.images) > 0
-            has_little_text = len(text.strip()) < 100
+            text_len = len(text.strip())
 
-            if has_images or has_little_text:
-                # check again before calling LLaVA (slow operation)
+            # Only call LLaVA when pdfplumber extracted nothing at all —
+            # i.e. a truly scanned / image-only page with no text layer.
+            # LLaVA is NOT reliable as an OCR fallback and hallucinates on
+            # text-heavy pages even when images are present (logos, dividers, etc.)
+            needs_llava = text_len < 50
+
+            if needs_llava:
                 if filename in cancelled_files:
                     raise InterruptedError(f"Cancelled by user")
                 try:
-                    page_image = page.to_image(resolution=150).original
+                    page_image = page.to_image(resolution=200).original
                     image_b64 = pil_image_to_base64(page_image)
                     visual = analyze_image_with_llava(
                         image_b64,
@@ -147,7 +167,7 @@ def extract_pdf_content(file_path, filename):
                 except Exception as e:
                     print(f"  Page {page_num}: LLaVA error — {e}")
             else:
-                print(f"  Page {page_num}: text only — skipping LLaVA")
+                print(f"  Page {page_num}: sufficient text ({text_len} chars) — skipping LLaVA")
 
     return full_content
 
@@ -283,15 +303,31 @@ def index_stats():
     }
 
 
+STRICT_QA_PROMPT = PromptTemplate(
+    "You are a document assistant. Answer the question using ONLY the context provided below.\n"
+    "Do NOT use any prior knowledge or information outside of this context.\n"
+    "If the answer cannot be found in the context, say exactly: "
+    "'I don't have enough information in the provided documents to answer this.'\n\n"
+    "Context:\n"
+    "---------------------\n"
+    "{context_str}\n"
+    "---------------------\n\n"
+    "Question: {query_str}\n\n"
+    "Answer:"
+)
+
 @app.post("/ask")
 async def ask(q: Question):
     # check both index AND that files actually exist
     files_exist = len([f for f in os.listdir(UPLOAD_DIR) if not f.startswith('.')]) > 0
-    
+
     if not index or not files_exist:
         raise HTTPException(400, "No documents uploaded yet. Please upload a file first.")
 
-    engine = index.as_query_engine(similarity_top_k=SIMILARITY_TOP_K)
+    engine = index.as_query_engine(
+        similarity_top_k=SIMILARITY_TOP_K,
+        text_qa_template=STRICT_QA_PROMPT,
+    )
     response = await engine.aquery(q.question)
 
     sources = list({
