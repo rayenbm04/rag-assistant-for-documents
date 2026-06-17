@@ -361,7 +361,15 @@ const handleCancelIndexing = useCallback(async (filename) => {
               {files.map(file => {
                 const badge = getStatusBadge(file.status)
                 return (
-                  <div key={file.id} className="file-item">
+                  <div
+                    key={file.id}
+                    className={`file-item ${file.status === 'ready' ? 'file-item--clickable' : ''}`}
+                    onClick={() => {
+                      if (file.status === 'ready') {
+                        window.open(`${API}/files/${encodeURIComponent(file.name)}`, '_blank')
+                      }
+                    }}
+                  >
                     <FileIcon />
                     <div className="file-info">
                       <div className="file-name">{file.name}</div>
@@ -370,7 +378,7 @@ const handleCancelIndexing = useCallback(async (filename) => {
                       </div>
                     </div>
                     {file.status === 'ready' && (
-                     <div onClick={() => handleRemoveFile(file.id, file.name)} style={{ cursor: 'pointer' }}>
+                     <div onClick={(e) => { e.stopPropagation(); handleRemoveFile(file.id, file.name) }} style={{ cursor: 'pointer' }}>
                       <RemoveIcon />
                       </div>
                     )}

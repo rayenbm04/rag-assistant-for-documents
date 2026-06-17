@@ -4,6 +4,7 @@ from PIL import Image
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import chromadb
@@ -315,6 +316,14 @@ STRICT_QA_PROMPT = PromptTemplate(
     "Question: {query_str}\n\n"
     "Answer:"
 )
+
+@app.get("/files/{filename}")
+def serve_file(filename: str):
+    path = f"{UPLOAD_DIR}/{filename}"
+    if not os.path.exists(path):
+        raise HTTPException(404, "File not found")
+    return FileResponse(path)
+
 
 @app.post("/ask")
 async def ask(q: Question):

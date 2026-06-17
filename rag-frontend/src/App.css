@@ -170,6 +170,15 @@ body {
   margin-top: 2px;
 }
 
+.file-item--clickable {
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.file-item--clickable:hover {
+  background-color: var(--bg-main);
+  border-color: var(--text-muted);
+}
+
 .file-remove {
   width: 16px;
   height: 16px;
