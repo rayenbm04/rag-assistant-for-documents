@@ -57,6 +57,8 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [showDashboard, setShowDashboard] = useState(false)
+  const [dashboardData, setDashboardData] = useState(null)
   const fileInputRef = useRef(null)
   const chatEndRef = useRef(null)
   const abortControllerRef = useRef(null)
@@ -342,6 +344,17 @@ const handleCancelIndexing = useCallback(async (filename) => {
   }
 }, [])
 
+  const openDashboard = useCallback(async () => {
+    setShowDashboard(true)
+    try {
+      const res = await fetch(`${API}/dashboard`)
+      const data = await res.json()
+      setDashboardData(data)
+    } catch {
+      setDashboardData(null)
+    }
+  }, [])
+
   const anyIndexing = files.some(f => f.status === 'indexing' || f.status === 'uploading')
 
   return (
@@ -354,6 +367,9 @@ const handleCancelIndexing = useCallback(async (filename) => {
               Indexing documents...
             </span>
           )}
+          <button className="clear-history-btn" onClick={openDashboard}>
+            Stats
+          </button>
           {history.length > 0 && !isLoading && (
             <button
               className="clear-history-btn"
@@ -555,6 +571,126 @@ const handleCancelIndexing = useCallback(async (filename) => {
 </form>
         </main>
       </div>
+
+      {/* ── Dashboard modal ── */}
+      {showDashboard && (
+        <div className="dashboard-overlay" onClick={() => setShowDashboard(false)}>
+          <div className="dashboard-modal" onClick={e => e.stopPropagation()}>
+            <div className="dashboard-header">
+              <h2 className="dashboard-title">Usage Stats</h2>
+              <button className="dashboard-close" onClick={() => setShowDashboard(false)}>✕</button>
+            </div>
+
+            {!dashboardData ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading…</p>
+            ) : (
+              <>
+                {/* Top stat cards */}
+                <div className="dashboard-cards">
+                  <div className="dashboard-card">
+                    <div className="dashboard-card-value">{history.filter(e => e.answer !== null).length}</div>
+                    <div className="dashboard-card-label">Questions asked</div>
+                  </div>
+                  <div className="dashboard-card">
+                    <div className="dashboard-card-value">{dashboardData.documents.ready}</div>
+                    <div className="dashboard-card-label">Documents ready</div>
+                  </div>
+                  <div className="dashboard-card">
+                    <div className="dashboard-card-value">{dashboardData.chunks.total}</div>
+                    <div className="dashboard-card-label">Total chunks</div>
+                  </div>
+                  <div className="dashboard-card">
+                    <div className="dashboard-card-value">{dashboardData.config.similarity_top_k}</div>
+                    <div className="dashboard-card-label">Chunks per query</div>
+                  </div>
+                </div>
+
+                {/* Models */}
+                <div className="dashboard-section">
+                  <h3 className="dashboard-section-title">Active models</h3>
+                  <div className="dashboard-model-list">
+                    {[
+                      { label: 'LLM', value: dashboardData.models.llm },
+                      { label: 'Embeddings', value: dashboardData.models.embed },
+                      { label: 'Vision', value: dashboardData.models.vision },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="dashboard-model-row">
+                        <span className="dashboard-model-label">{label}</span>
+                        <code className="dashboard-model-value">{value}</code>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Token usage */}
+                <div className="dashboard-section">
+                  <h3 className="dashboard-section-title">Token usage (this session)</h3>
+                  <div className="dashboard-cards" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+                    {[
+                      { label: 'Prompt tokens',     value: dashboardData.tokens.prompt.toLocaleString() },
+                      { label: 'Completion tokens', value: dashboardData.tokens.completion.toLocaleString() },
+                      { label: 'Total tokens',      value: dashboardData.tokens.total.toLocaleString() },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="dashboard-card">
+                        <div className="dashboard-card-value" style={{ fontSize: '20px' }}>{value}</div>
+                        <div className="dashboard-card-label">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Cost comparison */}
+                {dashboardData.tokens.total > 0 && (
+                  <div className="dashboard-section">
+                    <h3 className="dashboard-section-title">Estimated cost on paid models</h3>
+                    <div className="dashboard-doc-list">
+                      {[
+                        { model: 'GPT-4o',           input: 2.50,  output: 10.00 },
+                        { model: 'GPT-4o mini',      input: 0.15,  output: 0.60  },
+                        { model: 'Claude Sonnet 4',  input: 3.00,  output: 15.00 },
+                        { model: 'Claude Haiku 4',   input: 0.80,  output: 4.00  },
+                        { model: 'Gemini 1.5 Pro',   input: 1.25,  output: 5.00  },
+                        { model: 'Gemini 1.5 Flash', input: 0.075, output: 0.30  },
+                      ].map(({ model, input, output }) => {
+                        const cost = (
+                          (dashboardData.tokens.prompt     / 1_000_000) * input +
+                          (dashboardData.tokens.completion / 1_000_000) * output
+                        )
+                        return (
+                          <div key={model} className="dashboard-doc-row">
+                            <span className="dashboard-doc-name">{model}</span>
+                            <span className="dashboard-doc-chunks">
+                              ${cost < 0.001 ? '<$0.001' : cost.toFixed(4)}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                      Prices per 1M tokens (input / output). Resets on server restart.
+                    </p>
+                  </div>
+                )}
+
+                {/* Per-document chunks */}
+                {Object.keys(dashboardData.documents.file_chunks).length > 0 && (
+                  <div className="dashboard-section">
+                    <h3 className="dashboard-section-title">Documents</h3>
+                    <div className="dashboard-doc-list">
+                      {Object.entries(dashboardData.documents.file_chunks).map(([name, chunks]) => (
+                        <div key={name} className="dashboard-doc-row">
+                          <span className="dashboard-doc-name">{name}</span>
+                          <span className="dashboard-doc-chunks">{chunks} chunks</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

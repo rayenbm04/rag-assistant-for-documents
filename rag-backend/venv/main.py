@@ -58,6 +58,17 @@ index = None
 indexing_status = {}        # {"filename": "indexing" | "ready" | "error"}
 file_hashes = {}            # {"filename": md5_hex} — used to skip re-indexing unchanged files
 executor = ThreadPoolExecutor(max_workers=2)
+token_usage = {"prompt": 0, "completion": 0, "requests": 0}
+
+
+def record_tokens(result):
+    """Extract token counts from a LlamaIndex CompletionResponse and accumulate."""
+    raw = getattr(result, "raw", None) or {}
+    prompt_tokens     = raw.get("prompt_eval_count", 0) or 0
+    completion_tokens = raw.get("eval_count", 0)        or 0
+    token_usage["prompt"]     += prompt_tokens
+    token_usage["completion"] += completion_tokens
+    return prompt_tokens, completion_tokens
 
 # ── load existing index on startup ──
 if chroma_collection.count() > 0:
@@ -309,6 +320,49 @@ def index_stats():
     }
 
 
+@app.get("/dashboard")
+def dashboard():
+    files = [f for f in os.listdir(UPLOAD_DIR) if not f.startswith('.')]
+    ready = [f for f in files if indexing_status.get(f, "ready") == "ready"]
+    indexing = [f for f in files if indexing_status.get(f, "") == "indexing"]
+
+    # Per-file chunk counts
+    file_chunks = {}
+    for f in files:
+        try:
+            res = chroma_collection.get(where={"file_name": f})
+            file_chunks[f] = len(res["ids"])
+        except Exception:
+            file_chunks[f] = 0
+
+    return {
+        "models": {
+            "llm": LLM_MODEL,
+            "embed": EMBED_MODEL,
+            "vision": VISION_MODEL,
+        },
+        "documents": {
+            "total": len(files),
+            "ready": len(ready),
+            "indexing": len(indexing),
+            "file_chunks": file_chunks,
+        },
+        "chunks": {
+            "total": chroma_collection.count(),
+        },
+        "config": {
+            "similarity_top_k": SIMILARITY_TOP_K,
+            "max_upload_mb": MAX_UPLOAD_MB,
+        },
+        "tokens": {
+            "prompt": token_usage["prompt"],
+            "completion": token_usage["completion"],
+            "total": token_usage["prompt"] + token_usage["completion"],
+            "requests": token_usage["requests"],
+        }
+    }
+
+
 @app.get("/files/{filename}")
 def serve_file(filename: str):
     path = f"{UPLOAD_DIR}/{filename}"
@@ -333,6 +387,7 @@ async def condense_question(question: str, history: list[HistoryEntry]) -> str:
         "Standalone question:"
     )
     result = await Settings.llm.acomplete(prompt)
+    record_tokens(result)
     condensed = str(result).strip()
     print(f"[condense] '{question}' → '{condensed}'")
     return condensed
@@ -390,6 +445,8 @@ async def ask(q: Question):
     )
 
     llm_response = await Settings.llm.acomplete(final_prompt)
+    record_tokens(llm_response)
+    token_usage["requests"] += 1
     answer = str(llm_response).strip()
 
     result = {"answer": answer, "sources": sources}
