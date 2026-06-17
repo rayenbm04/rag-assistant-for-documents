@@ -406,6 +406,11 @@ const handleCancelIndexing = useCallback(async (filename) => {
           <button className="clear-history-btn" onClick={openDashboard}>
             Stats
           </button>
+          {history.filter(e => e.answer !== null).length > 0 && (
+            <button className="clear-history-btn" onClick={() => window.print()}>
+              Export PDF
+            </button>
+          )}
           {history.length > 0 && !isLoading && (
             <button
               className="clear-history-btn"
@@ -502,6 +507,13 @@ const handleCancelIndexing = useCallback(async (filename) => {
         </aside>
 
         <main className="chat-area">
+          {/* Visible only when printing */}
+          <div className="print-header">
+            <div className="print-header-title">RAG Assistant — Chat Export</div>
+            <div className="print-header-date">
+              {new Date().toLocaleString()}
+            </div>
+          </div>
           <div className="chat-messages">
             {history.length === 0 && !isLoading && (
               <div className="chat-empty">

@@ -729,3 +729,92 @@ body {
 .cancel-button:hover {
   opacity: 0.85;
 }
+
+/* ── Print header (hidden on screen, visible when printing) ── */
+.print-header {
+  display: none;
+}
+
+/* ── Print / Export PDF ── */
+@media print {
+  /* Hide all UI chrome */
+  .navbar,
+  .sidebar,
+  .input-bar,
+  .dashboard-overlay,
+  .sources {
+    display: none !important;
+  }
+
+  /* Show the print header */
+  .print-header {
+    display: block;
+    padding: 0 0 20px;
+    border-bottom: 2px solid #1A1916;
+    margin-bottom: 24px;
+  }
+
+  .print-header-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #1A1916;
+  }
+
+  .print-header-date {
+    font-size: 12px;
+    color: #6B6760;
+    margin-top: 4px;
+  }
+
+  /* Full-width layout */
+  body, .app, .main-container, .chat-area {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+
+  .chat-messages {
+    overflow: visible !important;
+    padding: 0 !important;
+    display: block !important;
+    max-height: none !important;
+  }
+
+  /* Message bubbles */
+  .message {
+    max-height: none !important;
+    overflow: visible !important;
+    border-radius: 8px !important;
+    page-break-inside: avoid;
+    border: 1px solid #E8E4DE !important;
+    box-shadow: none !important;
+  }
+
+  .message.user {
+    background: #1A1916 !important;
+    color: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .message-wrapper {
+    max-width: 100% !important;
+  }
+
+  .conversation-entry {
+    page-break-inside: avoid;
+    margin-bottom: 20px !important;
+  }
+
+  /* Source pills */
+  .sources {
+    display: flex !important;
+  }
+
+  /* Warning banners */
+  .chat-empty {
+    display: none !important;
+  }
+}
