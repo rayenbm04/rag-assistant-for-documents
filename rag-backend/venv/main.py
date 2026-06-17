@@ -27,8 +27,13 @@ ALLOWED_ORIGINS  = os.getenv("ALLOWED_ORIGINS",      "http://localhost:5173").sp
 SIMILARITY_TOP_K = int(os.getenv("SIMILARITY_TOP_K", "4"))
 MAX_UPLOAD_MB    = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))
 
+class HistoryEntry(BaseModel):
+    question: str
+    answer: str
+
 class Question(BaseModel):
     question: str
+    history: list[HistoryEntry] = []
 
 cancelled_files = set()   # filenames that should stop indexing
 
@@ -304,19 +309,6 @@ def index_stats():
     }
 
 
-STRICT_QA_PROMPT = PromptTemplate(
-    "You are a document assistant. Answer the question using ONLY the context provided below.\n"
-    "Do NOT use any prior knowledge or information outside of this context.\n"
-    "If the answer cannot be found in the context, say exactly: "
-    "'I don't have enough information in the provided documents to answer this.'\n\n"
-    "Context:\n"
-    "---------------------\n"
-    "{context_str}\n"
-    "---------------------\n\n"
-    "Question: {query_str}\n\n"
-    "Answer:"
-)
-
 @app.get("/files/{filename}")
 def serve_file(filename: str):
     path = f"{UPLOAD_DIR}/{filename}"
@@ -325,29 +317,82 @@ def serve_file(filename: str):
     return FileResponse(path)
 
 
+async def condense_question(question: str, history: list[HistoryEntry]) -> str:
+    """Rewrite a follow-up question into a standalone question using chat history."""
+    if not history:
+        return question
+    history_text = "\n".join(
+        f"User: {h.question}\nAssistant: {h.answer}" for h in history[-5:]
+    )
+    prompt = (
+        "Given the conversation below and a follow-up question, rewrite the follow-up "
+        "as a fully standalone question that includes all necessary context from the history.\n"
+        "Return ONLY the rewritten question — no explanation.\n\n"
+        f"Conversation:\n{history_text}\n\n"
+        f"Follow-up: {question}\n\n"
+        "Standalone question:"
+    )
+    result = await Settings.llm.acomplete(prompt)
+    condensed = str(result).strip()
+    print(f"[condense] '{question}' → '{condensed}'")
+    return condensed
+
+
 @app.post("/ask")
 async def ask(q: Question):
-    # check both index AND that files actually exist
     files_exist = len([f for f in os.listdir(UPLOAD_DIR) if not f.startswith('.')]) > 0
+    any_indexing = any(s == "indexing" for s in indexing_status.values())
 
-    if not index or not files_exist:
+    # Nothing uploaded and nothing in progress → hard error
+    if not files_exist and not any_indexing:
         raise HTTPException(400, "No documents uploaded yet. Please upload a file first.")
 
-    engine = index.as_query_engine(
-        similarity_top_k=SIMILARITY_TOP_K,
-        text_qa_template=STRICT_QA_PROMPT,
+    # Wait for any in-progress indexing to finish (poll every 2 s, up to 10 min)
+    if any_indexing:
+        print("[/ask] Waiting for indexing to finish before answering...")
+        wait_timeout = 600
+        elapsed = 0
+        while any(s == "indexing" for s in indexing_status.values()):
+            await asyncio.sleep(2)
+            elapsed += 2
+            if elapsed >= wait_timeout:
+                raise HTTPException(504, "Indexing is taking too long. Please try again shortly.")
+        print("[/ask] Indexing done — proceeding to answer.")
+
+    if not index:
+        raise HTTPException(400, "No documents indexed yet. Please upload a file first.")
+
+    # 1. Condense follow-up into standalone question for accurate retrieval
+    standalone = await condense_question(q.question, q.history)
+
+    # 2. Retrieve relevant chunks
+    retriever = index.as_retriever(similarity_top_k=SIMILARITY_TOP_K)
+    nodes = await retriever.aretrieve(standalone)
+    context = "\n\n".join(node.get_content() for node in nodes)
+    sources = list({node.metadata.get("file_name", "unknown") for node in nodes})
+
+    # 3. Build final prompt with history + context + original question
+    history_section = ""
+    if q.history:
+        history_lines = "\n".join(
+            f"User: {h.question}\nAssistant: {h.answer}" for h in q.history[-5:]
+        )
+        history_section = f"Conversation history:\n{history_lines}\n\n"
+
+    final_prompt = (
+        "You are a document assistant. Answer using ONLY the provided context and conversation history.\n"
+        "Do not use any prior knowledge outside of these.\n"
+        "If the answer cannot be found, say: "
+        "'I don't have enough information in the provided documents to answer this.'\n\n"
+        f"{history_section}"
+        f"Context:\n---------------------\n{context}\n---------------------\n\n"
+        f"Question: {q.question}\n\nAnswer:"
     )
-    response = await engine.aquery(q.question)
 
-    sources = list({
-        node.metadata.get("file_name", "unknown")
-        for node in response.source_nodes
-    })
+    llm_response = await Settings.llm.acomplete(final_prompt)
+    answer = str(llm_response).strip()
 
-    result = {
-        "answer": str(response),
-        "sources": sources
-    }
+    result = {"answer": answer, "sources": sources}
 
     still_indexing = [f for f, s in indexing_status.items() if s == "indexing"]
     if still_indexing:

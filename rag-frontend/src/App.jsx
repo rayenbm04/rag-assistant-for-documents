@@ -60,6 +60,10 @@ function App() {
   const isLoadingRef = useRef(false)
   const currentQuestionRef = useRef('')
   const pollingRef = useRef({})
+  const historyRef = useRef([])
+
+  // Keep historyRef in sync so handleSubmit always reads the latest history
+  useEffect(() => { historyRef.current = history }, [history])
 
   const scrollToBottom = useCallback(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -249,7 +253,12 @@ const handleSubmit = useCallback(async (e) => {
     const res = await fetch(`${API}/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: currentQuestion }),
+      body: JSON.stringify({
+        question: currentQuestion,
+        history: historyRef.current
+          .filter(e => e.answer !== null && !e.answer.startsWith('Error:'))
+          .map(e => ({ question: e.question, answer: e.answer }))
+      }),
       signal: abortControllerRef.current.signal
     })
 
@@ -439,10 +448,15 @@ const handleCancelIndexing = useCallback(async (filename) => {
                 <div className="message-wrapper ai">
                   <div className="message ai">
                     {entry.answer === null ? (
-                      <div className="loading-dots">
-                        <div className="loading-dot" />
-                        <div className="loading-dot" />
-                        <div className="loading-dot" />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div className="loading-dots">
+                          <div className="loading-dot" />
+                          <div className="loading-dot" />
+                          <div className="loading-dot" />
+                        </div>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                          {anyIndexing ? 'Waiting for indexing to finish…' : 'Generating a response…'}
+                        </span>
                       </div>
                     ) : (
                       <div className="message-content markdown-body">
