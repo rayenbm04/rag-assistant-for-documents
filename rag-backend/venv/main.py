@@ -1,11 +1,11 @@
-import os, shutil, base64, asyncio, hashlib
+import os, shutil, base64, asyncio, hashlib, json
 import pdfplumber
 from PIL import Image
 from docx import Document as DocxDocument
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import chromadb
@@ -451,45 +451,73 @@ async def ask(q: Question):
     if not index:
         raise HTTPException(400, "No documents indexed yet. Please upload a file first.")
 
-    # 1. Condense follow-up into standalone question for accurate retrieval
-    standalone = await condense_question(q.question, q.history)
+    # Capture question/history now so the generator closes over correct values
+    question = q.question
+    history  = q.history
 
-    # 2. Retrieve relevant chunks
-    retriever = index.as_retriever(similarity_top_k=SIMILARITY_TOP_K)
-    nodes = await retriever.aretrieve(standalone)
-    context = "\n\n".join(node.get_content() for node in nodes)
-    sources = list({node.metadata.get("file_name", "unknown") for node in nodes})
+    async def event_stream():
+        try:
+            # 1. Condense follow-up into standalone question for retrieval
+            standalone = await condense_question(question, history)
 
-    # 3. Build final prompt with history + context + original question
-    history_section = ""
-    if q.history:
-        history_lines = "\n".join(
-            f"User: {h.question}\nAssistant: {h.answer}" for h in q.history[-5:]
-        )
-        history_section = f"Conversation history:\n{history_lines}\n\n"
+            # 2. Retrieve relevant chunks
+            retriever = index.as_retriever(similarity_top_k=SIMILARITY_TOP_K)
+            nodes = await retriever.aretrieve(standalone)
+            context = "\n\n".join(node.get_content() for node in nodes)
+            sources = list({node.metadata.get("file_name", "unknown") for node in nodes})
 
-    final_prompt = (
-        "You are a document assistant. Answer using ONLY the provided context and conversation history.\n"
-        "Do not use any prior knowledge outside of these.\n"
-        "If the answer cannot be found, say: "
-        "'I don't have enough information in the provided documents to answer this.'\n\n"
-        f"{history_section}"
-        f"Context:\n---------------------\n{context}\n---------------------\n\n"
-        f"Question: {q.question}\n\nAnswer:"
+            # 3. Build final prompt with history + context
+            history_section = ""
+            if history:
+                history_lines = "\n".join(
+                    f"User: {h.question}\nAssistant: {h.answer}" for h in history[-5:]
+                )
+                history_section = f"Conversation history:\n{history_lines}\n\n"
+
+            final_prompt = (
+                "You are a document assistant. Answer using ONLY the provided context and conversation history.\n"
+                "Do not use any prior knowledge outside of these.\n"
+                "If the answer cannot be found, say: "
+                "'I don't have enough information in the provided documents to answer this.'\n\n"
+                f"{history_section}"
+                f"Context:\n---------------------\n{context}\n---------------------\n\n"
+                f"Question: {question}\n\nAnswer:"
+            )
+
+            # 4. Stream character by character so the delay is uniform regardless
+            #    of how many chars Ollama bundles into each chunk.
+            STREAM_DELAY = float(os.getenv("STREAM_DELAY_MS", "20")) / 1000
+            full_response = ""
+            async for chunk in await Settings.llm.astream_complete(final_prompt):
+                if chunk.delta:
+                    full_response += chunk.delta
+                    for char in chunk.delta:
+                        yield f"data: {json.dumps({'type': 'token', 'content': char})}\n\n"
+                        await asyncio.sleep(STREAM_DELAY)
+
+            # 5. Approximate token count for streaming (no raw field available per chunk)
+            token_usage["completion"] += len(full_response.split())
+            token_usage["requests"]   += 1
+
+            # 6. Send done event with sources + optional warning
+            still_indexing = [f for f, s in indexing_status.items() if s == "indexing"]
+            warning = (
+                f"Still indexing: {', '.join(still_indexing)}. Results may be incomplete."
+                if still_indexing else None
+            )
+            yield f"data: {json.dumps({'type': 'done', 'sources': sources, 'warning': warning})}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        }
     )
-
-    llm_response = await Settings.llm.acomplete(final_prompt)
-    record_tokens(llm_response)
-    token_usage["requests"] += 1
-    answer = str(llm_response).strip()
-
-    result = {"answer": answer, "sources": sources}
-
-    still_indexing = [f for f, s in indexing_status.items() if s == "indexing"]
-    if still_indexing:
-        result["warning"] = f"Still indexing: {', '.join(still_indexing)}. Results may be incomplete."
-
-    return result
 @app.delete("/documents/all")
 def clear_all():
     global index, storage_context

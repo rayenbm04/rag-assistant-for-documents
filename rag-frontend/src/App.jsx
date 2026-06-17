@@ -322,18 +322,59 @@ const handleSubmit = useCallback(async (e) => {
       throw new Error(err.detail || `Server error: ${res.status}`)
     }
 
-    const response = await res.json()
+    // ── Stream SSE tokens ──────────────────────────────────────────────────
+    const reader  = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let scrolledOnFirstToken = false
 
-    // If cancelled while reading body, stop here
-    if (!pendingIdRef.current) return
+    while (true) {
+      // Abort check — handleCancel already removed the entry and set ref to null
+      if (!pendingIdRef.current) { reader.cancel(); break }
 
-    setHistory(prev => prev.map(entry =>
-      entry.id === tempId
-        ? { ...entry, answer: response.answer.trim(), sources: response.sources || [], warning: response.warning || null }
-        : entry
-    ))
-    // question already cleared at submit time
-    scrollTimerRef.current = setTimeout(scrollToBottom, 100)
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''   // keep the potentially incomplete last line
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        const raw = line.slice(6).trim()
+        if (!raw) continue
+
+        let data
+        try { data = JSON.parse(raw) } catch { continue }
+
+        if (data.type === 'token' && data.content) {
+          setHistory(prev => prev.map(entry =>
+            entry.id === tempId
+              ? { ...entry, answer: (entry.answer ?? '') + data.content }
+              : entry
+          ))
+          if (!scrolledOnFirstToken) {
+            scrolledOnFirstToken = true
+            scrollTimerRef.current = setTimeout(scrollToBottom, 100)
+          }
+        } else if (data.type === 'done') {
+          setHistory(prev => prev.map(entry =>
+            entry.id === tempId
+              ? {
+                  ...entry,
+                  answer: (entry.answer ?? '').trim(),
+                  sources: data.sources || [],
+                  warning: data.warning || null
+                }
+              : entry
+          ))
+          scrollTimerRef.current = setTimeout(scrollToBottom, 100)
+        } else if (data.type === 'error') {
+          throw new Error(data.message)
+        }
+      }
+    }
+    // ── End stream ─────────────────────────────────────────────────────────
 
   } catch (err) {
     // If already cancelled by handleCancel, do nothing (UI already cleaned up)

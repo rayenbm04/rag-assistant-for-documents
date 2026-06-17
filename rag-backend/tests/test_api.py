@@ -101,11 +101,12 @@ class TestDashboard:
 
 
 # ──────────────────────────────────────────
-# /ask — no documents
+# /ask
 # ──────────────────────────────────────────
 
 class TestAskNoDocuments:
     def test_returns_400_when_empty(self, tmp_path, monkeypatch):
+        """400 is raised before the StreamingResponse is returned, so status code is still 400."""
         monkeypatch.setattr(main, "UPLOAD_DIR", str(tmp_path))
         monkeypatch.setattr(main, "index", None)
         main.indexing_status.clear()
