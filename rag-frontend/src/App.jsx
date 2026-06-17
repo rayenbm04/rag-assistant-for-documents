@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
 import './App.css'
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000"
@@ -436,7 +437,9 @@ const handleCancelIndexing = useCallback(async (filename) => {
                         <div className="loading-dot" />
                       </div>
                     ) : (
-                      <p className="message-content">{entry.answer}</p>
+                      <div className="message-content markdown-body">
+                        <ReactMarkdown>{entry.answer}</ReactMarkdown>
+                      </div>
                     )}
                   </div>
 
