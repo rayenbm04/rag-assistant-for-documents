@@ -823,6 +823,183 @@ async def delete_document(filename: str):
 
     return {"deleted": filename}
 
+@app.post("/eval")
+async def run_eval(top_k: int = SIMILARITY_TOP_K):
+    """
+    Run the retrieval evaluation against eval_dataset.json.
+    Returns per-question results, aggregate metrics, and a 3-way configuration
+    comparison (Vector only / Hybrid / Hybrid + Reranker).
+    """
+    dataset_path = os.path.join(os.path.dirname(__file__), "..", "eval_dataset.json")
+    if not os.path.exists(dataset_path):
+        raise HTTPException(404, "eval_dataset.json not found in rag-backend/")
+
+    with open(dataset_path, encoding="utf-8") as f:
+        raw = json.load(f)
+
+    questions = [
+        q for q in raw
+        if isinstance(q, dict)
+        and q.get("id")
+        and not str(q.get("id", "")).startswith("_")
+        and (q.get("answer_keywords") or q.get("source_files"))
+    ]
+
+    if not questions:
+        raise HTTPException(400, "No evaluable questions in eval_dataset.json")
+
+    def _is_relevant(node, keywords, sources):
+        chunk_file = node.metadata.get("file_name", "")
+        chunk_text = node.get_content().lower()
+        if sources and chunk_file.lower() not in [s.lower() for s in sources]:
+            return False
+        if keywords:
+            return any(kw.lower() in chunk_text for kw in keywords)
+        return bool(sources)
+
+    def _agg(hits, mrrs, n):
+        hr = sum(hits) / n
+        return {"hit_rate": round(hr, 3), "mrr": round(sum(mrrs) / n, 3)}
+
+    def _build_filters(source_files):
+        return MetadataFilters(
+            filters=[MetadataFilter(key="file_name", value=f, operator=FilterOperator.EQ)
+                     for f in source_files],
+            condition=FilterCondition.OR,
+        )
+
+    # ── Retrieval modes ────────────────────────────────────────────────────────
+
+    async def _vec_only(question, source_files, k):
+        """Pure vector similarity — no BM25, no reranker."""
+        if not index: return []
+        kwargs = {"similarity_top_k": k}
+        if source_files:
+            kwargs["filters"] = _build_filters(source_files)
+        nodes = await index.as_retriever(**kwargs).aretrieve(question)
+        return list(nodes)[:k]
+
+    async def _hybrid(question, source_files, k):
+        """Hybrid vector + BM25 fusion — no reranker."""
+        if not index: return []
+        if source_files:
+            vec_ret    = index.as_retriever(similarity_top_k=k, filters=_build_filters(source_files))
+            bm25_nodes = get_nodes_for_files(source_files)
+        else:
+            vec_ret    = index.as_retriever(similarity_top_k=k)
+            bm25_nodes = []
+        if bm25_nodes:
+            bm25_ret  = BM25Retriever.from_defaults(nodes=bm25_nodes, similarity_top_k=k)
+            retriever = QueryFusionRetriever([vec_ret, bm25_ret], similarity_top_k=k,
+                                             num_queries=1, mode="reciprocal_rerank", use_async=True)
+        else:
+            retriever = vec_ret
+        nodes = await retriever.aretrieve(question)
+        return list(nodes)[:k]
+
+    async def _full(question, source_files, k):
+        """Hybrid + cross-encoder reranker (production pipeline)."""
+        if not index: return []
+        candidates = k * 2 if reranker else k
+        if source_files:
+            vec_ret    = index.as_retriever(similarity_top_k=candidates, filters=_build_filters(source_files))
+            bm25_nodes = get_nodes_for_files(source_files)
+        else:
+            vec_ret    = index.as_retriever(similarity_top_k=candidates)
+            bm25_nodes = []
+        if bm25_nodes:
+            bm25_ret  = BM25Retriever.from_defaults(nodes=bm25_nodes, similarity_top_k=candidates)
+            retriever = QueryFusionRetriever([vec_ret, bm25_ret], similarity_top_k=candidates,
+                                             num_queries=1, mode="reciprocal_rerank", use_async=True)
+        else:
+            retriever = vec_ret
+        nodes = await retriever.aretrieve(question)
+        if reranker and len(nodes) > 1:
+            loop = asyncio.get_event_loop()
+            def _rr(ns=list(nodes), q=question, top=k):
+                pairs  = [(q, n.get_content()) for n in ns]
+                scores = reranker.predict(pairs)
+                ranked = sorted(zip(ns, scores), key=lambda x: x[1], reverse=True)
+                return [n for n, _ in ranked[:top]]
+            nodes = await loop.run_in_executor(None, _rr)
+        return list(nodes)[:k]
+
+    # ── Evaluate all questions across all 3 configs ───────────────────────────
+
+    per_question = []
+    vec_hits, vec_mrrs   = [], []
+    hyb_hits, hyb_mrrs   = [], []
+    full_hits, full_mrrs = [], []
+
+    for q in questions:
+        keywords = q.get("answer_keywords", [])
+        sources  = q.get("source_files", [])
+        text     = q["question"].strip()
+
+        nv, nh, nf = (
+            await _vec_only(text, sources, top_k),
+            await _hybrid (text, sources, top_k),
+            await _full   (text, sources, top_k),
+        )
+
+        def _metrics(nodes):
+            pos = [i+1 for i, n in enumerate(nodes) if _is_relevant(n, keywords, sources)]
+            return (bool(pos),
+                    round(len(pos) / top_k, 3),
+                    round(1.0 / min(pos), 3) if pos else 0.0,
+                    min(pos) if pos else None)
+
+        vh, vp, vm, _  = _metrics(nv)
+        hh, hp, hm, _  = _metrics(nh)
+        fh, fp, fm, fr = _metrics(nf)
+
+        vec_hits.append(vh);  vec_mrrs.append(vm)
+        hyb_hits.append(hh);  hyb_mrrs.append(hm)
+        full_hits.append(fh); full_mrrs.append(fm)
+
+        # Per-chunk detail from the production (full) pipeline
+        retrieved = [
+            {
+                "file": n.metadata.get("file_name", "?"),
+                "page": str(n.metadata.get("page_label",
+                            n.metadata.get("page_number", "?"))),
+                "hit" : _is_relevant(n, keywords, sources),
+            }
+            for n in nf
+        ]
+
+        per_question.append({
+            "id"          : q["id"],
+            "question"    : text,
+            "source_files": sources,
+            "hit"         : fh,
+            "precision"   : fp,
+            "mrr"         : fm,
+            "first_rank"  : fr,
+            "retrieved"   : retrieved,
+        })
+
+    n = len(per_question)
+    full_hr  = sum(full_hits) / n
+    full_prec = sum(r["precision"] for r in per_question) / n
+    full_mrr  = sum(r["mrr"]       for r in per_question) / n
+
+    return {
+        "top_k"          : top_k,
+        "n_questions"    : n,
+        "hit_rate"       : round(full_hr,   3),
+        "precision"      : round(full_prec, 3),
+        "recall"         : round(full_hr,   3),
+        "mrr"            : round(full_mrr,  3),
+        "configurations" : [
+            {"name": "Vector only",        **_agg(vec_hits,  vec_mrrs,  n)},
+            {"name": "Hybrid",             **_agg(hyb_hits,  hyb_mrrs,  n)},
+            {"name": "Hybrid + Reranker",  **_agg(full_hits, full_mrrs, n)},
+        ],
+        "per_question"   : per_question,
+    }
+
+
 @app.post("/cancel/{filename}")
 def cancel_indexing(filename: str):
     if indexing_status.get(filename) == "indexing":

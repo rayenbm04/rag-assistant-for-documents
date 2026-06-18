@@ -1,0 +1,138 @@
+[
+  {
+    "_comment": "HOW TO ADD YOUR OWN Q&A PAIRS:",
+    "_comment2": "1. Upload your document and ask a question about it in the chat",
+    "_comment3": "2. Note which file contains the answer",
+    "_comment4": "3. Copy the template below and fill in: question, source_files, answer_keywords",
+    "_comment5": "answer_keywords: 2-4 key words/phrases that MUST appear in the retrieved chunk for it to count as relevant",
+    "_template": {
+      "id": "q_YOUR_ID",
+      "question": "Your question here?",
+      "source_files": ["your_document.pdf"],
+      "answer_keywords": ["key phrase 1", "key phrase 2"]
+    }
+  },
+  {
+    "id": "q_generic_01",
+    "question": " dans ce document , donner le Total TTC",
+    "source_files": ["Devis_NAWAARNI.docx"],
+    "answer_keywords": ["374,500 DT"]
+  },
+  {
+    "id": "q_generic_11",
+    "question": " dans ce document , donner la qte du jus ",
+    "source_files": ["Devis_NAWAARNI.docx"],
+    "answer_keywords": ["100"]
+  },
+  {
+    "id": "q_generic_21",
+    "question": " dans ce document , donner le prix unitaire du jus ",
+    "source_files": ["Devis_NAWAARNI.docx"],
+    "answer_keywords": ["2,000 DT"]
+  },
+  {
+    "id": "q_generic_31",
+    "question": " dans ce document , donner le Total HTVA",
+    "source_files": ["Devis_NAWAARNI.docx"],
+    "answer_keywords": ["350,000 DT"]
+  },
+  {
+    "id": "q_generic_41",
+    "question": " dans ce document , donner le nom de clinet et son adresse",
+    "source_files": ["Devis_NAWAARNI.docx"],
+    "answer_keywords": ["NAWAARNI", "Route de Raouede"]
+  },
+  {
+    "_note": "q_generic_02/12/22/42 skipped: LLaVA hallucinated page 1 of this PDF (generated Spanish content instead of reading the Tunisian invoice). Data lives on page 1 so it is not in the index. Re-index after improving LLaVA prompt or switching to a better vision model.",
+    "id": "q_generic_02_SKIP",
+    "question": "dans ce document, donner la date de devis",
+    "source_files": [],
+    "answer_keywords": []
+  },
+  {
+    "id": "q_generic_32",
+    "question": "dans ce document, donner le nom de compositeur du devis",
+    "source_files": ["CCF04162026.pdf"],
+    "answer_keywords": ["SYNO-TEC", "SYNO TEC"]
+  },
+  {
+    "_note": "LLaVA hallucinated COVID-19 content but did write 'NAWWARNI' and 'Nawwarini'. Keywords updated to match actual chunk text.",
+    "id": "q_generic_13",
+    "question": "dans ce document, donner le nom de l'equipe de projet",
+    "source_files": ["affiche_liverable.png"],
+    "answer_keywords": ["NAWWARNI", "Nawwarini", "Nawwani", "NAWAARNI"]
+  },
+  {
+    "_note": "SKIP — LLaVA hallucinated the entire image: fabricated a COVID-19 campaign story ('NAWWARNI campaign in Nawwarini region'). Words 'ecole', 'school', 'essaha' are absent from the indexed chunk. Re-index with a better vision model or Tesseract OCR.",
+    "id": "q_generic_23_SKIP",
+    "question": "dans ce document, donner le nom de l'ecole cible",
+    "source_files": [],
+    "answer_keywords": []
+  },
+  {
+    "_note": "SKIP — same LLaVA hallucination as q_generic_23. 'SUP'COM' and faculty name never appear in the indexed chunk.",
+    "id": "q_generic_33_SKIP",
+    "question": "dans ce document, donner le nom de faculte",
+    "source_files": [],
+    "answer_keywords": []
+  },
+  {
+    "_note": "SKIP — same LLaVA hallucination. Supervisor name 'Bellhaj/Rim' absent from indexed chunk.",
+    "id": "q_generic_43_SKIP",
+    "question": "dans ce document, le nom de l'encadrant de projet",
+    "source_files": [],
+    "answer_keywords": []
+  },
+
+  {
+    "_note": "résumé (1).pdf — letter from NAWWARNI team to Slim Optique. Text-based PDF, should parse cleanly with pdfplumber. Update source_files if the filename differs in the RAG index.",
+    "id": "q_lettre_01",
+    "question": "dans ce document, quel est l'email de l'expéditeur ?",
+    "source_files": ["résumé (1).pdf.pdf"],
+    "answer_keywords": ["rayen.benmimoun@supcom.tn"]
+  },
+  {
+    "id": "q_lettre_02",
+    "question": "dans ce document, quel est le numéro de téléphone de l'expéditeur ?",
+    "source_files": ["résumé (1).pdf.pdf"],
+    "answer_keywords": ["+216 25 069 123"]
+  },
+  {
+    "id": "q_lettre_03",
+    "question": "dans ce document, combien de montures de lunettes sont demandées ?",
+    "source_files": ["résumé (1).pdf.pdf"],
+    "answer_keywords": ["30 montures", "30"]
+  },
+  {
+    "id": "q_lettre_04",
+    "question": "dans ce document, quelle est l'école primaire bénéficiaire de la caravane ?",
+    "source_files": ["résumé (1).pdf.pdf"],
+    "answer_keywords": ["Cité Essaha", "Ariana"]
+  },
+  {
+    "id": "q_lettre_05",
+    "question": "dans ce document, à quelle société est adressée la demande de partenariat ?",
+    "source_files": ["résumé (1).pdf.pdf"],
+    "answer_keywords": ["Slim Optique"]
+  },
+
+  {
+    "_note": "Group photo image. LLaVA will describe the scene visually — keywords target the most salient elements. Update source_files to match the exact filename used when indexing. If LLaVA hallucinates, mark as SKIP and run dump_chunks.py to see the actual indexed text.",
+    "id": "q_photo_01",
+    "question": "dans ce document, combien de personnes sont visibles sur la photo ?",
+    "source_files": ["Screenshot 2026-04-24 204354.png"],
+    "answer_keywords": ["group", "people", "personnes", "individuals"]
+  },
+  {
+    "id": "q_photo_02",
+    "question": "dans ce document, quel type de vêtement porte certaines femmes sur la photo ?",
+    "source_files": ["Screenshot 2026-04-24 204354.png"],
+    "answer_keywords": ["hijab", "headscarf", "voile", "foulard", "scarf", "veil", "covered", "head covering"]
+  },
+  {
+    "id": "q_photo_03",
+    "question": "dans ce document, quel accessoire porte l'un des hommes sur la photo ?",
+    "source_files": ["Screenshot 2026-04-24 204354.png"],
+    "answer_keywords": ["hat", "chapeau", "cap"]
+  }
+]

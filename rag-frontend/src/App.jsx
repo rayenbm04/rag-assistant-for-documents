@@ -79,6 +79,9 @@ function App() {
   const [isDragOver, setIsDragOver]   = useState(false)
   const [showDashboard, setShowDashboard] = useState(false)
   const [dashboardData, setDashboardData] = useState(null)
+  const [evalData, setEvalData]           = useState(null)
+  const [evalLoading, setEvalLoading]     = useState(false)
+  const [evalSelectedQ, setEvalSelectedQ] = useState(null)
 
   // Refs
   const fileInputRef        = useRef(null)
@@ -448,8 +451,24 @@ function App() {
   // ── Dashboard ─────────────────────────────────────────────────────────
   const openDashboard = useCallback(async () => {
     setShowDashboard(true)
+    setEvalData(null)
     try { const res = await fetch(`${API}/dashboard`); setDashboardData(await res.json()) }
     catch { setDashboardData(null) }
+  }, [])
+
+  const runEval = useCallback(async () => {
+    setEvalLoading(true)
+    setEvalData(null)
+    try {
+      const res  = await fetch(`${API}/eval`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Eval failed')
+      setEvalData(data)
+    } catch (e) {
+      setEvalData({ error: e.message })
+    } finally {
+      setEvalLoading(false)
+    }
   }, [])
 
   const getStatusBadge = (status) => {
@@ -785,6 +804,99 @@ function App() {
                     </div>
                   </div>
                 )}
+
+                <div className="dashboard-section">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <h3 className="dashboard-section-title">Retrieval evaluation</h3>
+                    <button className="clear-history-btn" onClick={runEval} disabled={evalLoading}
+                      style={{ fontSize: '12px', padding: '4px 12px' }}>
+                      {evalLoading ? 'Running…' : 'Run eval'}
+                    </button>
+                  </div>
+
+                  {!evalData && !evalLoading && (
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                      Measures Hit Rate, Precision, MRR and Recall against <code>eval_dataset.json</code>.
+                      Make sure the dataset files are indexed before running.
+                    </p>
+                  )}
+
+                  {evalLoading && (
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      Running retrieval for each question — this may take 30–60 s…
+                    </p>
+                  )}
+
+                  {evalData?.error && (
+                    <p style={{ fontSize: '12px', color: '#e53e3e' }}>{evalData.error}</p>
+                  )}
+
+                  {evalData && !evalData.error && (
+                    <>
+                      {/* Configuration comparison table */}
+                      {evalData.configurations && (
+                        <div className="eval-config-table">
+                          <div className="eval-config-row eval-config-header">
+                            <span className="eval-config-name">Configuration</span>
+                            <span className="eval-config-metric">Hit@{evalData.top_k}</span>
+                            <span className="eval-config-metric">MRR</span>
+                          </div>
+                          {evalData.configurations.map(cfg => (
+                            <div key={cfg.name} className={`eval-config-row${cfg.name === 'Hybrid + Reranker' ? ' eval-config-best' : ''}`}>
+                              <span className="eval-config-name">{cfg.name}</span>
+                              <span className="eval-config-metric">{(cfg.hit_rate * 100).toFixed(0)}%</span>
+                              <span className="eval-config-metric">{cfg.mrr.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Per-question table — click a row to see retrieved chunks */}
+                      <div className="dashboard-doc-list" style={{ marginTop: '8px' }}>
+                        <div className="dashboard-doc-row" style={{ fontWeight: 600, fontSize: '11px', color: 'var(--text-muted)' }}>
+                          <span style={{ flex: 2 }}>Question ID</span>
+                          <span style={{ width: 28, textAlign: 'center' }}>Hit</span>
+                          <span style={{ width: 40, textAlign: 'right' }}>P@K</span>
+                          <span style={{ width: 40, textAlign: 'right' }}>MRR</span>
+                        </div>
+                        {evalData.per_question.map(r => (
+                          <div key={r.id}>
+                            <div
+                              className="dashboard-doc-row eval-q-row"
+                              onClick={() => setEvalSelectedQ(evalSelectedQ === r.id ? null : r.id)}
+                              title="Click to see retrieved chunks"
+                            >
+                              <span className="dashboard-doc-name" style={{ flex: 2 }}>{r.id}</span>
+                              <span style={{ width: 28, textAlign: 'center', color: r.hit ? '#276030' : '#9B2020', fontWeight: 600 }}>
+                                {r.hit ? '✓' : '✗'}
+                              </span>
+                              <span className="dashboard-doc-chunks" style={{ width: 40 }}>{r.precision.toFixed(2)}</span>
+                              <span className="dashboard-doc-chunks" style={{ width: 40 }}>{r.mrr.toFixed(2)}</span>
+                            </div>
+                            {evalSelectedQ === r.id && (
+                              <div className="eval-detail-card">
+                                <div className="eval-detail-label">Question</div>
+                                <div className="eval-detail-value">{r.question}</div>
+                                <div className="eval-detail-label" style={{ marginTop: '8px' }}>Expected source</div>
+                                <div className="eval-detail-value">{(r.source_files || []).join(', ') || '—'}</div>
+                                <div className="eval-detail-label" style={{ marginTop: '8px' }}>Retrieved</div>
+                                {(r.retrieved || []).map((chunk, i) => (
+                                  <div key={i} className={`eval-chunk-row${chunk.hit ? ' eval-chunk-hit' : ' eval-chunk-miss'}`}>
+                                    <span className="eval-chunk-icon">{chunk.hit ? '✓' : '✗'}</span>
+                                    <span>{chunk.file}{chunk.page && chunk.page !== '?' ? ` (page ${chunk.page})` : ''}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                        {evalData.n_questions} questions · click a row to inspect retrieved chunks
+                      </p>
+                    </>
+                  )}
+                </div>
               </>
             )}
           </div>
