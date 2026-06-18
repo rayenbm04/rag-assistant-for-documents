@@ -255,7 +255,10 @@ function App() {
       const ext = f.name.split('.').pop().toLowerCase()
       return f.type === 'application/pdf' || f.type.startsWith('image/') ||
         f.type === 'text/plain' || ext === 'txt' || ext === 'docx' ||
-        f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        ext === 'xlsx' || ext === 'xls' ||
+        f.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        f.type === 'application/vnd.ms-excel'
     })
 
     for (const f of valid) {
@@ -637,9 +640,9 @@ function App() {
           >
             <UploadIcon />
             <p className="upload-text">Click or drag to upload</p>
-            <p className="upload-hint">PDF, Word, TXT or images</p>
+            <p className="upload-hint">PDF, Word, Excel, TXT or images</p>
             <input
-              ref={fileInputRef} type="file" accept=".pdf,.txt,.docx,image/*" multiple
+              ref={fileInputRef} type="file" accept=".pdf,.txt,.docx,.xlsx,.xls,image/*" multiple
               style={{ display: 'none' }}
               onChange={ev => { handleFileSelect(ev.target.files); ev.target.value = '' }}
             />

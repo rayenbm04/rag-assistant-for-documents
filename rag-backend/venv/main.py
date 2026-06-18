@@ -257,6 +257,60 @@ def extract_docx_content(file_path, filename):
     return "\n".join(parts)
 
 
+def extract_excel_content(file_path, filename):
+    """Extract content from an Excel workbook (.xlsx / .xls) as readable text."""
+    print(f"Reading Excel file: {filename}")
+
+    def _row_to_str(cells: list) -> str:
+        """Convert a row of values to a readable pipe-separated string."""
+        str_cells = [str(c).strip() if c is not None else "" for c in cells]
+        if not any(str_cells):
+            return ""
+        # If first column is empty but later columns have values, label as "Total"
+        if not str_cells[0] and any(str_cells[1:]):
+            str_cells[0] = "Total"
+        return " | ".join(str_cells)
+
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(file_path, data_only=True)
+        use_openpyxl = True
+    except Exception:
+        wb = None
+        use_openpyxl = False
+
+    if not use_openpyxl:
+        try:
+            import xlrd
+            _xlrd_wb = xlrd.open_workbook(file_path)
+        except Exception as e:
+            return f"Document: {filename}\n[Could not read Excel file: {e}]"
+
+    parts = [f"Document: {filename}\n"]
+
+    if use_openpyxl:
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            if ws.max_row == 0:
+                continue
+            parts.append(f"\n[Sheet: {sheet_name}]")
+            for row in ws.iter_rows(values_only=True):
+                line = _row_to_str(list(row))
+                if line:
+                    parts.append(line)
+    else:
+        for i in range(_xlrd_wb.nsheets):
+            ws = _xlrd_wb.sheet_by_index(i)
+            parts.append(f"\n[Sheet: {ws.name}]")
+            for rx in range(ws.nrows):
+                cells = [ws.cell_value(rx, cx) for cx in range(ws.ncols)]
+                line = _row_to_str(cells)
+                if line:
+                    parts.append(line)
+
+    return "\n".join(parts)
+
+
 def get_nodes_for_files(file_names: list) -> list:
     """Fetch text nodes from ChromaDB so BM25 can index them for keyword search."""
     nodes = []
@@ -295,6 +349,9 @@ def add_document_to_index(file_path, filename):
         elif extension == 'docx':
             text = extract_docx_content(file_path, filename)
             doc_type = "docx"
+        elif extension in ['xlsx', 'xls']:
+            text = extract_excel_content(file_path, filename)
+            doc_type = "excel"
         else:
             text = f"[Unsupported file: {filename}]"
             doc_type = "unknown"
