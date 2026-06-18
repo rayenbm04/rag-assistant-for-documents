@@ -1,6 +1,7 @@
 import os, shutil, base64, asyncio, hashlib, json, re
+from importlib_resources import files
 import nest_asyncio
-nest_asyncio.apply()   # allows AutoMergingRetriever to run inside FastAPI's event loop
+  # allows AutoMergingRetriever to run inside FastAPI's event loop
 import pdfplumber
 from PIL import Image
 from docx import Document as DocxDocument
@@ -654,7 +655,7 @@ async def retrieve_per_file(
                 similarity_top_k=chunks_per_file,
                 num_queries=1,
                 mode="reciprocal_rerank",
-                use_async=True,
+                use_async=False,
             )
         else:
             ret = vec_ret
@@ -773,7 +774,7 @@ async def ask(q: Question):
                         similarity_top_k=candidates_k,
                         num_queries=1,
                         mode="reciprocal_rerank",
-                        use_async=True,
+                        use_async=False,
                     )
                 else:
                     retriever = vector_retriever
@@ -914,7 +915,24 @@ def clear_all():
         except:
             pass
             
-    storage_context = StorageContext.from_defaults(vector_store=vector_store)
+    if PARENT_CHILD_AVAILABLE:
+        docstore = SimpleDocumentStore()
+
+        _ds_path = os.path.join(
+        NODE_STORE_DIR,
+        "docstore.json"
+        )
+
+        docstore.persist(persist_path=_ds_path)
+
+        storage_context = StorageContext.from_defaults(
+        vector_store=vector_store,
+        docstore=docstore,
+    )
+    else:
+        storage_context = StorageContext.from_defaults(
+        vector_store=vector_store
+    )
     index = None
     indexing_status.clear()
     return {"message": "All documents cleared"}
@@ -944,11 +962,28 @@ async def delete_document(filename: str):
     global index, storage_context
     if chroma_collection.count() > 0:
         # Create a fresh storage context to clear in-memory node caches!
-        storage_context = StorageContext.from_defaults(vector_store=vector_store)
-        index = VectorStoreIndex.from_vector_store(
+        if PARENT_CHILD_AVAILABLE:
+            docstore = SimpleDocumentStore()
+
+            _ds_path = os.path.join(
+            NODE_STORE_DIR,
+            "docstore.json"
+            )
+
+            docstore.persist(persist_path=_ds_path)
+
+            storage_context = StorageContext.from_defaults(
+            vector_store=vector_store,
+            docstore=docstore,
+            )
+        else:
+            storage_context = StorageContext.from_defaults(
+            vector_store=vector_store
+            )
+            index = VectorStoreIndex.from_vector_store(
             vector_store,
             storage_context=storage_context
-        )
+            )
     else:
         index = None
 
@@ -1025,7 +1060,7 @@ async def run_eval(top_k: int = SIMILARITY_TOP_K):
         if bm25_nodes:
             bm25_ret  = BM25Retriever.from_defaults(nodes=bm25_nodes, similarity_top_k=k)
             retriever = QueryFusionRetriever([vec_ret, bm25_ret], similarity_top_k=k,
-                                             num_queries=1, mode="reciprocal_rerank", use_async=True)
+                                             num_queries=1, mode="reciprocal_rerank", use_async=False)
         else:
             retriever = vec_ret
         nodes = await retriever.aretrieve(question)
@@ -1044,11 +1079,18 @@ async def run_eval(top_k: int = SIMILARITY_TOP_K):
         if bm25_nodes:
             bm25_ret  = BM25Retriever.from_defaults(nodes=bm25_nodes, similarity_top_k=candidates)
             retriever = QueryFusionRetriever([vec_ret, bm25_ret], similarity_top_k=candidates,
-                                             num_queries=1, mode="reciprocal_rerank", use_async=True)
+                                             num_queries=1, mode="reciprocal_rerank", use_async=False)
         else:
             retriever = vec_ret
         if PARENT_CHILD_AVAILABLE:
-            retriever = AutoMergingRetriever(retriever, storage_context, verbose=False)
+            try:
+                retriever = AutoMergingRetriever(
+                retriever,
+                storage_context,
+                verbose=False
+                )
+            except Exception as e:
+                print(f"AutoMerging disabled: {e}")
         nodes = await retriever.aretrieve(question)
         if reranker and len(nodes) > 1:
             loop = asyncio.get_event_loop()
