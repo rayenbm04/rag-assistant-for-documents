@@ -66,6 +66,7 @@ storage_context = StorageContext.from_defaults(vector_store=vector_store)
 # ── global state ──
 index = None
 indexing_status = {}        # {"filename": "indexing" | "ready" | "error"}
+indexing_progress = {}      # {"filename": {"current": int, "total": int}}
 file_hashes = {}            # {"filename": md5_hex} — used to skip re-indexing unchanged files
 executor = ThreadPoolExecutor(max_workers=2)
 token_usage = {"prompt": 0, "completion": 0, "requests": 0}
@@ -170,12 +171,14 @@ Be exhaustive — your description will be the ONLY source of information about 
     return response["message"]["content"]
 
 
-def extract_pdf_content(file_path, filename):
+def extract_pdf_content(file_path, filename, on_progress=None):
     full_content = f"Document: {filename}\n\n"
 
     with pdfplumber.open(file_path) as pdf:
         total_pages = len(pdf.pages)
         print(f"Processing PDF: {filename} ({total_pages} pages)")
+        if on_progress:
+            on_progress(0, total_pages)
 
         for i, page in enumerate(pdf.pages):
             # check if cancelled
@@ -215,6 +218,9 @@ def extract_pdf_content(file_path, filename):
                     print(f"  Page {page_num}: LLaVA error — {e}")
             else:
                 print(f"  Page {page_num}: sufficient text ({text_len} chars) — skipping LLaVA")
+
+            if on_progress:
+                on_progress(page_num, total_pages)
 
     return full_content
 
@@ -333,10 +339,13 @@ def add_document_to_index(file_path, filename):
     global index
     try:
         indexing_status[filename] = "indexing"
+        indexing_progress[filename] = {"current": 0, "total": 0}
         extension = filename.lower().split('.')[-1]
 
         if extension == 'pdf':
-            text = extract_pdf_content(file_path, filename)
+            def _on_progress(current, total):
+                indexing_progress[filename] = {"current": current, "total": total}
+            text = extract_pdf_content(file_path, filename, on_progress=_on_progress)
             doc_type = "pdf"
         elif extension in ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']:
             if filename in cancelled_files:
@@ -367,11 +376,13 @@ def add_document_to_index(file_path, filename):
             index.insert(doc)
 
         indexing_status[filename] = "ready"
+        indexing_progress.pop(filename, None)
         cancelled_files.discard(filename)
         print(f"Ready: {filename} ({doc_type}, {len(text)} chars)")
 
     except InterruptedError:
         indexing_status[filename] = "cancelled"
+        indexing_progress.pop(filename, None)
         cancelled_files.discard(filename)
         # delete the physical file since indexing was cancelled
         if os.path.exists(file_path):
@@ -380,6 +391,7 @@ def add_document_to_index(file_path, filename):
 
     except Exception as e:
         indexing_status[filename] = "error"
+        indexing_progress.pop(filename, None)
         print(f"Indexing error for {filename}: {e}")
 
 # ──────────────────────────────────────────
@@ -432,8 +444,9 @@ def get_status(filename: str):
     Poll this endpoint to know when a file is ready.
     Returns: indexing | ready | error | unknown
     """
-    status = indexing_status.get(filename, "unknown")
-    return {"filename": filename, "status": status}
+    status   = indexing_status.get(filename, "unknown")
+    progress = indexing_progress.get(filename)  # {"current": int, "total": int} or None
+    return {"filename": filename, "status": status, "progress": progress}
 
 
 @app.get("/documents")

@@ -102,8 +102,9 @@ function App() {
   const sessionFileNames = activeSession?.fileNames  || []
   const sessionFiles     = sessionFileNames.map(name => ({
     name, id: name,
-    status: globalFiles[name]?.status || 'ready',
-    size:   globalFiles[name]?.size   || 0,
+    status:   globalFiles[name]?.status   || 'ready',
+    size:     globalFiles[name]?.size     || 0,
+    progress: globalFiles[name]?.progress || null,
   }))
   const anyIndexing = sessionFiles.some(f => f.status === 'indexing' || f.status === 'uploading')
 
@@ -230,7 +231,9 @@ function App() {
         if (data.status === 'ready' || data.status === 'error') {
           clearInterval(pollingRef.current[filename])
           delete pollingRef.current[filename]
-          setGlobalFiles(prev => ({ ...prev, [filename]: { ...prev[filename], status: data.status } }))
+          setGlobalFiles(prev => ({ ...prev, [filename]: { ...prev[filename], status: data.status, progress: null } }))
+        } else {
+          setGlobalFiles(prev => ({ ...prev, [filename]: { ...prev[filename], status: data.status, progress: data.progress || null } }))
         }
       } catch {
         clearInterval(pollingRef.current[filename])
@@ -671,19 +674,32 @@ function App() {
                       </div>
                     )}
                     {(file.status === 'indexing' || file.status === 'uploading') && (
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
-                          {[0, 1, 2].map(i => (
-                            <div key={i} style={{
-                              width: '4px', height: '4px', borderRadius: '50%',
-                              background: 'var(--text-muted)',
-                              animation: `loading-pulse 1.2s infinite ${i * 0.2}s`
-                            }} />
-                          ))}
-                        </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '80px' }}>
+                        {file.progress && file.progress.total > 0 ? (
+                          <>
+                            <div className="progress-bar-wrap">
+                              <div className="progress-bar" style={{
+                                width: `${Math.round((file.progress.current / file.progress.total) * 100)}%`
+                              }} />
+                            </div>
+                            <span style={{ fontSize: '10px', color: 'var(--text-muted)', textAlign: 'right' }}>
+                              Page {file.progress.current}/{file.progress.total}
+                            </span>
+                          </>
+                        ) : (
+                          <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                            {[0, 1, 2].map(i => (
+                              <div key={i} style={{
+                                width: '4px', height: '4px', borderRadius: '50%',
+                                background: 'var(--text-muted)',
+                                animation: `loading-pulse 1.2s infinite ${i * 0.2}s`
+                              }} />
+                            ))}
+                          </div>
+                        )}
                         {file.status === 'indexing' && (
                           <span onClick={() => handleCancelIndexing(file.name)} style={{
-                            fontSize: '11px', color: '#854F0B', cursor: 'pointer', textDecoration: 'underline'
+                            fontSize: '11px', color: '#854F0B', cursor: 'pointer', textDecoration: 'underline', textAlign: 'right'
                           }}>cancel</span>
                         )}
                       </div>
