@@ -1,4 +1,6 @@
 import os, shutil, base64, asyncio, hashlib, json, re
+import nest_asyncio
+nest_asyncio.apply()   # allows AutoMergingRetriever to run inside FastAPI's event loop
 import pdfplumber
 from PIL import Image
 from docx import Document as DocxDocument
@@ -16,6 +18,16 @@ from llama_index.core.retrievers import QueryFusionRetriever
 from llama_index.core.schema import TextNode
 from llama_index.retrievers.bm25 import BM25Retriever
 from llama_index.core.storage.storage_context import StorageContext
+
+# Parent-child retrieval — graceful fallback if not available in this build
+try:
+    from llama_index.core.retrievers import AutoMergingRetriever
+    from llama_index.core.node_parser import HierarchicalNodeParser, get_leaf_nodes
+    from llama_index.core.storage.docstore import SimpleDocumentStore
+    PARENT_CHILD_AVAILABLE = True
+except ImportError as _pc_err:
+    print(f"[warn] Parent-child retrieval not available ({_pc_err}) — using flat chunking")
+    PARENT_CHILD_AVAILABLE = False
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.llms.ollama import Ollama
 from llama_index.embeddings.ollama import OllamaEmbedding
@@ -32,9 +44,12 @@ ALLOWED_ORIGINS  = os.getenv("ALLOWED_ORIGINS",      "http://localhost:5173").sp
 SIMILARITY_TOP_K = int(os.getenv("SIMILARITY_TOP_K", "4"))
 MAX_UPLOAD_MB    = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))
 OLLAMA_BASE_URL  = os.getenv("OLLAMA_BASE_URL",      "http://localhost:11434")
-ENABLE_EVAL      = os.getenv("ENABLE_EVAL",          "true").lower() == "true"
-ENABLE_RERANK    = os.getenv("ENABLE_RERANK",        "true").lower() == "true"
-RERANK_MODEL     = os.getenv("RERANK_MODEL",         "cross-encoder/ms-marco-MiniLM-L-6-v2")
+ENABLE_EVAL        = os.getenv("ENABLE_EVAL",          "true").lower() == "true"
+ENABLE_RERANK      = os.getenv("ENABLE_RERANK",        "true").lower() == "true"
+RERANK_MODEL       = os.getenv("RERANK_MODEL",         "cross-encoder/ms-marco-MiniLM-L-6-v2")
+PARENT_CHUNK_SIZE  = int(os.getenv("PARENT_CHUNK_SIZE", "512"))
+CHILD_CHUNK_SIZE   = int(os.getenv("CHILD_CHUNK_SIZE",  "128"))
+NODE_STORE_DIR     = os.getenv("NODE_STORE_DIR",        "./node_store")
 
 class HistoryEntry(BaseModel):
     question: str
@@ -55,13 +70,34 @@ app.add_middleware(CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"], allow_headers=["*"])
 
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(UPLOAD_DIR,    exist_ok=True)
+os.makedirs(NODE_STORE_DIR, exist_ok=True)
 
-# ── ChromaDB ──
-chroma_client = chromadb.PersistentClient(path=CHROMA_DIR)
+# ── ChromaDB (vector store) ──
+chroma_client     = chromadb.PersistentClient(path=CHROMA_DIR)
 chroma_collection = chroma_client.get_or_create_collection("rag_docs")
-vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
-storage_context = StorageContext.from_defaults(vector_store=vector_store)
+vector_store      = ChromaVectorStore(chroma_collection=chroma_collection)
+
+# ── Node docstore (parent chunks for AutoMergingRetriever) ──
+_ds_path = os.path.join(NODE_STORE_DIR, "docstore.json")
+if PARENT_CHILD_AVAILABLE:
+    if os.path.exists(_ds_path):
+        docstore = SimpleDocumentStore.from_persist_path(_ds_path)
+        print(f"Loaded docstore: {len(docstore.docs)} nodes")
+    else:
+        docstore = SimpleDocumentStore()
+        print("Created fresh docstore")
+else:
+    docstore = None
+
+def _persist_docstore():
+    if docstore is not None:
+        docstore.persist(persist_path=_ds_path)
+
+storage_context = StorageContext.from_defaults(
+    vector_store=vector_store,
+    **({"docstore": docstore} if docstore is not None else {}),
+)
 
 # ── global state ──
 index = None
@@ -370,10 +406,36 @@ def add_document_to_index(file_path, filename):
             metadata={"file_name": filename, "file_path": file_path, "doc_type": doc_type}
         )
 
-        if index is None:
-            index = VectorStoreIndex.from_documents([doc], storage_context=storage_context)
+        if PARENT_CHILD_AVAILABLE:
+            # ── Parent-child chunking ──────────────────────────────────────────
+            # Two levels: parent (~512 tokens, in docstore) + leaf (~128 tokens,
+            # in ChromaDB). AutoMergingRetriever promotes siblings to parent at
+            # query time → LLM gets richer context, retrieval stays precise.
+            parser     = HierarchicalNodeParser.from_defaults(
+                chunk_sizes=[PARENT_CHUNK_SIZE, CHILD_CHUNK_SIZE]
+            )
+            all_nodes  = parser.get_nodes_from_documents([doc])
+            leaf_nodes = get_leaf_nodes(all_nodes)
+
+            for node in all_nodes:
+                node.metadata.setdefault("file_name", filename)
+                node.metadata.setdefault("doc_type",  doc_type)
+
+            storage_context.docstore.add_documents(all_nodes)
+            _persist_docstore()
+
+            if index is None:
+                index = VectorStoreIndex(
+                    leaf_nodes, storage_context=storage_context, show_progress=False
+                )
+            else:
+                index.insert_nodes(leaf_nodes)
         else:
-            index.insert(doc)
+            # ── Flat chunking fallback ─────────────────────────────────────────
+            if index is None:
+                index = VectorStoreIndex.from_documents([doc], storage_context=storage_context)
+            else:
+                index.insert(doc)
 
         indexing_status[filename] = "ready"
         indexing_progress.pop(filename, None)
@@ -716,6 +778,8 @@ async def ask(q: Question):
                 else:
                     retriever = vector_retriever
 
+                if PARENT_CHILD_AVAILABLE:
+                    retriever = AutoMergingRetriever(retriever, storage_context, verbose=False)
                 nodes = await retriever.aretrieve(standalone)
 
                 if reranker and len(nodes) > 1:
@@ -968,7 +1032,7 @@ async def run_eval(top_k: int = SIMILARITY_TOP_K):
         return list(nodes)[:k]
 
     async def _full(question, source_files, k):
-        """Hybrid + cross-encoder reranker (production pipeline)."""
+        """Hybrid + AutoMerging + cross-encoder reranker (production pipeline)."""
         if not index: return []
         candidates = k * 2 if reranker else k
         if source_files:
@@ -983,6 +1047,8 @@ async def run_eval(top_k: int = SIMILARITY_TOP_K):
                                              num_queries=1, mode="reciprocal_rerank", use_async=True)
         else:
             retriever = vec_ret
+        if PARENT_CHILD_AVAILABLE:
+            retriever = AutoMergingRetriever(retriever, storage_context, verbose=False)
         nodes = await retriever.aretrieve(question)
         if reranker and len(nodes) > 1:
             loop = asyncio.get_event_loop()
