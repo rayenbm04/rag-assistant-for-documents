@@ -1,4 +1,4 @@
-# Python backend
+
 rag-backend/venv/
 rag-backend/__pycache__/
 rag-backend/*.pyc
@@ -8,11 +8,11 @@ rag-backend/uploads/
 rag-backend/uploaded_docs/
 rag-backend/storage/
 
-# Node frontend
+
 rag-frontend/node_modules/
 rag-frontend/dist/
 
-# OS
+
 .DS_Store
 Thumbs.db
 *.log

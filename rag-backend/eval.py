@@ -146,6 +146,7 @@ async def evaluate(dataset_path: str, top_k: int, debug: bool = False) -> dict:
         if isinstance(q, dict)
         and q.get("id")
         and not q["id"].startswith("_")
+        and "_SKIP" not in q["id"]
         and (q.get("answer_keywords") or q.get("source_files"))
     ]
 

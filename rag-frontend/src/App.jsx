@@ -265,10 +265,19 @@ function App() {
     })
 
     for (const f of valid) {
-      // Already indexed globally → just link to this session, no re-upload
+      // Already indexed globally → verify server still has it before skipping upload
       if (globalFiles[f.name]?.status === 'ready') {
-        addFileToSession(f.name)
-        continue
+        try {
+          const check = await fetch(`${API}/status/${encodeURIComponent(f.name)}`)
+          const serverStatus = await check.json()
+          if (serverStatus.status === 'ready') {
+            addFileToSession(f.name)
+            continue
+          }
+          // Server doesn't know about it (e.g. backend restarted) — fall through to re-upload
+        } catch {
+          // Network error — fall through to re-upload
+        }
       }
       // Already indexing → link and let polling handle it
       if (globalFiles[f.name]?.status === 'indexing') {
