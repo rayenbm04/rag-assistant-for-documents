@@ -51,12 +51,80 @@ function createNewSession() {
   return { id: generateId(), name: 'New chat', createdAt: new Date().toISOString(), fileNames: [], history: [] }
 }
 
-// ── App ────────────────────────────────────────────────────────────────────
-function App() {
+// ── Auth ───────────────────────────────────────────────────────────────────
+function AuthScreen({ onAuth }) {
+  const [view, setView]     = useState('login')   // 'login' | 'register'
+  const [email, setEmail]   = useState('')
+  const [password, setPassword] = useState('')
+  const [firstname, setFirstname]   = useState('')
+  const [lastname, setLastname] = useState('')
+  const [error, setError]   = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const submit = async (e) => {
+    e.preventDefault()
+    setError(''); setLoading(true)
+    try {
+      const res = await fetch(`${API}/auth/${view}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(view === 'register' ? { email, password, firstname, lastname } : { email, password }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.detail || 'Error'); return }
+      localStorage.setItem('rag_token', data.access_token)
+      localStorage.setItem('rag_user', JSON.stringify(data.user))
+      onAuth(data.access_token, data.user)
+    } catch { setError('Cannot reach server') }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <div className="auth-screen">
+      <div className="auth-card">
+        <h1 className="auth-title">RAG Assistant</h1>
+        <div className="auth-tabs">
+          <button className={`auth-tab ${view === 'login' ? 'active' : ''}`} onClick={() => { setView('login'); setError('') }}>Sign in</button>
+          <button className={`auth-tab ${view === 'register' ? 'active' : ''}`} onClick={() => { setView('register'); setError('') }}>Register</button>
+        </div>
+        <form className="auth-form" onSubmit={submit}>
+          <input className="auth-input" type="email" placeholder="Email" value={email}
+            onChange={e => setEmail(e.target.value)} required />
+          <input className="auth-input" type="password" placeholder="Password (min 6 chars)" value={password}
+            onChange={e => setPassword(e.target.value)} required />
+          {view === 'register' && (
+            <>
+              <input className="auth-input" type="text" placeholder="First Name" value={firstname}
+                onChange={e => setFirstname(e.target.value)} required />
+              <input className="auth-input" type="text" placeholder="Last Name" value={lastname}
+                onChange={e => setLastname(e.target.value)} required />
+            </>
+          )}
+          {error && <p className="auth-error">{error}</p>}
+          <button className="auth-submit" type="submit" disabled={loading}>
+            {loading ? 'Please wait…' : view === 'login' ? 'Sign in' : 'Create account'}
+          </button>
+        </form>
+        <p className="auth-hint">
+          {view === 'login' ? 'First account created becomes admin.' : 'Already have an account?'}{' '}
+          <button className="auth-link" onClick={() => { setView(view === 'login' ? 'register' : 'login'); setError('') }}>
+            {view === 'login' ? 'Register' : 'Sign in'}
+          </button>
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ── Main App (authenticated) ────────────────────────────────────────────────
+function MainApp({ authFetch, currentUser, onLogout }) {
   // Sessions persisted in localStorage
+  const sessionsKey    = `rag-sessions-${currentUser.id}`
+  const activeKey      = `rag-active-session-${currentUser.id}`
+
   const [sessions, setSessions] = useState(() => {
     try {
-      const saved = localStorage.getItem('rag-sessions')
+      const saved = localStorage.getItem(sessionsKey)
       if (saved) {
         const parsed = JSON.parse(saved)
         if (Array.isArray(parsed) && parsed.length > 0) return parsed
@@ -66,7 +134,7 @@ function App() {
   })
 
   const [activeSessionId, setActiveSessionId] = useState(() => {
-    try { return localStorage.getItem('rag-active-session') } catch { return null }
+    try { return localStorage.getItem(activeKey) } catch { return null }
   })
 
   // Global file registry: filename → { status, size }
@@ -112,9 +180,9 @@ function App() {
   useEffect(() => { historyRef.current = history }, [history])
 
   // Persist sessions
-  useEffect(() => { localStorage.setItem('rag-sessions', JSON.stringify(sessions)) }, [sessions])
+  useEffect(() => { localStorage.setItem(sessionsKey, JSON.stringify(sessions)) }, [sessions])
   useEffect(() => {
-    if (activeSession?.id) localStorage.setItem('rag-active-session', activeSession.id)
+    if (activeSession?.id) localStorage.setItem(activeKey, activeSession.id)
   }, [activeSession?.id])
 
   // ── Session helpers ───────────────────────────────────────────────────
@@ -211,7 +279,7 @@ function App() {
 
   // ── Load existing indexed docs on startup ────────────────────────────
   useEffect(() => {
-    fetch(`${API}/documents`)
+    authFetch(`${API}/documents`)
       .then(r => r.json())
       .then(docs => {
         const registry = {}
@@ -219,14 +287,14 @@ function App() {
         setGlobalFiles(registry)
       })
       .catch(() => {})
-  }, [])
+  }, [authFetch])
 
   // ── Poll indexing status ──────────────────────────────────────────────
   const pollStatus = useCallback((filename) => {
     if (pollingRef.current[filename]) return
     pollingRef.current[filename] = setInterval(async () => {
       try {
-        const res  = await fetch(`${API}/status/${encodeURIComponent(filename)}`)
+        const res  = await authFetch(`${API}/status/${encodeURIComponent(filename)}`)
         const data = await res.json()
         if (data.status === 'ready' || data.status === 'error') {
           clearInterval(pollingRef.current[filename])
@@ -240,7 +308,7 @@ function App() {
         delete pollingRef.current[filename]
       }
     }, 2000)
-  }, [])
+  }, [authFetch])
 
   useEffect(() => () => Object.values(pollingRef.current).forEach(clearInterval), [])
 
@@ -248,10 +316,10 @@ function App() {
   const uploadToBackend = useCallback(async (file) => {
     const fd = new FormData()
     fd.append("file", file)
-    const res = await fetch(`${API}/upload`, { method: "POST", body: fd })
+    const res = await authFetch(`${API}/upload`, { method: "POST", body: fd })
     if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
     return res.json()
-  }, [])
+  }, [authFetch])
 
   const handleFileSelect = useCallback(async (selectedFiles) => {
     const valid = Array.from(selectedFiles).filter(f => {
@@ -268,7 +336,7 @@ function App() {
       // Already indexed globally → verify server still has it before skipping upload
       if (globalFiles[f.name]?.status === 'ready') {
         try {
-          const check = await fetch(`${API}/status/${encodeURIComponent(f.name)}`)
+          const check = await authFetch(`${API}/status/${encodeURIComponent(f.name)}`)
           const serverStatus = await check.json()
           if (serverStatus.status === 'ready') {
             addFileToSession(f.name)
@@ -296,7 +364,7 @@ function App() {
         setGlobalFiles(prev => ({ ...prev, [f.name]: { ...prev[f.name], status: 'error' } }))
       }
     }
-  }, [globalFiles, addFileToSession, uploadToBackend, pollStatus])
+  }, [globalFiles, addFileToSession, uploadToBackend, pollStatus, authFetch])
 
   // ── Remove file ───────────────────────────────────────────────────────
   const handleRemoveFile = useCallback(async (filename) => {
@@ -309,16 +377,16 @@ function App() {
     const otherUses = sessions.some(s => s.id !== sid && s.fileNames.includes(filename))
     if (!otherUses) {
       try {
-        await fetch(`${API}/documents/${encodeURIComponent(filename)}`, { method: "DELETE" })
+        await authFetch(`${API}/documents/${encodeURIComponent(filename)}`, { method: "DELETE" })
         setGlobalFiles(prev => { const n = { ...prev }; delete n[filename]; return n })
       } catch (e) { console.error("Delete failed:", e) }
     }
-  }, [activeSession?.id, sessions])
+  }, [activeSession?.id, sessions, authFetch])
 
   // ── Cancel indexing ───────────────────────────────────────────────────
   const handleCancelIndexing = useCallback(async (filename) => {
     try {
-      await fetch(`${API}/cancel/${encodeURIComponent(filename)}`, { method: "POST" })
+      await authFetch(`${API}/cancel/${encodeURIComponent(filename)}`, { method: "POST" })
       if (pollingRef.current[filename]) { clearInterval(pollingRef.current[filename]); delete pollingRef.current[filename] }
       const sid = activeSession?.id
       setSessions(prev => prev.map(s =>
@@ -326,7 +394,7 @@ function App() {
       ))
       setGlobalFiles(prev => { const n = { ...prev }; delete n[filename]; return n })
     } catch (e) { console.error("Cancel failed:", e) }
-  }, [activeSession?.id])
+  }, [activeSession?.id, authFetch])
 
   // ── Cancel response ───────────────────────────────────────────────────
   const handleCancel = useCallback((e) => {
@@ -367,7 +435,7 @@ function App() {
     const isFirstMessage = activeSession?.history.length === 0
 
     try {
-      const res = await fetch(`${API}/ask`, {
+      const res = await authFetch(`${API}/ask`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -421,7 +489,7 @@ function App() {
             scrollTimerRef.current = setTimeout(scrollToBottom, 100)
             // Generate a short title from the first message in the background
             if (isFirstMessage) {
-              fetch(`${API}/title`, {
+              authFetch(`${API}/title`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ question: currentQuestion, files: sessionFileNames })
@@ -461,21 +529,21 @@ function App() {
         abortControllerRef.current = null
       }
     }
-  }, [question, scrollToBottom, updateHistory, sessionFileNames, activeSession])
+  }, [question, scrollToBottom, updateHistory, sessionFileNames, activeSession, authFetch])
 
   // ── Dashboard ─────────────────────────────────────────────────────────
   const openDashboard = useCallback(async () => {
     setShowDashboard(true)
     setEvalData(null)
-    try { const res = await fetch(`${API}/dashboard`); setDashboardData(await res.json()) }
+    try { const res = await authFetch(`${API}/dashboard`); setDashboardData(await res.json()) }
     catch { setDashboardData(null) }
-  }, [])
+  }, [authFetch])
 
   const runEval = useCallback(async () => {
     setEvalLoading(true)
     setEvalData(null)
     try {
-      const res  = await fetch(`${API}/eval`, { method: 'POST' })
+      const res  = await authFetch(`${API}/eval`, { method: 'POST' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Eval failed')
       setEvalData(data)
@@ -484,7 +552,7 @@ function App() {
     } finally {
       setEvalLoading(false)
     }
-  }, [])
+  }, [authFetch])
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -517,6 +585,12 @@ function App() {
           {history.filter(e => e.answer !== null).length > 0 && (
             <button className="clear-history-btn" onClick={() => window.print()}>Export PDF</button>
           )}
+          <div className="user-badge">
+            
+            
+            <button className="logout-btn" onClick={onLogout} title="Sign out">sign out</button>
+            <span className="user-fullname">{currentUser.lastname} {currentUser.firstname}</span>
+          </div>
         </div>
       </nav>
 
@@ -938,6 +1012,33 @@ function App() {
       )}
     </div>
   )
+}
+
+// ── Root App — handles auth state, renders AuthScreen or MainApp ────────────
+function App() {
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem('rag_token'))
+  const [currentUser, setCurrentUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('rag_user')) } catch { return null }
+  })
+
+  const handleAuth = (token, user) => { setAuthToken(token); setCurrentUser(user) }
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('rag_token'); localStorage.removeItem('rag_user')
+    setAuthToken(null); setCurrentUser(null)
+  }, [])
+
+  const authFetch = useCallback((url, options = {}) => {
+    return fetch(url, {
+      ...options,
+      headers: { ...options.headers, ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) }
+    }).then(res => {
+      if (res.status === 401) handleLogout()
+      return res
+    })
+  }, [authToken, handleLogout])
+
+  if (!authToken || !currentUser) return <AuthScreen onAuth={handleAuth} />
+  return <MainApp authFetch={authFetch} currentUser={currentUser} onLogout={handleLogout} />
 }
 
 export default App

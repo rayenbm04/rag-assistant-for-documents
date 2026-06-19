@@ -1,16 +1,22 @@
-import os, shutil, base64, asyncio, hashlib, json, re
-from importlib_resources import files
+import os, shutil, base64, asyncio, hashlib, json, re, uuid
+from datetime import datetime, timedelta
 import nest_asyncio
   # allows AutoMergingRetriever to run inside FastAPI's event loop
 import pdfplumber
 from PIL import Image
 from docx import Document as DocxDocument
 from concurrent.futures import ThreadPoolExecutor
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 from dotenv import load_dotenv
+# ── Auth ──
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from sqlalchemy import create_engine, Column, String, DateTime
+from sqlalchemy.orm import declarative_base, sessionmaker
 import chromadb
 import ollama
 from llama_index.core import VectorStoreIndex, Settings, Document, PromptTemplate
@@ -51,6 +57,96 @@ RERANK_MODEL       = os.getenv("RERANK_MODEL",         "cross-encoder/ms-marco-M
 PARENT_CHUNK_SIZE  = int(os.getenv("PARENT_CHUNK_SIZE", "512"))
 CHILD_CHUNK_SIZE   = int(os.getenv("CHILD_CHUNK_SIZE",  "128"))
 NODE_STORE_DIR     = os.getenv("NODE_STORE_DIR",        "./node_store")
+SECRET_KEY             = os.getenv("SECRET_KEY",             "change-me-in-production")
+ACCESS_TOKEN_EXPIRE_DAYS = int(os.getenv("ACCESS_TOKEN_EXPIRE_DAYS", "7"))
+DATABASE_URL           = os.getenv("DATABASE_URL",           "sqlite:///./rag_users.db")
+
+# ── SQLAlchemy / User DB ──────────────────────────────────────────────────────
+_engine      = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+_SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
+_Base        = declarative_base()
+
+class UserModel(_Base):
+    __tablename__ = "users"
+    id              = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    email           = Column(String, unique=True, index=True, nullable=False)
+    firstname       = Column(String, nullable=False)
+    lastname        = Column(String, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    role            = Column(String, default="user")   # "admin" | "user"
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+_Base.metadata.create_all(bind=_engine)
+
+# ── JWT / password utils ──────────────────────────────────────────────────────
+_pwd_ctx      = CryptContext(schemes=["bcrypt"], deprecated="auto")
+_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+def _hash_pw(pw: str) -> str:           return _pwd_ctx.hash(pw)
+def _verify_pw(plain: str, h: str) -> bool: return _pwd_ctx.verify(plain, h)
+
+def _make_token(user: UserModel) -> str:
+    expire = datetime.utcnow() + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
+    return jwt.encode(
+        {"sub": user.id, "email": user.email, "role": user.role, "exp": expire},
+        SECRET_KEY, algorithm="HS256",
+    )
+
+def _db_session():
+    db = _SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+async def get_current_user(token: str = Depends(_oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        user_id: str = payload.get("sub")
+        if not user_id:
+            raise HTTPException(401, "Invalid token")
+    except JWTError:
+        raise HTTPException(401, "Invalid token")
+    db = _SessionLocal()
+    try:
+        user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    finally:
+        db.close()
+    if not user:
+        raise HTTPException(401, "User not found")
+    return user
+
+def _require_admin(current_user: UserModel = Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(403, "Admin access required")
+    return current_user
+
+# ── File-ownership persistence ────────────────────────────────────────────────
+_FILE_OWNERS_PATH = "./file_owners.json"
+
+def _load_file_owners() -> dict:
+    if os.path.exists(_FILE_OWNERS_PATH):
+        with open(_FILE_OWNERS_PATH) as f:
+            return json.load(f)
+    return {}
+
+def _save_file_owners():
+    with open(_FILE_OWNERS_PATH, "w") as f:
+        json.dump(file_owners, f)
+
+file_owners: dict[str, str] = _load_file_owners()   # {filename: user_id}
+
+# ── Pydantic auth schemas ─────────────────────────────────────────────────────
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    firstname: str
+    lastname: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
 
 class HistoryEntry(BaseModel):
     question: str
@@ -73,6 +169,75 @@ app.add_middleware(CORSMiddleware,
 
 os.makedirs(UPLOAD_DIR,    exist_ok=True)
 os.makedirs(NODE_STORE_DIR, exist_ok=True)
+
+# ── Auth endpoints ────────────────────────────────────────────────────────────
+
+@app.post("/auth/register")
+def auth_register(req: RegisterRequest):
+    db = _SessionLocal()
+    try:
+        if db.query(UserModel).filter(UserModel.email == req.email).first():
+            raise HTTPException(400, "Email already registered")
+        if len(req.password) < 6:
+            raise HTTPException(400, "Password must be at least 6 characters")
+        is_first = db.query(UserModel).count() == 0   # first user → admin
+        user = UserModel(
+            id=str(uuid.uuid4()),
+            email=req.email,
+            firstname=req.firstname,
+            lastname=req.lastname,
+            hashed_password=_hash_pw(req.password),
+            role="admin" if is_first else "user",
+        )
+        db.add(user); db.commit(); db.refresh(user)
+    finally:
+        db.close()
+    token = _make_token(user)
+    return {"access_token": token, "token_type": "bearer",
+            "user": {"id": user.id, "email": user.email, "firstname": user.firstname, "lastname": user.lastname, "role": user.role}}
+
+@app.post("/auth/login")
+def auth_login(req: LoginRequest):
+    db = _SessionLocal()
+    try:
+        user = db.query(UserModel).filter(UserModel.email == req.email).first()
+    finally:
+        db.close()
+    if not user or not _verify_pw(req.password, user.hashed_password):
+        raise HTTPException(401, "Invalid email or password")
+    token = _make_token(user)
+    return {"access_token": token, "token_type": "bearer",
+            "user": {"id": user.id, "email": user.email, "firstname": user.firstname, "lastname": user.lastname, "role": user.role}}
+
+@app.get("/auth/me")
+def auth_me(current_user: UserModel = Depends(get_current_user)):
+    return {"id": current_user.id, "email": current_user.email, "firstname": current_user.firstname, "lastname": current_user.lastname, "role": current_user.role}
+
+@app.get("/auth/users")
+def auth_list_users(current_user: UserModel = Depends(_require_admin)):
+    db = _SessionLocal()
+    try:
+        users = db.query(UserModel).all()
+        return [{"id": u.id, "email": u.email, "firstname": u.firstname, "lastname": u.lastname, "role": u.role,
+                 "created_at": u.created_at.isoformat()} for u in users]
+    finally:
+        db.close()
+
+@app.patch("/auth/users/{user_id}/role")
+def auth_set_role(user_id: str, body: dict,
+                  current_user: UserModel = Depends(_require_admin)):
+    new_role = body.get("role")
+    if new_role not in ("admin", "user"):
+        raise HTTPException(400, "role must be 'admin' or 'user'")
+    db = _SessionLocal()
+    try:
+        user = db.query(UserModel).filter(UserModel.id == user_id).first()
+        if not user:
+            raise HTTPException(404, "User not found")
+        user.role = new_role; db.commit()
+        return {"id": user.id, "email": user.email, "role": user.role}
+    finally:
+        db.close()
 
 # ── ChromaDB (vector store) ──
 chroma_client     = chromadb.PersistentClient(path=CHROMA_DIR)
@@ -550,7 +715,8 @@ def add_document_to_index(file_path, filename):
 # ──────────────────────────────────────────
 
 @app.post("/upload")
-async def upload(file: UploadFile = File(...)):
+async def upload(file: UploadFile = File(...),
+                 current_user: UserModel = Depends(get_current_user)):
     """
     Save file and start indexing in background.
     If the same file (identical content) is re-uploaded, returns "ready" immediately.
@@ -564,6 +730,9 @@ async def upload(file: UploadFile = File(...)):
         file_hashes.get(file.filename) == incoming_hash
         and indexing_status.get(file.filename) == "ready"
     ):
+        # Re-claim ownership (user may have refreshed after backend restart)
+        file_owners[file.filename] = current_user.id
+        _save_file_owners()
         print(f"Skipping re-index (unchanged): {file.filename}")
         return {"id": file.filename, "name": file.filename, "status": "ready"}
 
@@ -582,6 +751,8 @@ async def upload(file: UploadFile = File(...)):
     with open(path, "wb") as f:
         f.write(content)
 
+    file_owners[file.filename] = current_user.id
+    _save_file_owners()
     file_hashes[file.filename] = incoming_hash
     indexing_status[file.filename] = "indexing"
     loop = asyncio.get_event_loop()
@@ -590,7 +761,8 @@ async def upload(file: UploadFile = File(...)):
     return {"id": file.filename, "name": file.filename, "status": "indexing"}
 
 @app.get("/status/{filename}")
-def get_status(filename: str):
+def get_status(filename: str,
+               current_user: UserModel = Depends(get_current_user)):
     """
     Poll this endpoint to know when a file is ready.
     Returns: indexing | ready | error | unknown
@@ -601,15 +773,16 @@ def get_status(filename: str):
 
 
 @app.get("/documents")
-def list_documents():
-    files = os.listdir(UPLOAD_DIR)
+def list_documents(current_user: UserModel = Depends(get_current_user)):
+    all_files = [f for f in os.listdir(UPLOAD_DIR) if not f.startswith('.')]
+    # Admins see everything; regular users see only their own files
+    if current_user.role != "admin":
+        all_files = [f for f in all_files
+                     if file_owners.get(f) == current_user.id]
     return [
-        {
-            "id": f,
-            "name": f,
-            "status": indexing_status.get(f, "ready")
-        }
-        for f in files if not f.startswith('.')
+        {"id": f, "name": f, "status": indexing_status.get(f, "ready"),
+         "owner": file_owners.get(f)}
+        for f in all_files
     ]
 
 
@@ -666,7 +839,11 @@ def dashboard():
 
 
 @app.get("/files/{filename}")
-def serve_file(filename: str):
+def serve_file(filename: str,
+               current_user: UserModel = Depends(get_current_user)):
+    # Users can only access their own files; admins access all
+    if current_user.role != "admin" and file_owners.get(filename) != current_user.id:
+        raise HTTPException(403, "Access denied")
     path = f"{UPLOAD_DIR}/{filename}"
     if not os.path.exists(path):
         raise HTTPException(404, "File not found")
@@ -797,10 +974,17 @@ async def condense_question(question: str, history: list[HistoryEntry]) -> str:
 
 
 @app.post("/ask")
-async def ask(q: Question):
+async def ask(q: Question,
+              current_user: UserModel = Depends(get_current_user)):
     # Session has no files linked
     if not q.files:
         raise HTTPException(400, "No documents in this chat. Upload a file to get started.")
+
+    # Check file ownership — users can only query their own files
+    if current_user.role != "admin":
+        forbidden = [f for f in q.files if file_owners.get(f) != current_user.id]
+        if forbidden:
+            raise HTTPException(403, f"Access denied to: {', '.join(forbidden)}")
 
     # Wait only for THIS session's files that are still indexing
     session_indexing = [f for f in q.files if indexing_status.get(f) == "indexing"]
@@ -1058,7 +1242,11 @@ def clear_all():
     return {"message": "All documents cleared"}
 
 @app.delete("/documents/{filename}")
-async def delete_document(filename: str):
+async def delete_document(filename: str,
+                          current_user: UserModel = Depends(get_current_user)):
+    # Only owner or admin can delete
+    if current_user.role != "admin" and file_owners.get(filename) != current_user.id:
+        raise HTTPException(403, "Access denied")
     # 1. delete physical file
     path = f"{UPLOAD_DIR}/{filename}"
     if os.path.exists(path):
@@ -1107,8 +1295,10 @@ async def delete_document(filename: str):
     else:
         index = None
 
-    # 4. clean status
+    # 4. clean status + ownership
     indexing_status.pop(filename, None)
+    file_owners.pop(filename, None)
+    _save_file_owners()
 
     return {"deleted": filename}
 
