@@ -457,6 +457,16 @@ body {
   flex-shrink: 0;
 }
 
+.source-pages {
+  margin-left: 3px;
+  padding: 1px 6px;
+  background: var(--border-light);
+  border-radius: 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 .comparison-badge {
   background: #EEF2FF;
   color: #3730A3;

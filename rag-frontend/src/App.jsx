@@ -360,7 +360,7 @@ function App() {
     const tempId = generateId()
     pendingIdRef.current = tempId
 
-    updateHistory(prev => [...prev, { id: tempId, question: currentQuestion, answer: null, sources: [], warning: null }])
+    updateHistory(prev => [...prev, { id: tempId, question: currentQuestion, answer: null, sources: [], citations: [], warning: null }])
     scrollTimerRef.current = setTimeout(scrollToBottom, 100)
 
     const sid = activeSession?.id
@@ -415,7 +415,7 @@ function App() {
           } else if (data.type === 'done') {
             updateHistory(prev => prev.map(entry =>
               entry.id === tempId
-                ? { ...entry, answer: (entry.answer ?? '').trim(), sources: data.sources || [], warning: data.warning || null, mode: data.mode || 'standard' }
+                ? { ...entry, answer: (entry.answer ?? '').trim(), sources: data.sources || [], citations: data.citations || [], warning: data.warning || null, mode: data.mode || 'standard' }
                 : entry
             ))
             scrollTimerRef.current = setTimeout(scrollToBottom, 100)
@@ -600,8 +600,14 @@ function App() {
                           ⇄ Comparing {entry.sources.length} docs
                         </span>
                       )}
-                      {entry.sources.map((src, i) => (
-                        <span key={i} className="source-pill"><SourceIcon />{src}</span>
+                      {(entry.citations?.length > 0 ? entry.citations : entry.sources.map(s => ({ file: s, pages: [] }))).map((c, i) => (
+                        <span key={i} className="source-pill">
+                          <SourceIcon />
+                          {c.file}
+                          {c.pages?.length > 0 && (
+                            <span className="source-pages">p. {c.pages.join(', ')}</span>
+                          )}
+                        </span>
                       ))}
                     </div>
                   )}

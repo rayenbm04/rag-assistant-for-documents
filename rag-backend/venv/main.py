@@ -163,9 +163,47 @@ def image_to_base64(file_path):
         return base64.b64encode(f.read()).decode("utf-8")
 
 
-def analyze_image_with_llava(image_b64, context_hint=""):
-    """Send image to LLaVA and extract ALL content useful for Q&A"""
-    prompt = f"""You are a document analysis assistant. Analyze this image completely and extract ALL useful information.
+def analyze_image_with_llava(image_b64, context_hint="", doc_mode=False):
+    """Send image to LLaVA and extract ALL content useful for Q&A.
+
+    doc_mode=True  → optimised for scanned documents / invoices / tables:
+                     verbatim transcription, every table row, all numbers.
+    doc_mode=False → optimised for photos / diagrams / screenshots:
+                     visual description, colours, structure, purpose.
+    """
+    if doc_mode:
+        prompt = f"""You are a document transcription assistant. Your job is to extract every piece of information from this scanned document page so it can be searched and queried later.
+
+{"Context: " + context_hint if context_hint else ""}
+
+Follow these rules strictly:
+
+1. TRANSCRIBE ALL TEXT verbatim, exactly as it appears — names, dates, addresses, reference numbers, totals. Do not paraphrase.
+
+2. FOR EVERY TABLE, reproduce it completely row by row:
+   - Write each row on its own line.
+   - Separate columns with " | ".
+   - Include the header row first.
+   - Count and state the total number of data rows at the end.
+   Example:
+   CODE | DESCRIPTION | QTY | UNIT PRICE | TOTAL
+   A001 | Widget X    | 10  | 5.00       | 50.00
+   A002 | Widget Y    | 3   | 12.00      | 36.00
+   Total rows: 2
+
+3. LIST ALL NUMBERS AND AMOUNTS exactly as shown: quantities, unit prices, subtotals, taxes, grand totals.
+
+4. STATE KEY FIELDS explicitly:
+   - Supplier / vendor name
+   - Client / buyer name
+   - Document date and reference number
+   - Currency and payment terms (if visible)
+
+5. If text is partially illegible, write [illegible] in that spot — do not guess.
+
+Be exhaustive. This transcription is the ONLY source of information for answering user questions about this document."""
+    else:
+        prompt = f"""You are a document analysis assistant. Analyze this image completely and extract ALL useful information.
 
 {"Context: " + context_hint if context_hint else ""}
 
@@ -173,15 +211,7 @@ Follow these steps in order:
 
 STEP 1 — TEXT: Copy ALL visible text exactly as written, word for word.
 
-STEP 2 — COLORS (most important): For EVERY distinct element in the image, state its exact color.
-Go through the image methodically:
-- Background color
-- Border or outline colors
-- Each shape, icon, or graphic element and its color
-- Each character, figure, or person and their clothing color
-- Text color(s)
-- Any decorative elements (stars, hearts, dots) and their colors
-Use specific color names: teal, cyan, navy, coral, amber, lime, etc. — not just "blue" or "green".
+STEP 2 — COLORS: For every distinct element, state its exact color (use specific names: teal, coral, amber, etc.).
 
 STEP 3 — STRUCTURE: Describe the layout and what each element represents.
 
@@ -191,6 +221,7 @@ STEP 4 — TYPE-SPECIFIC details:
 - Table: reproduce all rows and columns
 - Chart/graph: describe axes, values, legend, each data series and its color
 - Screenshot: all visible UI elements, buttons, text, data
+- Photo: describe people, setting, actions, notable details
 - Logo/illustration: describe every visual element and what it depicts
 
 STEP 5 — PURPOSE: What is the overall meaning or purpose of this image?
@@ -242,11 +273,12 @@ def extract_pdf_content(file_path, filename, on_progress=None):
                 if filename in cancelled_files:
                     raise InterruptedError(f"Cancelled by user")
                 try:
-                    page_image = page.to_image(resolution=200).original
+                    page_image = page.to_image(resolution=300).original
                     image_b64 = pil_image_to_base64(page_image)
                     visual = analyze_image_with_llava(
                         image_b64,
-                        context_hint=f"Page {page_num}/{total_pages} of PDF '{filename}'"
+                        context_hint=f"Page {page_num}/{total_pages} of PDF '{filename}'",
+                        doc_mode=True,
                     )
                     full_content += f"\n[Visual content — page {page_num}]\n{visual}\n"
                 except InterruptedError:
@@ -285,17 +317,48 @@ def extract_docx_content(file_path, filename):
     """Extract text and tables from a Word document."""
     print(f"Reading Word document: {filename}")
     doc = DocxDocument(file_path)
-    parts = [f"Document: {filename}\n"]
 
+    # ── Pass 1: collect table summaries for the document header ──
+    table_summaries = []
+    table_blocks = []
+    for i, table in enumerate(doc.tables):
+        rows = []
+        for row in table.rows:
+            cells = [cell.text.strip() for cell in row.cells]
+            line = " | ".join(c for c in cells if c)
+            if line:
+                rows.append(line)
+        if not rows:
+            continue
+        first_cell = table.rows[0].cells[0].text.strip() if table.rows else ""
+        has_header = first_cell and not first_cell.replace(",", "").replace(".", "").isdigit()
+        data_rows = len(rows) - 1 if has_header else len(rows)
+        table_summaries.append(f"  Table {i + 1}: {data_rows} data row(s)")
+        table_blocks.append((i + 1, data_rows, rows))
+
+    # ── Document header with table summary (stays in its own chunk) ──
+    # Only count tables with 2+ data rows as "real" data tables; single-row
+    # tables are usually layout/header artefacts in Word documents.
+    real_tables = [(t_num, dr, rows) for t_num, dr, rows in table_blocks if dr >= 2]
+    total_items = sum(dr for _, dr, _ in real_tables)
+
+    header = f"Document: {filename}\n"
+    if table_blocks:
+        if real_tables:
+            header += f"This document contains {len(real_tables)} data table(s) with {total_items} item(s) in total.\n"
+        header += "Table breakdown:\n" + "\n".join(table_summaries) + "\n"
+
+    parts = [header]
+
+    # ── Pass 2: paragraphs ──
     for para in doc.paragraphs:
         if para.text.strip():
             parts.append(para.text)
 
-    for i, table in enumerate(doc.tables):
-        parts.append(f"\n[Table {i + 1}]")
-        for row in table.rows:
-            cells = [cell.text.strip() for cell in row.cells]
-            parts.append(" | ".join(c for c in cells if c))
+    # ── Pass 3: full table content ──
+    for t_num, data_rows, rows in table_blocks:
+        parts.append(f"\n[Table {t_num}] — {data_rows} data row(s)")
+        parts.extend(rows)
 
     return "\n".join(parts)
 
@@ -336,20 +399,30 @@ def extract_excel_content(file_path, filename):
             ws = wb[sheet_name]
             if ws.max_row == 0:
                 continue
-            parts.append(f"\n[Sheet: {sheet_name}]")
+            sheet_rows = []
             for row in ws.iter_rows(values_only=True):
                 line = _row_to_str(list(row))
                 if line:
-                    parts.append(line)
+                    sheet_rows.append(line)
+            if not sheet_rows:
+                continue
+            data_rows = len(sheet_rows) - 1 if len(sheet_rows) > 1 else len(sheet_rows)
+            parts.append(f"\n[Sheet: {sheet_name}] — {data_rows} data row(s)")
+            parts.extend(sheet_rows)
     else:
         for i in range(_xlrd_wb.nsheets):
             ws = _xlrd_wb.sheet_by_index(i)
-            parts.append(f"\n[Sheet: {ws.name}]")
+            sheet_rows = []
             for rx in range(ws.nrows):
                 cells = [ws.cell_value(rx, cx) for cx in range(ws.ncols)]
                 line = _row_to_str(cells)
                 if line:
-                    parts.append(line)
+                    sheet_rows.append(line)
+            if not sheet_rows:
+                continue
+            data_rows = len(sheet_rows) - 1 if len(sheet_rows) > 1 else len(sheet_rows)
+            parts.append(f"\n[Sheet: {ws.name}] — {data_rows} data row(s)")
+            parts.extend(sheet_rows)
 
     return "\n".join(parts)
 
@@ -412,6 +485,21 @@ def add_document_to_index(file_path, filename):
             # Two levels: parent (~512 tokens, in docstore) + leaf (~128 tokens,
             # in ChromaDB). AutoMergingRetriever promotes siblings to parent at
             # query time → LLM gets richer context, retrieval stays precise.
+
+            # Remove stale docstore nodes for this file before re-indexing so
+            # ChromaDB and the docstore never reference each other's old IDs.
+            old_node_ids = [
+                nid for nid, node in storage_context.docstore.docs.items()
+                if node.metadata.get("file_name") == filename
+            ]
+            for nid in old_node_ids:
+                try:
+                    storage_context.docstore.delete_document(nid)
+                except Exception:
+                    pass
+            if old_node_ids:
+                print(f"Removed {len(old_node_ids)} stale docstore nodes for {filename}")
+
             parser     = HierarchicalNodeParser.from_defaults(
                 chunk_sizes=[PARENT_CHUNK_SIZE, CHILD_CHUNK_SIZE]
             )
@@ -735,6 +823,27 @@ async def ask(q: Question):
     history        = q.history
     question_files = q.files
 
+    def build_citations(nodes: list) -> list[dict]:
+        """
+        Build structured citations from retrieved nodes.
+        Scans each chunk's text for 'Page X/Y' markers (embedded by extract_pdf_content)
+        and groups page numbers by filename.
+        Returns: [{"file": "foo.pdf", "pages": [1, 3]}, ...]
+        Images/docx/txt have no page markers → pages list is empty.
+        """
+        _page_re = re.compile(r'Page\s+(\d+)/\d+', re.IGNORECASE)
+        file_pages: dict[str, set] = {}
+        for node in nodes:
+            fname = node.metadata.get("file_name", "unknown")
+            pages_found = {int(p) for p in _page_re.findall(node.get_content())}
+            if fname not in file_pages:
+                file_pages[fname] = set()
+            file_pages[fname].update(pages_found)
+        return [
+            {"file": fname, "pages": sorted(pgs)}
+            for fname, pgs in file_pages.items()
+        ]
+
     async def event_stream():
         try:
             # 1. Condense follow-up into standalone question for retrieval
@@ -781,7 +890,13 @@ async def ask(q: Question):
 
                 if PARENT_CHILD_AVAILABLE:
                     retriever = AutoMergingRetriever(retriever, storage_context, verbose=False)
-                nodes = await retriever.aretrieve(standalone)
+                try:
+                    nodes = await retriever.aretrieve(standalone)
+                except Exception as _merge_err:
+                    # If AutoMergingRetriever can't find a parent node (stale docstore),
+                    # fall back to the raw vector retriever for this query.
+                    print(f"[warn] AutoMergingRetriever failed ({_merge_err}), using leaf nodes")
+                    nodes = await vector_retriever.aretrieve(standalone)
 
                 if reranker and len(nodes) > 1:
                     _q, _k = standalone, SIMILARITY_TOP_K
@@ -820,7 +935,11 @@ async def ask(q: Question):
                 system_instruction = (
                     "You are a document assistant. Answer using ONLY the provided context and conversation history.\n"
                     "Do not use any prior knowledge outside of these.\n"
-                    "If the answer cannot be found, say: "
+                    "Important rules:\n"
+                    "- Image files have already been analysed by a vision model. Their full description is in the context. "
+                    "Do NOT ask the user to provide an image — all visual content is already available to you as text.\n"
+                    "- Tables and row data are in the context as pipe-separated lines. Count or sum them directly from the text.\n"
+                    "- If the answer cannot be found in the context, say exactly: "
                     "'I don't have enough information in the provided documents to answer this.'\n\n"
                 )
 
@@ -852,7 +971,8 @@ async def ask(q: Question):
                 f"Still indexing: {', '.join(still_indexing)}. Results may be incomplete."
                 if still_indexing else None
             )
-            yield f"data: {json.dumps({'type': 'done', 'sources': sources, 'warning': warning, 'mode': 'comparison' if comparison_mode else 'standard'})}\n\n"
+            citations = build_citations(nodes)
+            yield f"data: {json.dumps({'type': 'done', 'sources': sources, 'citations': citations, 'warning': warning, 'mode': 'comparison' if comparison_mode else 'standard'})}\n\n"
 
             # 7. RAG eval — LLM-as-judge (faithfulness + answer relevance)
             if ENABLE_EVAL and full_response.strip():
