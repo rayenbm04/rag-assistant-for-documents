@@ -1,6 +1,7 @@
-import os, shutil, base64, asyncio, hashlib, json, re, uuid
+import os, shutil, base64, asyncio, hashlib, json, re, uuid, subprocess
 import requests
 from bs4 import BeautifulSoup
+from pptx import Presentation as PptxPresentation
 from datetime import datetime, timedelta
 import nest_asyncio
   # allows AutoMergingRetriever to run inside FastAPI's event loop
@@ -49,6 +50,7 @@ EMBED_MODEL      = os.getenv("EMBED_MODEL",          "nomic-embed-text")
 VISION_MODEL     = os.getenv("VISION_MODEL",         "llava")
 UPLOAD_DIR       = os.getenv("UPLOAD_DIR",           "./uploads")
 CHROMA_DIR       = os.getenv("CHROMA_DIR",           "./chroma_db")
+SLIDES_CACHE_DIR = os.getenv("SLIDES_CACHE_DIR",     "./slides_cache")
 ALLOWED_ORIGINS  = os.getenv("ALLOWED_ORIGINS",      "http://localhost:5173").split(",")
 SIMILARITY_TOP_K = int(os.getenv("SIMILARITY_TOP_K", "4"))
 MAX_UPLOAD_MB    = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))
@@ -172,8 +174,9 @@ app.add_middleware(CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"], allow_headers=["*"])
 
-os.makedirs(UPLOAD_DIR,    exist_ok=True)
-os.makedirs(NODE_STORE_DIR, exist_ok=True)
+os.makedirs(UPLOAD_DIR,      exist_ok=True)
+os.makedirs(NODE_STORE_DIR,  exist_ok=True)
+os.makedirs(SLIDES_CACHE_DIR, exist_ok=True)
 
 # ── Auth endpoints ────────────────────────────────────────────────────────────
 
@@ -292,8 +295,8 @@ if ENABLE_RERANK:
 def parse_eval_score(text: str) -> float | None:
     """Extract a 0.0–1.0 score from LLM output. Robust to prose around the number."""
     text = text.strip()
-    # Match a decimal like 0.85 or 1.0, or an integer 0 or 1
-    match = re.search(r'\b(1\.?0*|0?\.\d+)\b', text)
+    # Match: 1.0, 0.85, .5, or bare integers 0 or 1
+    match = re.search(r'\b(1\.?0*|0?\.\d+|[01])\b', text)
     if match:
         return round(min(max(float(match.group(1)), 0.0), 1.0), 2)
     return None
@@ -481,6 +484,104 @@ def extract_txt_content(file_path, filename):
     with open(file_path, "r", encoding="utf-8", errors="replace") as f:
         text = f.read()
     return f"Text file: {filename}\n\n{text}"
+
+
+def extract_pptx_content(file_path, filename):
+    """Extract text from PowerPoint slides — each slide becomes its own labelled block."""
+    print(f"Reading PPTX file: {filename}")
+    prs = PptxPresentation(file_path)
+    total = len(prs.slides)
+
+    # ── Collect slide titles first for the index ──────────────────────────
+    def _slide_title(slide):
+        """Return title placeholder text, or first non-empty text as fallback."""
+        first_text = ""
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            text = shape.text_frame.text.strip()
+            if not text:
+                continue
+            try:
+                if shape.is_placeholder and shape.placeholder_format.idx in (0, 1):
+                    return text   # proper title placeholder
+            except Exception:
+                pass
+            if not first_text:
+                first_text = text  # keep first text as fallback
+        return first_text
+
+    # Collect titles + first body line per slide for the rich overview
+    slide_titles = []
+    slide_first_body = []
+    for slide in prs.slides:
+        title = _slide_title(slide)
+        slide_titles.append(title)
+        first_body = ""
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            t = shape.text_frame.text.strip()
+            if not t or t == title:
+                continue
+            # Take only the first non-empty line of body text
+            first_line = next((ln.strip() for ln in t.splitlines() if ln.strip()), "")
+            if first_line:
+                first_body = first_line
+                break
+        slide_first_body.append(first_body)
+
+    # ── Slide overview block (answers "what does each slide represent") ──────
+    overview_lines = []
+    for i, (title, body) in enumerate(zip(slide_titles, slide_first_body), 1):
+        line = f"  Slide {i}"
+        if title:
+            line += f": {title}"
+        if body:
+            line += f" — {body}"
+        overview_lines.append(line)
+
+    overview = (
+        f"Presentation overview: {filename}\n"
+        f"Total slides: {total}\n"
+        f"What each slide represents:\n" + "\n".join(overview_lines) + "\n"
+    )
+    parts = [overview]
+
+    # ── Per-slide detail blocks ───────────────────────────────────────────────
+    for i, slide in enumerate(prs.slides, 1):
+        title_text = slide_titles[i - 1]
+        body_lines = []
+
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            text = shape.text_frame.text.strip()
+            if not text or text == title_text:
+                continue
+            body_lines.append(text)
+
+        notes_text = ""
+        try:
+            if slide.has_notes_slide:
+                notes_text = slide.notes_slide.notes_text_frame.text.strip()
+        except Exception:
+            pass
+
+        block = f"\n--- Slide {i}"
+        if title_text:
+            block += f": {title_text}"
+        block += " ---\n"
+        if title_text:
+            block += f"Title: {title_text}\n"
+        if body_lines:
+            block += "\n".join(body_lines) + "\n"
+        if notes_text:
+            block += f"Speaker notes: {notes_text}\n"
+
+        parts.append(block)
+
+    return "\n".join(parts)
 
 
 def extract_uml_content(file_path, filename):
@@ -750,6 +851,9 @@ def add_document_to_index(file_path, filename):
         elif extension in ['xlsx', 'xls']:
             text = extract_excel_content(file_path, filename)
             doc_type = "excel"
+        elif extension == 'pptx':
+            text = extract_pptx_content(file_path, filename)
+            doc_type = "pptx"
         elif extension in ['puml', 'plantuml', 'uml']:
             text = extract_uml_content(file_path, filename)
             doc_type = "uml"
@@ -950,6 +1054,10 @@ async def upload(file: UploadFile = File(...),
     loop = asyncio.get_event_loop()
     loop.run_in_executor(executor, add_document_to_index, path, file.filename)
 
+    # Pre-convert PPTX → PDF in the background so the preview is ready immediately
+    if file.filename.lower().endswith(".pptx"):
+        loop.run_in_executor(executor, _pptx_to_pdf_cached, path, file.filename)
+
     return {"id": file.filename, "name": file.filename, "status": "indexing"}
 
 @app.get("/status/{filename}")
@@ -1058,6 +1166,8 @@ def preview_file(filename: str,
             text = extract_docx_content(path, filename)
         elif ext in ['xlsx', 'xls']:
             text = extract_excel_content(path, filename)
+        elif ext == 'pptx':
+            text = extract_pptx_content(path, filename)
         elif ext in ['puml', 'plantuml', 'uml', 'txt', 'md', 'csv']:
             text = extract_txt_content(path, filename)
         else:
@@ -1065,6 +1175,102 @@ def preview_file(filename: str,
     except Exception as e:
         text = f"[Preview error: {e}]"
     return {"text": text[:8000]}
+
+
+# Cache the LibreOffice binary path so we only probe once per server lifetime.
+_LO_BIN: str | None = None
+_LO_BIN_CHECKED: bool = False
+# Windows flag to suppress console windows when spawning subprocesses.
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
+def _find_libreoffice() -> str | None:
+    """Return path to a working LibreOffice binary (result cached after first call)."""
+    import glob
+    global _LO_BIN, _LO_BIN_CHECKED
+    if _LO_BIN_CHECKED:
+        return _LO_BIN
+
+    # Build candidate list: PATH names first, then glob every versioned install dir
+    candidates = ["soffice", "libreoffice"]
+    for prog_dir in [r"C:\Program Files", r"C:\Program Files (x86)"]:
+        for lo_dir in glob.glob(os.path.join(prog_dir, "LibreOffice*")):
+            candidates.append(os.path.join(lo_dir, "program", "soffice.exe"))
+
+    for candidate in candidates:
+        try:
+            subprocess.run(
+                [candidate, "--version"],
+                capture_output=True, stdin=subprocess.DEVNULL,
+                creationflags=_NO_WINDOW, timeout=5,
+            )
+            _LO_BIN = candidate
+            break
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+    _LO_BIN_CHECKED = True
+    return _LO_BIN
+
+
+def _pptx_to_pdf_cached(src: str, filename: str) -> str | None:
+    """Convert PPTX at *src* to PDF and cache it. Returns cached PDF path, or None on failure."""
+    import tempfile
+    stem       = os.path.splitext(filename)[0]
+    mtime      = int(os.path.getmtime(src))
+    cache_name = f"{stem}_{mtime}.pdf"
+    cached     = os.path.join(SLIDES_CACHE_DIR, cache_name)
+
+    if os.path.exists(cached):
+        return cached
+
+    lo_bin = _find_libreoffice()
+    if not lo_bin:
+        return None
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            safe_src = os.path.join(tmpdir, "input.pptx")
+            shutil.copy2(src, safe_src)
+            result = subprocess.run(
+                [lo_bin, "--headless", "--norestore", "--nofirststartwizard",
+                 "--convert-to", "pdf", "--outdir", tmpdir, safe_src],
+                capture_output=True, stdin=subprocess.DEVNULL,
+                creationflags=_NO_WINDOW, timeout=120,
+            )
+            if result.returncode != 0:
+                return None
+            converted = os.path.join(tmpdir, "input.pdf")
+            if not os.path.exists(converted):
+                return None
+            shutil.move(converted, cached)
+    except Exception:
+        return None
+
+    return cached
+
+
+@app.get("/slides-pdf/{filename}")
+def slides_pdf(filename: str,
+               current_user: UserModel = Depends(get_current_user)):
+    """Return a cached PDF rendition of a PPTX file (converts on demand)."""
+    if current_user.role != "admin" and file_owners.get(filename) != current_user.id:
+        raise HTTPException(403, "Access denied")
+
+    src = os.path.join(UPLOAD_DIR, filename)
+    if not os.path.exists(src):
+        raise HTTPException(404, "File not found")
+
+    # _pptx_to_pdf_cached calls _find_libreoffice internally; no need to call it twice
+    cached = _pptx_to_pdf_cached(src, filename)
+    if not cached:
+        if _find_libreoffice() is None:
+            raise HTTPException(500,
+                "LibreOffice not found. Install it from https://www.libreoffice.org "
+                "and make sure 'soffice' is on your PATH.")
+        raise HTTPException(500, "LibreOffice conversion failed")
+
+    stem = os.path.splitext(filename)[0]
+    return FileResponse(cached, media_type="application/pdf", filename=stem + ".pdf")
 
 
 class TitleRequest(BaseModel):
@@ -1403,9 +1609,10 @@ async def ask(q: Question,
                     rel_result   = await Settings.llm.acomplete(rel_prompt)
                     rel_score    = parse_eval_score(str(rel_result))
 
+                    faith_score = faith_score if faith_score is not None else 0.0
+                    rel_score   = rel_score   if rel_score   is not None else 0.0
                     print(f"[eval] faithfulness={faith_score}  relevance={rel_score}")
-                    if faith_score is not None and rel_score is not None:
-                        yield f"data: {json.dumps({'type': 'eval', 'faithfulness': faith_score, 'answer_relevance': rel_score})}\n\n"
+                    yield f"data: {json.dumps({'type': 'eval', 'faithfulness': faith_score, 'answer_relevance': rel_score})}\n\n"
                 except Exception as eval_err:
                     print(f"[eval] error: {eval_err}")
 

@@ -7,6 +7,7 @@ rag-backend/chroma_db/
 rag-backend/uploads/
 rag-backend/uploaded_docs/
 rag-backend/storage/
+rag-backend/slides_cache/
 
 
 rag-frontend/node_modules/

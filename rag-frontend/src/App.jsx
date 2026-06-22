@@ -312,16 +312,22 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     }
     const ext = previewFile.split('.').pop().toLowerCase()
     const isPreviewable = ['pdf','png','jpg','jpeg','gif','bmp','webp'].includes(ext)
+    const isPptx        = ext === 'pptx'
     const isTextPreview = ['docx','xlsx','xls','puml','plantuml','uml','txt','md','csv'].includes(ext)
 
     if (isPreviewable) {
       authFetch(`${API}/files/${encodeURIComponent(previewFile)}`)
         .then(r => r.blob())
-        .then(blob => {
-          const url = URL.createObjectURL(blob)
-          setPreviewBlobUrl(url)
-        })
+        .then(blob => setPreviewBlobUrl(URL.createObjectURL(blob)))
         .catch(() => setPreviewBlobUrl(null))
+    } else if (isPptx) {
+      authFetch(`${API}/slides-pdf/${encodeURIComponent(previewFile)}`)
+        .then(r => {
+          if (!r.ok) return r.json().then(d => Promise.reject(d.detail || 'Conversion failed'))
+          return r.blob()
+        })
+        .then(blob => setPreviewBlobUrl(URL.createObjectURL(blob)))
+        .catch(err => setPreviewText(typeof err === 'string' ? err : 'Could not convert to PDF'))
     } else if (isTextPreview) {
       authFetch(`${API}/preview/${encodeURIComponent(previewFile)}`)
         .then(r => r.json())
@@ -394,7 +400,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
         f.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
         f.type === 'application/vnd.ms-excel' ||
         ext === 'puml' || ext === 'plantuml' || ext === 'uml' ||
-        ext === 'md' || ext === 'csv'
+        ext === 'md' || ext === 'csv' || ext === 'pptx'
     })
 
     for (const f of valid) {
@@ -901,9 +907,9 @@ function MainApp({ authFetch, currentUser, onLogout }) {
           >
             <UploadIcon />
             <p className="upload-text">Click or drag to upload</p>
-            <p className="upload-hint">PDF, Word, Excel, UML, TXT or images</p>
+            <p className="upload-hint">PDF, Word, Excel, PowerPoint, UML, TXT or images</p>
             <input
-              ref={fileInputRef} type="file" accept=".pdf,.txt,.docx,.xlsx,.xls,.puml,.plantuml,.uml,.md,.csv,image/*" multiple
+              ref={fileInputRef} type="file" accept=".pdf,.txt,.docx,.xlsx,.xls,.pptx,.puml,.plantuml,.uml,.md,.csv,image/*" multiple
               style={{ display: 'none' }}
               onChange={ev => { handleFileSelect(ev.target.files); ev.target.value = '' }}
             />
@@ -989,24 +995,29 @@ function MainApp({ authFetch, currentUser, onLogout }) {
       {previewFile && (() => {
         const ext     = previewFile.split('.').pop().toLowerCase()
         const fileUrl = `${API}/files/${encodeURIComponent(previewFile)}`
-        const isImage = ['png','jpg','jpeg','gif','bmp','webp'].includes(ext)
-        const isPdf   = ext === 'pdf'
-        const hasText = previewText !== null
+        const isImage    = ['png','jpg','jpeg','gif','bmp','webp'].includes(ext)
+        const isPdf      = ext === 'pdf'
+        const isPptx     = ext === 'pptx'
+        const hasText    = previewText !== null
         return (
           <div className="preview-overlay" onClick={() => { setPreviewFile(null) }}>
             <div className="preview-modal" onClick={e => e.stopPropagation()}>
               <div className="preview-header">
                 <span className="preview-filename">{previewFile}</span>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <a className="preview-open-btn" href={fileUrl} target="_blank" rel="noreferrer">Open in tab ↗</a>
+                  {previewBlobUrl && (
+                    <button className="preview-open-btn" onClick={() => window.open(previewBlobUrl, '_blank')}>Open in tab ↗</button>
+                  )}
                   <button className="dashboard-close" onClick={() => setPreviewFile(null)}>✕</button>
                 </div>
               </div>
               <div className="preview-body">
-                {isPdf && (
+                {(isPdf || isPptx) && (
                   previewBlobUrl
                     ? <iframe src={previewBlobUrl} title={previewFile} className="preview-iframe" />
-                    : <div className="preview-loading">Loading…</div>
+                    : hasText
+                      ? <pre className="preview-text">{previewText}</pre>  // LibreOffice error message
+                      : <div className="preview-loading">Converting to PDF…</div>
                 )}
                 {isImage && (
                   previewBlobUrl
