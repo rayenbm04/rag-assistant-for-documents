@@ -47,6 +47,55 @@ Built as a 5-week internship project to explore the full RAG engineering stack: 
 
 ### Retrieval pipeline
 
+```
+User Question
+      │
+      ▼
+┌─────────────────────────┐
+│  Question Condensation  │  follow-ups rewritten to standalone · typos corrected
+└─────────────┬───────────┘
+              │
+      ┌───────┴────────┐
+      ▼                ▼
+┌───────────┐   ┌──────────────────┐
+│   HyDE    │   │   Multi-Query    │  3 alternative phrasings generated in parallel
+│ Expansion │   │   Generation     │
+└─────┬─────┘   └────────┬─────────┘
+      │                  │
+      └────────┬──────────┘
+               ▼
+    ┌──────────────────────┐
+    │   Hybrid Retrieval   │  all queries fired in parallel
+    │  ┌────────────────┐  │
+    │  │  Vector Search │  │  HyDE query + 3 multi-query variants → ChromaDB
+    │  │    (ChromaDB)  │  │
+    │  ├────────────────┤  │
+    │  │  BM25 Search   │  │  original standalone query → keyword index
+    │  └────────────────┘  │
+    └──────────┬───────────┘
+               ▼
+    ┌──────────────────────┐
+    │  Reciprocal Rank     │  merge up to 5 result lists · deduplicate · boost
+    │  Fusion (RRF)        │  chunks appearing across multiple queries
+    └──────────┬───────────┘
+               ▼
+    ┌──────────────────────┐
+    │  Cross-Encoder       │  BAAI/bge-reranker-base scores each (query, chunk)
+    │  Re-ranking          │  pair jointly · keeps top-K
+    └──────────┬───────────┘
+               ▼
+    ┌──────────────────────┐
+    │  PPTX Overview       │  for PowerPoint files: always inject slide index
+    │  Pinning             │  + cover slide chunks regardless of retrieval scores
+    └──────────┬───────────┘
+               ▼
+    ┌──────────────────────┐
+    │   Qwen 2.5 7B        │  streams answer token-by-token via SSE
+    └──────────┬───────────┘
+               ▼
+    Answer + Citations + F/R Eval Scores
+```
+
 **HyDE (Hypothetical Document Embeddings)**
 Before retrieval, the LLM generates a short hypothetical passage that would answer the question. This passage is embedded and used for vector search instead of the raw question. A passage-shaped vector sits much closer to real document chunks in embedding space than a question-shaped vector does, measurably improving retrieval quality — especially for vague or short queries. The hypothesis is shown to the user as a collapsible "Search hypothesis" chip above the answer.
 
