@@ -153,6 +153,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [urlInput, setUrlInput]           = useState('')
   const [urlLoading, setUrlLoading]       = useState(false)
   const [urlError, setUrlError]           = useState('')
+  const [darkMode, setDarkMode]           = useState(() => localStorage.getItem('rag-theme') === 'dark')
 
   // Refs
   const fileInputRef        = useRef(null)
@@ -181,6 +182,12 @@ function MainApp({ authFetch, currentUser, onLogout }) {
 
   // Keep historyRef in sync (fixes stale-closure issue in handleSubmit)
   useEffect(() => { historyRef.current = history }, [history])
+
+  // Dark mode
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light')
+    localStorage.setItem('rag-theme', darkMode ? 'dark' : 'light')
+  }, [darkMode])
 
   // Persist sessions
   useEffect(() => { localStorage.setItem(sessionsKey, JSON.stringify(sessions)) }, [sessions])
@@ -606,6 +613,9 @@ function MainApp({ authFetch, currentUser, onLogout }) {
         <div className="navbar-logo">RAG Assistant</div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
           {anyIndexing && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Indexing documents...</span>}
+          <button className="clear-history-btn" onClick={() => setDarkMode(d => !d)} title="Toggle dark mode">
+            {darkMode ? '☀' : '☾'}
+          </button>
           <button className="clear-history-btn" onClick={openDashboard}>Stats</button>
           {history.filter(e => e.answer !== null).length > 0 && (
             <button className="clear-history-btn" onClick={() => window.print()}>Export PDF</button>

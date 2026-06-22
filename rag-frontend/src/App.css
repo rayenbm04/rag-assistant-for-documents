@@ -16,6 +16,32 @@
   --shadow-subtle:  0 1px 4px rgba(0,0,0,0.06);
 }
 
+[data-theme="dark"] {
+  --bg-main:        #111110;
+  --bg-white:       #1C1C1A;
+  --bg-sidebar:     #161614;
+  --border-light:   #2A2A27;
+  --border-dashed:  #3A3A36;
+  --text-primary:   #F0EDE8;
+  --text-secondary: #A09C96;
+  --text-muted:     #6B6760;
+  --accent-black:   #F0EDE8;
+  --accent-white:   #111110;
+  --chat-user-bg:   #F0EDE8;
+  --chat-ai-bg:     #1C1C1A;
+  --source-pill-bg: #2A2A27;
+  --shadow-subtle:  0 1px 4px rgba(0,0,0,0.3);
+}
+
+[data-theme="dark"] .message.user .message-content {
+  color: #1A1916;
+}
+
+[data-theme="dark"] .auth-submit {
+  background: #F0EDE8;
+  color: #1A1916;
+}
+
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
