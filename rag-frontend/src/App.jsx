@@ -155,6 +155,8 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [question, setQuestion]       = useState('')
   const [isLoading, setIsLoading]     = useState(false)
   const [isDragOver, setIsDragOver]   = useState(false)
+  const [showPromptNav, setShowPromptNav] = useState(false)
+  const [showScrollDown, setShowScrollDown] = useState(false)
   const [showDashboard, setShowDashboard] = useState(false)
   const [dashboardData, setDashboardData] = useState(null)
   const [evalData, setEvalData]           = useState(null)
@@ -174,6 +176,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   // Refs
   const fileInputRef        = useRef(null)
   const chatEndRef          = useRef(null)
+  const chatScrollRef       = useRef(null)
   const abortControllerRef  = useRef(null)
   const scrollTimerRef      = useRef(null)
   const pendingIdRef        = useRef(null)
@@ -301,6 +304,18 @@ function MainApp({ authFetch, currentUser, onLogout }) {
 
   const scrollToBottom = useCallback(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [])
+
+  // ── Show/hide scroll-to-bottom arrow based on scroll position ────────
+  useEffect(() => {
+    const el = chatScrollRef.current
+    if (!el) return
+    const onScroll = () => {
+      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+      setShowScrollDown(distFromBottom > 120)
+    }
+    el.addEventListener('scroll', onScroll)
+    return () => el.removeEventListener('scroll', onScroll)
   }, [])
 
   // ── Load file preview when previewFile changes ───────────────────────
@@ -792,7 +807,14 @@ function MainApp({ authFetch, currentUser, onLogout }) {
             <div className="print-header-date">{new Date().toLocaleString()}</div>
           </div>
 
-          <div className="chat-messages">
+          <div
+            className="chat-messages"
+            ref={chatScrollRef}
+            onScroll={e => {
+              const el = e.currentTarget
+              setShowScrollDown(el.scrollHeight - el.scrollTop - el.clientHeight > 120)
+            }}
+          >
             {history.length === 0 && !isLoading && (
               <div className="chat-empty">
                 <ChatIcon />
@@ -802,7 +824,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
             )}
 
             {history.map(entry => (
-              <div key={entry.id} className="conversation-entry">
+              <div key={entry.id} id={`msg-${entry.id}`} className="conversation-entry">
                 <div className="message-wrapper user">
                   <div className="message user">
                     <p className="message-content">{entry.question}</p>
@@ -881,6 +903,15 @@ function MainApp({ authFetch, currentUser, onLogout }) {
             <div ref={chatEndRef} />
           </div>
 
+          {/* ── Scroll-to-bottom arrow ── */}
+          {showScrollDown && (
+            <button
+              className="scroll-down-btn"
+              onClick={scrollToBottom}
+              title="Scroll to latest"
+            >↓</button>
+          )}
+
           <form className="input-bar" onSubmit={handleSubmit}>
             <div className="input-container">
               <input
@@ -918,6 +949,35 @@ function MainApp({ authFetch, currentUser, onLogout }) {
 
         {/* ── Files sidebar (right) ── */}
         <aside className="sidebar-files">
+          {/* Prompt navigator */}
+          {history.filter(e => e.question).length > 0 && (
+            <div className="prompt-nav-sidebar">
+              <button
+                className="prompt-nav-sidebar-header"
+                onClick={() => setShowPromptNav(p => !p)}
+              >
+                <span className="sidebar-title" style={{ pointerEvents: 'none' }}>Prompts</span>
+                <span className="prompt-nav-chevron">{showPromptNav ? '▲' : '▼'}</span>
+              </button>
+              {showPromptNav && (
+                <div className="prompt-nav-sidebar-list">
+                  {history.filter(e => e.question).map((entry, idx) => (
+                    <button
+                      key={entry.id}
+                      className="prompt-nav-item"
+                      onClick={() => {
+                        document.getElementById(`msg-${entry.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }}
+                    >
+                      <span className="prompt-nav-index">{idx + 1}</span>
+                      <span className="prompt-nav-text">{entry.question.length > 55 ? entry.question.slice(0, 55) + '…' : entry.question}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <h2 className="sidebar-title">Documents</h2>
 
           <div
