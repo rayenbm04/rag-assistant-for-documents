@@ -1380,20 +1380,30 @@ async def retrieve_per_file(
 
 
 async def condense_question(question: str, history: list[HistoryEntry]) -> str:
-    """Rewrite a follow-up question into a standalone question using chat history."""
+    """Normalise typos/abbreviations and, when there is history, rewrite as a standalone question."""
     if not history:
-        return question
-    history_text = "\n".join(
-        f"User: {h.question}\nAssistant: {h.answer}" for h in history[-5:]
-    )
-    prompt = (
-        "Given the conversation below and a follow-up question, rewrite the follow-up "
-        "as a fully standalone question that includes all necessary context from the history.\n"
-        "Return ONLY the rewritten question — no explanation.\n\n"
-        f"Conversation:\n{history_text}\n\n"
-        f"Follow-up: {question}\n\n"
-        "Standalone question:"
-    )
+        # No history — just fix typos and normalise phrasing
+        prompt = (
+            "Fix any spelling mistakes, typos, or grammatical errors in the following question "
+            "and rephrase it as a clear, well-formed question. "
+            "Preserve the original meaning exactly — do not add or remove information.\n"
+            "Return ONLY the corrected question — no explanation.\n\n"
+            f"Original: {question}\n\n"
+            "Corrected:"
+        )
+    else:
+        history_text = "\n".join(
+            f"User: {h.question}\nAssistant: {h.answer}" for h in history[-5:]
+        )
+        prompt = (
+            "Given the conversation below and a follow-up question, do two things:\n"
+            "1. Fix any spelling mistakes or typos in the follow-up question.\n"
+            "2. Rewrite it as a fully standalone question that includes all necessary context from the history.\n"
+            "Return ONLY the rewritten question — no explanation.\n\n"
+            f"Conversation:\n{history_text}\n\n"
+            f"Follow-up: {question}\n\n"
+            "Standalone question:"
+        )
     result = await Settings.llm.acomplete(prompt)
     record_tokens(result)
     condensed = str(result).strip()
