@@ -629,6 +629,14 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                 })
                 .catch(() => {})
             }
+          } else if (data.type === 'indexing_wait') {
+            updateHistory(prev => prev.map(entry =>
+              entry.id === tempId ? { ...entry, indexingWait: true } : entry
+            ))
+          } else if (data.type === 'hypothesis') {
+            updateHistory(prev => prev.map(entry =>
+              entry.id === tempId ? { ...entry, hypothesis: data.text, indexingWait: false } : entry
+            ))
           } else if (data.type === 'eval') {
             setSessions(prev => prev.map(s => ({
               ...s,
@@ -828,6 +836,11 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                 <div className="message-wrapper user">
                   <div className="message user">
                     <p className="message-content">{entry.question}</p>
+                    <button
+                      className="copy-btn copy-prompt-btn"
+                      onClick={() => navigator.clipboard.writeText(entry.question)}
+                      title="Copy prompt"
+                    >Copy</button>
                   </div>
                   {entry.sentAt && (
                     <div className="message-user-meta">
@@ -839,13 +852,19 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                 </div>
                 <div className="message-wrapper ai">
                   <div className="message ai">
+                    {entry.hypothesis && (
+                      <details className="hypothesis-block">
+                        <summary className="hypothesis-summary">🔍 Search hypothesis</summary>
+                        <p className="hypothesis-text">{entry.hypothesis}</p>
+                      </details>
+                    )}
                     {entry.answer === null ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <div className="loading-dots">
                           <div className="loading-dot" /><div className="loading-dot" /><div className="loading-dot" />
                         </div>
                         <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                          {anyIndexing ? 'Waiting for indexing to finish…' : 'Generating a response…'}
+                          {entry.indexingWait ? 'Waiting for indexing to finish…' : 'Generating a response…'}
                         </span>
                       </div>
                     ) : (

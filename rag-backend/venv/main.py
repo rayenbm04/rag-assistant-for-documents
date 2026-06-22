@@ -56,6 +56,7 @@ SIMILARITY_TOP_K = int(os.getenv("SIMILARITY_TOP_K", "4"))
 MAX_UPLOAD_MB    = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))
 OLLAMA_BASE_URL  = os.getenv("OLLAMA_BASE_URL",      "http://localhost:11434")
 ENABLE_EVAL        = os.getenv("ENABLE_EVAL",          "true").lower() == "true"
+ENABLE_HYDE        = os.getenv("ENABLE_HYDE",          "true").lower() == "true"
 ENABLE_RERANK      = os.getenv("ENABLE_RERANK",        "true").lower() == "true"
 RERANK_MODEL       = os.getenv("RERANK_MODEL",         "cross-encoder/ms-marco-MiniLM-L-6-v2")
 PARENT_CHUNK_SIZE  = int(os.getenv("PARENT_CHUNK_SIZE", "512"))
@@ -539,15 +540,29 @@ def extract_pptx_content(file_path, filename):
 
     pname = os.path.splitext(filename)[0]  # filename without extension = presentation name
 
+    def _shape_text(shape) -> str:
+        """Extract all text from a shape, including tables."""
+        if shape.has_text_frame:
+            return shape.text_frame.text.strip()
+        try:
+            if shape.has_table:
+                rows = []
+                for row in shape.table.rows:
+                    cells = [c.text_frame.text.strip() for c in row.cells if c.text_frame.text.strip()]
+                    if cells:
+                        rows.append(" | ".join(cells))
+                return "\n".join(rows)
+        except Exception:
+            pass
+        return ""
+
     # Extract slide 1 body text — title slides carry project name, team, institution
     slide1_body_lines = []
     if prs.slides:
         first_slide = prs.slides[0]
         first_title = slide_titles[0]
         for shape in first_slide.shapes:
-            if not shape.has_text_frame:
-                continue
-            t = shape.text_frame.text.strip()
+            t = _shape_text(shape)
             if t and t != first_title:
                 slide1_body_lines.append(t)
 
@@ -573,9 +588,7 @@ def extract_pptx_content(file_path, filename):
         body_lines = []
 
         for shape in slide.shapes:
-            if not shape.has_text_frame:
-                continue
-            text = shape.text_frame.text.strip()
+            text = _shape_text(shape)
             if not text or text == title_text:
                 continue
             body_lines.append(text)
@@ -1063,7 +1076,8 @@ async def upload(file: UploadFile = File(...),
     except Exception as e:
         print(f"Cleanup error: {e}")
 
-    # Save new file
+    # Save new file (ensure uploads dir exists in case it was deleted)
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
     with open(path, "wb") as f:
         f.write(content)
 
@@ -1434,6 +1448,29 @@ async def condense_question(question: str, history: list[HistoryEntry]) -> str:
     return condensed
 
 
+async def hyde_expand(question: str) -> str:
+    """HyDE: generate a short hypothetical document passage that would answer
+    the question, then use *that* text for vector similarity search.
+    The hypothetical passage lives in the same semantic space as real document
+    chunks, so cosine similarity works much better than querying with a short
+    question string — especially for vague or short queries."""
+    prompt = (
+        "Write a concise passage (3-5 sentences) that would directly answer "
+        "the following question if it appeared in a document. "
+        "Do not mention that this is hypothetical. Just write the passage.\n\n"
+        f"Question: {question}\n\nPassage:"
+    )
+    try:
+        result = await Settings.llm.acomplete(prompt)
+        record_tokens(result)
+        hypothesis = str(result).strip()
+        print(f"[hyde] hypothesis: {hypothesis[:120]}…")
+        return hypothesis
+    except Exception as e:
+        print(f"[hyde] failed ({e}), falling back to original query")
+        return question
+
+
 @app.post("/ask")
 async def ask(q: Question,
               current_user: UserModel = Depends(get_current_user)):
@@ -1447,18 +1484,9 @@ async def ask(q: Question,
         if forbidden:
             raise HTTPException(403, f"Access denied to: {', '.join(forbidden)}")
 
-    # Wait only for THIS session's files that are still indexing
+    # Wait only for THIS session's files that are still indexing.
+    # We do this *inside* the SSE generator so the client can cancel at any time.
     session_indexing = [f for f in q.files if indexing_status.get(f) == "indexing"]
-    if session_indexing:
-        print(f"[/ask] Waiting for {session_indexing} to finish indexing...")
-        wait_timeout = 600
-        elapsed = 0
-        while any(indexing_status.get(f) == "indexing" for f in q.files):
-            await asyncio.sleep(2)
-            elapsed += 2
-            if elapsed >= wait_timeout:
-                raise HTTPException(504, "Indexing is taking too long. Please try again shortly.")
-        print("[/ask] Indexing done — proceeding to answer.")
 
     if not index:
         raise HTTPException(400, "No documents indexed yet. Please upload a file first.")
@@ -1491,6 +1519,21 @@ async def ask(q: Question,
 
     async def event_stream():
         try:
+            # 0. If files are still indexing, wait here inside the stream so
+            #    the client can cancel at any time via the SSE connection.
+            if session_indexing:
+                print(f"[/ask] Waiting for {session_indexing} to finish indexing...")
+                wait_timeout = 600
+                elapsed = 0
+                while any(indexing_status.get(f) == "indexing" for f in question_files):
+                    yield f"data: {json.dumps({'type': 'indexing_wait', 'files': session_indexing})}\n\n"
+                    await asyncio.sleep(2)
+                    elapsed += 2
+                    if elapsed >= wait_timeout:
+                        yield f"data: {json.dumps({'type': 'error', 'message': 'Indexing timed out. Please try again.'})}\n\n"
+                        return
+                print("[/ask] Indexing done — proceeding to answer.")
+
             # 1. Condense follow-up into standalone question for retrieval
             standalone = await condense_question(question, history)
 
@@ -1519,32 +1562,47 @@ async def ask(q: Question,
                     similarity_top_k=candidates_k, filters=filters
                 )
                 session_nodes = get_nodes_for_files(question_files)
+
+                # HyDE: generate a hypothetical passage to use for vector search.
+                # BM25 keeps the original standalone query — keyword search on a
+                # hallucinated passage adds noise rather than helping.
+                if ENABLE_HYDE:
+                    hyde_query = await hyde_expand(standalone)
+                    yield f"data: {json.dumps({'type': 'hypothesis', 'text': hyde_query})}\n\n"
+                else:
+                    hyde_query = standalone
+
                 if session_nodes:
                     bm25_retriever = BM25Retriever.from_defaults(
                         nodes=session_nodes, similarity_top_k=candidates_k
                     )
-                    retriever = QueryFusionRetriever(
-                        [vector_retriever, bm25_retriever],
-                        similarity_top_k=candidates_k,
-                        num_queries=1,
-                        mode="reciprocal_rerank",
-                        use_async=False,
+                    # Run vector (HyDE) and BM25 (original) in parallel
+                    vector_nodes, bm25_nodes = await asyncio.gather(
+                        vector_retriever.aretrieve(hyde_query),
+                        bm25_retriever.aretrieve(standalone),
                     )
+                    # Reciprocal rank fusion (RRF) merge
+                    scores: dict[str, float] = {}
+                    node_map: dict[str, object] = {}
+                    for rank, n in enumerate(vector_nodes):
+                        scores[n.node_id] = scores.get(n.node_id, 0) + 1.0 / (rank + 60)
+                        node_map[n.node_id] = n
+                    for rank, n in enumerate(bm25_nodes):
+                        scores[n.node_id] = scores.get(n.node_id, 0) + 1.0 / (rank + 60)
+                        node_map[n.node_id] = n
+                    nodes = sorted(node_map.values(), key=lambda n: scores[n.node_id], reverse=True)[:candidates_k]
                 else:
-                    retriever = vector_retriever
+                    nodes = await vector_retriever.aretrieve(hyde_query)
 
                 if PARENT_CHILD_AVAILABLE:
-                    retriever = AutoMergingRetriever(retriever, storage_context, verbose=False)
-                try:
-                    nodes = await retriever.aretrieve(standalone)
-                except Exception as _merge_err:
-                    # If AutoMergingRetriever can't find a parent node (stale docstore),
-                    # fall back to the raw vector retriever for this query.
-                    print(f"[warn] AutoMergingRetriever failed ({_merge_err}), using leaf nodes")
-                    nodes = await vector_retriever.aretrieve(standalone)
+                    retriever = AutoMergingRetriever(vector_retriever, storage_context, verbose=False)
+                    try:
+                        nodes = await retriever.aretrieve(hyde_query)
+                    except Exception as _merge_err:
+                        print(f"[warn] AutoMergingRetriever failed ({_merge_err}), using leaf nodes")
 
                 if reranker and len(nodes) > 1:
-                    _q, _k = standalone, SIMILARITY_TOP_K
+                    _q, _k = standalone, SIMILARITY_TOP_K  # rerank against original query, not hypothesis
 
                     def _rerank(nodes_in, q=_q, k=_k):
                         pairs  = [(q, n.get_content()) for n in nodes_in]
@@ -1556,8 +1614,22 @@ async def ask(q: Question,
                     nodes = await loop.run_in_executor(None, _rerank, nodes)
                     print(f"[rerank] kept {len(nodes)}/{candidates_k} chunks")
 
-                context = "\n\n".join(n.get_content() for n in nodes)
-                sources = list({n.metadata.get("file_name", "unknown") for n in nodes})
+                # For PPTX files: always pin the overview chunk (contains "Total slides:")
+                # so metadata questions (slide count, titles) are always answerable.
+                retrieved_ids = {n.node_id for n in nodes}
+                pinned = []
+                for fname in question_files:
+                    if fname.lower().endswith(".pptx"):
+                        all_file_nodes = get_nodes_for_files([fname])
+                        for n in all_file_nodes:
+                            if n.node_id not in retrieved_ids and "Total slides:" in n.get_content():
+                                pinned.append(n)
+                                retrieved_ids.add(n.node_id)
+                                print(f"[pin] injected overview chunk for {fname}")
+                                break
+                all_nodes_final = pinned + list(nodes)
+                context = "\n\n".join(n.get_content() for n in all_nodes_final)
+                sources = list({n.metadata.get("file_name", "unknown") for n in all_nodes_final})
 
             # 3. Build final prompt with history + context
             history_section = ""
@@ -1624,8 +1696,10 @@ async def ask(q: Question,
             # 7. RAG eval — LLM-as-judge (faithfulness + answer relevance)
             if ENABLE_EVAL and full_response.strip():
                 try:
-                    eval_ctx = context[:1500]
+                    eval_ctx = context[:3000]
                     eval_ans = full_response[:800]
+                    print(f"[eval] ctx_len={len(context)} ans_len={len(full_response)}")
+                    print(f"[eval] ctx_preview: {eval_ctx[:300]}")
 
                     faith_prompt = (
                         "You are evaluating a RAG system response.\n\n"
@@ -1646,9 +1720,11 @@ async def ask(q: Question,
                     )
 
                     faith_result = await Settings.llm.acomplete(faith_prompt)
+                    print(f"[eval] faith_raw: {str(faith_result)[:80]}")
                     faith_score  = parse_eval_score(str(faith_result))
 
                     rel_result   = await Settings.llm.acomplete(rel_prompt)
+                    print(f"[eval] rel_raw: {str(rel_result)[:80]}")
                     rel_score    = parse_eval_score(str(rel_result))
 
                     faith_score = faith_score if faith_score is not None else 0.0

@@ -1106,6 +1106,36 @@ body {
   transform: scale(1.03);
 }
 
+/* ── HyDE hypothesis block ── */
+.hypothesis-block {
+  margin-bottom: 8px;
+}
+
+.hypothesis-summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-muted);
+  user-select: none;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+.hypothesis-summary::-webkit-details-marker { display: none; }
+.hypothesis-summary:hover { opacity: 1; }
+
+.hypothesis-text {
+  margin: 4px 0 0 18px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  font-style: italic;
+  white-space: pre-wrap;
+}
+
 .stopped-indicator {
   display: inline-flex;
   align-items: center;
