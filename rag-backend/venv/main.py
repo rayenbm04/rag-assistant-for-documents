@@ -532,15 +532,12 @@ def extract_pptx_content(file_path, filename):
         slide_first_body.append(first_body)
 
     # ── Slide overview block (answers "what does each slide represent") ──────
-    overview_lines = []
-    for i, (title, body) in enumerate(zip(slide_titles, slide_first_body), 1):
-        line = f"  Slide {i}"
-        if title:
-            line += f": {title}"
-        if body:
-            line += f" — {body}"
-        overview_lines.append(line)
-
+    # Keep lines short (title only) so the entire overview fits in one chunk
+    # regardless of presentation length. Body detail is in the per-slide blocks.
+    overview_lines = [
+        f"  Slide {i}: {title}" if title else f"  Slide {i}"
+        for i, title in enumerate(slide_titles, 1)
+    ]
     overview = (
         f"Presentation overview: {filename}\n"
         f"Total slides: {total}\n"
@@ -1555,7 +1552,9 @@ async def ask(q: Question,
                     "Do NOT ask the user to provide an image — all visual content is already available to you as text.\n"
                     "- Tables and row data are in the context as pipe-separated lines. Count or sum them directly from the text.\n"
                     "- If the answer cannot be found in the context, say exactly: "
-                    "'I don't have enough information in the provided documents to answer this.'\n\n"
+                    "'I don't have enough information in the provided documents to answer this.'\n"
+                    "- Do NOT add disclaimers, caveats, or meta-commentary about context limitations at the end of your answer. "
+                    "Just answer directly.\n\n"
                 )
 
             final_prompt = (
@@ -1599,8 +1598,10 @@ async def ask(q: Question,
                         "You are evaluating a RAG system response.\n\n"
                         f"Retrieved context:\n{eval_ctx}\n\n"
                         f"AI answer:\n{eval_ans}\n\n"
-                        "Faithfulness: is every claim in the answer directly supported by the context above? "
-                        "Penalise any statement not grounded in the context.\n"
+                        "Faithfulness: are the answer's claims grounded in the context? "
+                        "Count clearly hedged inferences (words like 'probably', 'likely', 'may', 'suggests') "
+                        "as acceptable — they signal the model is not over-claiming. "
+                        "Only penalise definite statements of fact that contradict or are absent from the context.\n"
                         "Reply with ONLY a decimal number from 0.0 (not faithful) to 1.0 (fully faithful)."
                     )
                     rel_prompt = (
@@ -1733,6 +1734,35 @@ async def delete_document(filename: str,
     _save_file_owners()
 
     return {"deleted": filename}
+
+@app.post("/reindex/{filename}")
+async def reindex_document(filename: str,
+                           current_user: UserModel = Depends(get_current_user)):
+    """Force re-extraction and re-indexing of an already-uploaded file."""
+    if current_user.role != "admin" and file_owners.get(filename) != current_user.id:
+        raise HTTPException(403, "Access denied")
+
+    path = os.path.join(UPLOAD_DIR, filename)
+    if not os.path.exists(path):
+        raise HTTPException(404, "File not found")
+
+    # Remove stale chunks from ChromaDB
+    try:
+        results = chroma_collection.get(where={"file_name": filename})
+        if results["ids"]:
+            chroma_collection.delete(ids=results["ids"])
+    except Exception as e:
+        print(f"[reindex] ChromaDB cleanup error: {e}")
+
+    # Clear hash so it won't be skipped
+    file_hashes.pop(filename, None)
+    indexing_status[filename] = "indexing"
+
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(executor, add_document_to_index, path, filename)
+
+    return {"status": "reindexing", "filename": filename}
+
 
 @app.post("/eval")
 async def run_eval(top_k: int = SIMILARITY_TOP_K):

@@ -454,6 +454,18 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     }
   }, [activeSession?.id, sessions, authFetch])
 
+  // ── Re-index file ─────────────────────────────────────────────────────
+  const handleReindexFile = useCallback(async (filename) => {
+    setGlobalFiles(prev => ({ ...prev, [filename]: { ...prev[filename], status: 'indexing' } }))
+    try {
+      await authFetch(`${API}/reindex/${encodeURIComponent(filename)}`, { method: "POST" })
+      pollStatus(filename)
+    } catch (e) {
+      console.error("Re-index failed:", e)
+      setGlobalFiles(prev => ({ ...prev, [filename]: { ...prev[filename], status: 'error' } }))
+    }
+  }, [authFetch, pollStatus])
+
   // ── Cancel indexing ───────────────────────────────────────────────────
   const handleCancelIndexing = useCallback(async (filename) => {
     try {
@@ -948,8 +960,15 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                       </div>
                     </div>
                     {file.status === 'ready' && (
-                      <div onClick={ev => { ev.stopPropagation(); handleRemoveFile(file.name) }} style={{ cursor: 'pointer' }}>
-                        <RemoveIcon />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div
+                          onClick={ev => { ev.stopPropagation(); handleReindexFile(file.name) }}
+                          style={{ cursor: 'pointer', opacity: 0.5, fontSize: '14px', lineHeight: 1, padding: '2px 4px' }}
+                          title="Re-index with latest extractor"
+                        >↺</div>
+                        <div onClick={ev => { ev.stopPropagation(); handleRemoveFile(file.name) }} style={{ cursor: 'pointer' }}>
+                          <RemoveIcon />
+                        </div>
                       </div>
                     )}
                     {(file.status === 'indexing' || file.status === 'uploading') && (
