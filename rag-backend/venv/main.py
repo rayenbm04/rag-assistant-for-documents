@@ -483,6 +483,115 @@ def extract_txt_content(file_path, filename):
     return f"Text file: {filename}\n\n{text}"
 
 
+def extract_uml_content(file_path, filename):
+    """Parse PlantUML/UML file into RAG-friendly structured text with English annotations."""
+    print(f"Parsing UML file: {filename}")
+    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        raw = f.read()
+
+    lines = raw.splitlines()
+
+    # ── 1. Extract class/entity names ─────────────────────────────────────
+    class_re  = re.compile(r'^\s*class\s+(\w+)', re.IGNORECASE)
+    entity_re = re.compile(r'^\s*entity\s+(\w+)', re.IGNORECASE)
+    classes = []
+    for line in lines:
+        m = class_re.match(line) or entity_re.match(line)
+        if m and m.group(1) not in classes:
+            classes.append(m.group(1))
+
+    # ── 2. Extract attribute blocks ───────────────────────────────────────
+    class_blocks: dict = {}
+    current_class = None
+    brace_depth = 0
+    for line in lines:
+        m = class_re.match(line) or entity_re.match(line)
+        if m:
+            current_class = m.group(1)
+            class_blocks[current_class] = []
+            brace_depth = line.count('{') - line.count('}')
+            continue
+        if current_class:
+            brace_depth += line.count('{') - line.count('}')
+            if brace_depth <= 0:
+                current_class = None
+                brace_depth = 0
+            else:
+                stripped = line.strip().lstrip('+-#~')
+                if stripped and stripped not in ('{', '}'):
+                    class_blocks[current_class].append(stripped)
+
+    # ── 3. Extract relationships and convert to English sentences ─────────
+    rel_re = re.compile(
+        r'^\s*(\w+)\s+"?([^"]*)"?\s+(-+>|<-+|\.+>|<\.+|--)\s+"?([^"]*)"?\s+(\w+)'
+        r'(?:\s*:\s*(.+))?'
+    )
+    rel_simple = re.compile(r'^\s*(\w+)\s+(?:--|-->|\.\.|\.\.>)\s+(\w+)(?:\s*:\s*(.+))?')
+    relationships = []
+    for line in lines:
+        if line.strip().startswith("'"):
+            continue
+        m = rel_re.match(line)
+        if m:
+            src, card1, _, card2, dst, label = m.groups()
+            label = label.strip() if label else ""
+            card1 = (card1 or "").strip()
+            card2 = (card2 or "").strip()
+            rel_text = f"{src} {label} {dst}" if label else f"{src} is related to {dst}"
+            rel_text += f" (cardinality: {card1} to {card2})" if card1 or card2 else ""
+            relationships.append(rel_text)
+            continue
+        m2 = rel_simple.match(line)
+        if m2:
+            src, dst, label = m2.groups()
+            label = (label or "").strip() or "is related to"
+            relationships.append(f"{src} {label} {dst}")
+
+    # ── 4. Map relationships to each entity ───────────────────────────────
+    entity_rels: dict = {cls: [] for cls in classes}
+    for rel in relationships:
+        for cls in classes:
+            if re.search(r'\b' + re.escape(cls) + r'\b', rel, re.IGNORECASE):
+                entity_rels[cls].append(rel)
+
+    # ── 5. Build structured output ────────────────────────────────────────
+    parts = []
+
+    # Summary header
+    parts.append(
+        f"UML Diagram: {filename}\n"
+        f"Total entities/tables: {len(classes)}\n"
+        f"List of all entities: {', '.join(classes)}\n"
+        f"Note: entity names and relationship labels may be in French.\n"
+        f"Key translations: Employe=Employee, Salle=Room, Membre=Member, "
+        f"Cours=Course, Session=Session, Vestiaire=Locker room, Casier=Locker, "
+        f"Equipement=Equipment, Passage=Entry/Access, Souscription=Subscription, "
+        f"Reservation=Booking, Programme=Program, Produit=Product, "
+        f"Evenement=Event, Maintenance=Maintenance, Role=Role.\n"
+        f"Relationship labels: affecte a=assigned to, situe dans=located in, "
+        f"se deroule dans=takes place in, contient=contains, loue=rents, "
+        f"souscrit=subscribes, effectue=performs, supervise=supervises, "
+        f"possede=has, anime=runs, encadre=coaches.\n"
+    )
+
+    # One self-contained block per entity
+    for cls in classes:
+        block = f"\nEntity: {cls}\n"
+        attrs = class_blocks.get(cls, [])
+        if attrs:
+            block += "Attributes:\n" + "\n".join(f"  - {a}" for a in attrs) + "\n"
+        rels = entity_rels.get(cls, [])
+        if rels:
+            block += f"Relationships involving {cls}:\n"
+            block += "\n".join(f"  - {r}" for r in rels) + "\n"
+        parts.append(block)
+
+    # Raw source (fallback)
+    parts.append(f"\n--- Raw UML source ---\n{raw}")
+
+    return "\n".join(parts)
+
+
 def extract_docx_content(file_path, filename):
     """Extract text and tables from a Word document."""
     print(f"Reading Word document: {filename}")
@@ -641,6 +750,12 @@ def add_document_to_index(file_path, filename):
         elif extension in ['xlsx', 'xls']:
             text = extract_excel_content(file_path, filename)
             doc_type = "excel"
+        elif extension in ['puml', 'plantuml', 'uml']:
+            text = extract_uml_content(file_path, filename)
+            doc_type = "uml"
+        elif extension in ['md', 'csv']:
+            text = extract_txt_content(file_path, filename)
+            doc_type = "txt"
         else:
             text = f"[Unsupported file: {filename}]"
             doc_type = "unknown"
