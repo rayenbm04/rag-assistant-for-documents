@@ -531,17 +531,39 @@ def extract_pptx_content(file_path, filename):
                 break
         slide_first_body.append(first_body)
 
-    # ── Slide overview block (answers "what does each slide represent") ──────
-    # Keep lines short (title only) so the entire overview fits in one chunk
-    # regardless of presentation length. Body detail is in the per-slide blocks.
+    # Ordinal words for the first 20 slides so "first slide" matches "Slide 1"
+    _ORDINALS = ["first","second","third","fourth","fifth","sixth","seventh",
+                 "eighth","ninth","tenth","eleventh","twelfth","thirteenth",
+                 "fourteenth","fifteenth","sixteenth","seventeenth","eighteenth",
+                 "nineteenth","twentieth"]
+
+    pname = os.path.splitext(filename)[0]  # filename without extension = presentation name
+
+    # Extract slide 1 body text — title slides carry project name, team, institution
+    slide1_body_lines = []
+    if prs.slides:
+        first_slide = prs.slides[0]
+        first_title = slide_titles[0]
+        for shape in first_slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            t = shape.text_frame.text.strip()
+            if t and t != first_title:
+                slide1_body_lines.append(t)
+
+    # ── Slide overview block ──────────────────────────────────────────────────
     overview_lines = [
-        f"  Slide {i}: {title}" if title else f"  Slide {i}"
+        f"  Slide {i} ({_ORDINALS[i-1] if i <= len(_ORDINALS) else ''} slide): {title}" if title
+        else f"  Slide {i} ({_ORDINALS[i-1] if i <= len(_ORDINALS) else ''} slide)"
         for i, title in enumerate(slide_titles, 1)
     ]
+    slide1_body_text = "\n".join(slide1_body_lines)
     overview = (
-        f"Presentation overview: {filename}\n"
+        f"Presentation name / title: {pname}\n"
+        f"Presentation file: {filename}\n"
         f"Total slides: {total}\n"
-        f"What each slide represents:\n" + "\n".join(overview_lines) + "\n"
+        + (f"Cover slide content (project name, team, institution):\n{slide1_body_text}\n" if slide1_body_text else "")
+        + f"Slide index (what each slide represents):\n" + "\n".join(overview_lines) + "\n"
     )
     parts = [overview]
 
@@ -565,7 +587,8 @@ def extract_pptx_content(file_path, filename):
         except Exception:
             pass
 
-        block = f"\n--- Slide {i}"
+        ordinal = _ORDINALS[i-1] if i <= len(_ORDINALS) else f"{i}th"
+        block = f"\n--- Slide {i} ({ordinal} slide)"
         if title_text:
             block += f": {title_text}"
         block += " ---\n"

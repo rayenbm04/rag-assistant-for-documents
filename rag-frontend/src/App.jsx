@@ -509,9 +509,16 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     pendingIdRef.current = null
     isLoadingRef.current = false
     if (cancelledId) {
-      setSessions(prev => prev.map(s => ({ ...s, history: s.history.filter(h => h.id !== cancelledId) })))
+      // Keep whatever was generated so far — just mark it stopped
+      setSessions(prev => prev.map(s => ({
+        ...s,
+        history: s.history.map(h =>
+          h.id === cancelledId
+            ? { ...h, answer: (h.answer ?? '').trim() || null, stopped: true }
+            : h
+        )
+      })))
     }
-    setQuestion(currentQuestionRef.current)
     setIsLoading(false)
     if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null }
   }, [])
@@ -822,6 +829,9 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                     ) : (
                       <div className="message-content markdown-body">
                         <ReactMarkdown>{entry.answer}</ReactMarkdown>
+                        {entry.stopped && (
+                          <div className="stopped-indicator">⬛ Stopped</div>
+                        )}
                         <button
                           className="copy-btn"
                           onClick={() => navigator.clipboard.writeText(entry.answer)}
