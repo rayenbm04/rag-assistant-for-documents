@@ -1,6 +1,6 @@
 # RAG Multimodal Assistant
 
-A fully local Retrieval-Augmented Generation (RAG) assistant that answers questions about your documents. Supports PDFs, Word files, plain text, and images. Everything runs on your machine via [Ollama](https://ollama.com) — no cloud APIs, no data leaving your computer.
+A fully local Retrieval-Augmented Generation (RAG) assistant that answers questions about your documents. Supports PDFs, Word files, PowerPoint presentations, spreadsheets, plain text, and images. Everything runs on your machine via [Ollama](https://ollama.com) — no cloud APIs, no data leaving your computer.
 
 Built as a 5-week internship project to explore the full RAG engineering stack: ingestion, retrieval, re-ranking, evaluation, and production packaging.
 
@@ -11,7 +11,7 @@ Built as a 5-week internship project to explore the full RAG engineering stack: 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Browser (React)                          │
-│  Auth (login/register) │ Sessions │ Chat │ Documents sidebar    │
+│  Auth │ Sessions │ Chat │ Documents sidebar │ Prompt navigator  │
 └────────────────────────────┬────────────────────────────────────┘
                              │ HTTP / SSE  (Bearer JWT)
 ┌────────────────────────────▼────────────────────────────────────┐
@@ -19,10 +19,15 @@ Built as a 5-week internship project to explore the full RAG engineering stack: 
 │                                                                 │
 │  /auth/register|login  →  JWT token                            │
 │  /upload → extract text → chunk → embed → ChromaDB             │
+│  /reindex → re-extract + re-embed without re-uploading          │
 │                                                                 │
-│  /ask  ┌─ condense question (history-aware)                     │
+│  /ask  ┌─ condense + typo-correct question                      │
+│        ├─ HyDE: generate hypothetical passage for vector search │
+│        ├─ multi-query: 3 rephrased questions for wider recall   │
 │        ├─ hybrid retrieve: vector (ChromaDB) + BM25             │
-│        ├─ cross-encoder re-rank (ms-marco-MiniLM-L-6-v2)        │
+│        ├─ RRF merge across all query variants                   │
+│        ├─ cross-encoder re-rank (BAAI/bge-reranker-base)        │
+│        ├─ PPTX overview pinning: always inject metadata chunks  │
 │        ├─ build prompt (labeled context + history)              │
 │        ├─ stream answer token-by-token via SSE                  │
 │        └─ LLM-as-judge eval: faithfulness + relevance           │
@@ -30,9 +35,9 @@ Built as a 5-week internship project to explore the full RAG engineering stack: 
                │                             │
 ┌──────────────▼──────────┐   ┌─────────────▼─────────────────────┐
 │       Ollama            │   │   SQLite (rag_users.db)            │
-│  mistral:7b-instruct    │   │   Users · hashed passwords · roles │
+│  qwen2.5:7b             │   │   Users · hashed passwords · roles │
 │  nomic-embed-text       │   └────────────────────────────────────┘
-│  llava                  │
+│  llava-phi3             │
 └─────────────────────────┘
 ```
 
@@ -42,17 +47,26 @@ Built as a 5-week internship project to explore the full RAG engineering stack: 
 
 ### Retrieval pipeline
 
+**HyDE (Hypothetical Document Embeddings)**
+Before retrieval, the LLM generates a short hypothetical passage that would answer the question. This passage is embedded and used for vector search instead of the raw question. A passage-shaped vector sits much closer to real document chunks in embedding space than a question-shaped vector does, measurably improving retrieval quality — especially for vague or short queries. The hypothesis is shown to the user as a collapsible "Search hypothesis" chip above the answer.
+
+**Multi-query retrieval**
+The question is simultaneously rewritten into 3 alternative phrasings by the LLM, each approaching the same information need from a different angle (different vocabulary, specificity, framing). Vector retrieval runs for each phrasing in parallel. All result lists — HyDE vector, 3 multi-query vectors, and BM25 — are merged via RRF, maximising the chance that relevant chunks are surfaced regardless of how the question was phrased. All expansions run concurrently so latency cost is minimal.
+
 **Hybrid search (BM25 + vector)**
-Each query runs two retrievers in parallel: a dense vector retriever (ChromaDB cosine similarity) and a sparse BM25 keyword retriever. Results are fused with Reciprocal Rank Fusion. This catches both semantic matches ("describe the pricing model") and exact keyword matches (product codes, names, numbers).
+Each query runs a dense vector retriever (ChromaDB cosine similarity) and a sparse BM25 keyword retriever in parallel. Results are fused with Reciprocal Rank Fusion. This catches both semantic matches ("describe the pricing model") and exact keyword matches (product codes, names, numbers).
 
 **Cross-encoder re-ranking**
-After hybrid retrieval fetches 2× the needed chunks, a `cross-encoder/ms-marco-MiniLM-L-6-v2` model re-scores each `(question, chunk)` pair jointly — much more accurate than the individual scores from BM25/vector. Only the top-K chunks are passed to the LLM. Runs on CPU, adds ~1–2 s per query.
+After hybrid retrieval fetches 2× the needed chunks, a `BAAI/bge-reranker-base` model re-scores each `(question, chunk)` pair jointly — much more accurate than the individual scores from BM25/vector. Only the top-K chunks are passed to the LLM.
+
+**PPTX overview pinning**
+For PowerPoint files, all overview chunks (slide index, total slide count, cover slide content) are always injected into the context regardless of what retrieval returns. This guarantees metadata questions — "how many slides are there?", "who are the team members?" — are always answerable, even when the embedding-based search misses the overview.
 
 **Session-scoped retrieval**
 Each chat session tracks its own file list. Retrieval is filtered to only that session's documents using ChromaDB metadata filters, so sessions with different files never bleed into each other.
 
 **History-aware question condensing**
-Follow-up questions ("what about the second one?" / "explain further") are rewritten into standalone queries before retrieval, using the last 5 turns of conversation history.
+Follow-up questions ("what about the second one?" / "explain further") are rewritten into standalone queries before retrieval, using the last 5 turns of conversation history. Typos are corrected at the same step, even for first messages.
 
 **Document comparison mode**
 Automatically detected from keywords (*compare, difference, contrast, versus, between*, etc.). Switches from unified retrieval to per-file balanced retrieval — guaranteeing chunks from each document — and builds a labeled context (`=== Document: X ===`) so the LLM can reason across sources explicitly.
@@ -64,6 +78,7 @@ Automatically detected from keywords (*compare, difference, contrast, versus, be
 | Format | Processing |
 |--------|-----------|
 | PDF | Text extracted with `pdfplumber` at 300 DPI; image-only pages (< 50 chars of text) sent to LLaVA in doc-mode (verbatim transcription) |
+| PPTX | Compact overview block (title index, total slide count, cover slide body including team names) + per-slide detail blocks with ordinal labels ("first slide", "second slide"…). Tables extracted from every shape including `has_table` shapes. |
 | PNG / JPG / WEBP / GIF | Fully described by LLaVA: text, colors, layout, structure, purpose |
 | DOCX | Paragraphs and tables extracted with `python-docx`; document-level summary header with table row counts |
 | XLSX / XLS | Sheets extracted with `openpyxl` / `xlrd` |
@@ -72,11 +87,14 @@ Automatically detected from keywords (*compare, difference, contrast, versus, be
 **Page-by-page progress tracking**
 PDF indexing reports progress after each page. The frontend shows a live progress bar ("Page 3 / 12") instead of a generic spinner. Non-PDF files show a pulse animation (single-step processing).
 
+**Re-index without re-uploading**
+Each file card has a ↺ button that clears the file's ChromaDB chunks and re-runs extraction with the current extractor — useful after updating extraction logic without having to delete and re-upload.
+
 **Upload deduplication**
 Re-uploading the same file (identical MD5) skips re-indexing and returns `ready` immediately. Files shared across sessions are only indexed once.
 
 **Cancellable indexing**
-Each indexing job checks a cancellation flag between pages. Cancelling stops the job and deletes the partially-uploaded file.
+Each indexing job checks a cancellation flag between pages. Cancelling stops the job and deletes the partially-uploaded file. The cancel button in the chat input area works even while a file is still indexing — the backend emits `indexing_wait` SSE heartbeats so the connection stays alive and abortable.
 
 ### Authentication
 
@@ -93,14 +111,26 @@ The first registered account is automatically assigned the `admin` role. Admins 
 
 **Three-column layout**
 - Left: chat sessions list with auto-generated titles
-- Centre: streaming chat with markdown rendering
-- Right: documents panel with upload zone and file status
+- Centre: streaming chat with markdown rendering, scroll-to-bottom button
+- Right: documents panel with upload zone, file status, and prompt navigator
 
 **Streaming responses**
 Answers stream character-by-character via Server-Sent Events (SSE). A configurable delay (`STREAM_DELAY_MS`) makes the output readable as it arrives rather than appearing all at once.
 
+**Cancel and resume**
+A Cancel button replaces Send while a response is generating. Cancelling keeps whatever partial response was already streamed and marks it with a ⬛ Stopped indicator, so nothing is lost.
+
+**Copy buttons**
+Both user prompts and AI responses have a hover-activated Copy button for quick clipboard access.
+
+**Prompt navigator**
+A collapsible Prompts section in the right sidebar lists every question in the session. Clicking any entry scrolls the chat directly to that exchange.
+
+**Scroll-to-bottom button**
+A circular ↓ button appears in the chat area when scrolled up, jumping back to the latest message in one click.
+
 **LLM-generated session titles**
-After the first message in a session, a background request generates a specific 2–5 word title (e.g. "Describe NAWAARNI Invoice") using both the question and the filename. For file-only sessions (no question yet), the session is named from the filename.
+After the first message in a session, a background request generates a specific 2–5 word title (e.g. "NAWWARNI Team Members") using both the question and the filename.
 
 **Multiple sessions**
 Unlimited chat sessions, each with its own file list and history. Switching sessions cancels any in-flight request. Sessions persist across page refreshes via `localStorage`, scoped per user account.
@@ -118,25 +148,32 @@ Click **Stats** in the navbar to see: sessions, documents indexed, total chunks,
 **PDF export**
 Click **Export PDF** to print the current chat to a formatted PDF via the browser's print dialog.
 
+**PPTX preview**
+PowerPoint files are converted to PDF via LibreOffice headless and rendered page-by-page in the browser. The conversion handles filenames with spaces using a safe temp-copy approach and suppresses the LibreOffice window on Windows via `STARTUPINFO + SW_HIDE`.
+
 ---
 
 ## Prerequisites
 
 ### 1. Ollama
 
-Install from [ollama.com](https://ollama.com), then pull the three required models:
+Install from [ollama.com](https://ollama.com), then pull the required models:
 
 ```bash
-ollama pull mistral:7b-instruct-q4_K_M   # ~4.1 GB — text generation
-ollama pull nomic-embed-text              # ~274 MB — embeddings
-ollama pull llava                         # ~4.7 GB — image & scanned PDF analysis
+ollama pull qwen2.5:7b          # ~4.7 GB — text generation (recommended)
+ollama pull nomic-embed-text    # ~274 MB — embeddings
+ollama pull llava-phi3          # ~2.9 GB — image & scanned PDF analysis
 ```
 
-> Tested on an RTX 4070 (8 GB VRAM). The `q4_K_M` quantization fits comfortably. If you have less VRAM, try `q3_K_M` or any other Ollama-compatible model and set `LLM_MODEL` in `.env`.
+> Tested on an RTX 4070 (8 GB VRAM). `qwen2.5:7b` gives a good speed/quality balance. For maximum quality use `qwen3:8b` (set `LLM_MODEL=qwen3:8b` — thinking tokens are suppressed automatically). For faster responses on weaker hardware, any Ollama-compatible 7B instruct model works.
 
 ### 2. Python 3.10+
 
 ### 3. Node.js 18+
+
+### 4. LibreOffice (optional — for PPTX preview only)
+
+Install from [libreoffice.org](https://www.libreoffice.org). The backend auto-detects versioned install paths (e.g. `LibreOffice 26`). Without it, PPTX preview is disabled but all other features work normally.
 
 ---
 
@@ -194,22 +231,28 @@ All variables are optional — sensible defaults are set for local development. 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LLM_MODEL` | `mistral:7b-instruct-q4_K_M` | Ollama model for text generation and eval |
+| `LLM_MODEL` | `qwen2.5:7b` | Ollama model for text generation and eval |
 | `EMBED_MODEL` | `nomic-embed-text` | Ollama embedding model |
-| `VISION_MODEL` | `llava` | Ollama vision model for images and scanned PDFs |
+| `VISION_MODEL` | `llava-phi3` | Ollama vision model for images and scanned PDFs |
 | `UPLOAD_DIR` | `./uploads` | Where uploaded files are saved |
 | `CHROMA_DIR` | `./chroma_db` | ChromaDB persistent storage path |
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated CORS origins |
 | `MAX_UPLOAD_SIZE_MB` | `50` | Maximum file upload size |
 | `SIMILARITY_TOP_K` | `4` | Chunks kept after retrieval (2× fetched before re-ranking) |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL (set to `http://host.docker.internal:11434` in Docker) |
-| `STREAM_DELAY_MS` | `20` | Delay between streamed characters in ms — increase to slow down output |
-| `ENABLE_RERANK` | `true` | Enable cross-encoder re-ranking. Set to `false` to reduce latency. |
-| `RERANK_MODEL` | `cross-encoder/ms-marco-MiniLM-L-6-v2` | HuggingFace cross-encoder model (downloaded on first run, then cached) |
+| `STREAM_DELAY_MS` | `20` | Delay between streamed characters in ms |
+| `ENABLE_RERANK` | `true` | Enable cross-encoder re-ranking |
+| `RERANK_MODEL` | `BAAI/bge-reranker-base` | HuggingFace cross-encoder model (downloaded on first run, ~22 MB) |
 | `ENABLE_EVAL` | `true` | Enable faithfulness + relevance scoring after each answer (2 extra LLM calls) |
+| `ENABLE_HYDE` | `true` | Enable HyDE hypothetical passage expansion before vector search |
+| `ENABLE_MULTI_QUERY` | `true` | Enable multi-query retrieval (3 rephrased questions merged via RRF) |
+| `MULTI_QUERY_N` | `3` | Number of alternative query phrasings to generate |
 | `SECRET_KEY` | `change-me-in-production` | HS256 signing key for JWT tokens — **change this before deploying** |
 | `ACCESS_TOKEN_EXPIRE_DAYS` | `7` | JWT token lifetime in days |
 | `DATABASE_URL` | `sqlite:///./rag_users.db` | SQLAlchemy connection string for the user database |
+| `PARENT_CHUNK_SIZE` | `512` | Parent chunk size in tokens (stored in docstore for AutoMerging) |
+| `CHILD_CHUNK_SIZE` | `128` | Child/leaf chunk size in tokens (indexed in ChromaDB for retrieval) |
+| `NODE_STORE_DIR` | `./node_store` | Path for the LlamaIndex docstore used by AutoMergingRetriever |
 
 ---
 
@@ -234,23 +277,27 @@ All endpoints except `/auth/register` and `/auth/login` require `Authorization: 
 | `POST` | `/upload` | Upload a file. Returns `{id, name, status}`. Indexing runs in background. |
 | `GET` | `/status/{filename}` | Poll indexing status. Returns `{status, progress}` where progress is `{current, total}` page counts for PDFs. |
 | `GET` | `/files/{filename}` | Serve an uploaded file (for in-browser preview). |
-| `POST` | `/ask` | `{question, history[], files[]}` → SSE stream of `token`, `done`, and `eval` events. |
+| `POST` | `/reindex/{filename}` | Clear and re-extract a file's chunks without re-uploading. |
+| `POST` | `/ask` | `{question, history[], files[]}` → SSE stream of events (see below). |
 | `POST` | `/title` | `{question, files[]}` → `{title}`. Generates a short session title. |
 | `GET` | `/documents` | List documents owned by the current user (admins see all). |
 | `DELETE` | `/documents/{filename}` | Remove a file and delete its chunks from ChromaDB. |
 | `GET` | `/dashboard` | Returns models, chunk counts, token usage, and config. |
 | `POST` | `/cancel/{filename}` | Request cancellation of an in-progress indexing job. |
+| `GET` | `/debug/chunks/{filename}` | Return all stored chunk texts for a file (development only). |
 
 ### SSE event types (`/ask`)
 
 ```json
-{ "type": "token",  "content": "T" }
-{ "type": "done",   "sources": ["file.pdf"], "citations": [{"file": "file.pdf", "pages": [1, 2]}], "warning": null, "mode": "standard" }
-{ "type": "eval",   "faithfulness": 0.92, "answer_relevance": 0.87 }
-{ "type": "error",  "message": "..." }
+{ "type": "indexing_wait", "files": ["doc.pptx"] }
+{ "type": "hypothesis",    "text": "A hypothetical passage…" }
+{ "type": "token",         "content": "T" }
+{ "type": "done",          "sources": ["file.pdf"], "citations": [{"file": "file.pdf", "pages": [1, 2]}], "warning": null, "mode": "standard" }
+{ "type": "eval",          "faithfulness": 0.92, "answer_relevance": 0.87 }
+{ "type": "error",         "message": "..." }
 ```
 
-`mode` is `"comparison"` when per-file balanced retrieval was used, `"standard"` otherwise.
+`mode` is `"comparison"` when per-file balanced retrieval was used, `"standard"` otherwise. `indexing_wait` is emitted every 2 s while waiting for a file to finish indexing — the client can abort at any time.
 
 ---
 
@@ -297,6 +344,12 @@ rag-assistant/
 
 ## Technical decisions
 
+**Why HyDE?**
+Embedding a short question ("what are the project objectives?") produces a vector that sits in "question space", while indexed chunks sit in "answer space". A hypothetical passage bridges that gap — it's shaped like a document chunk, so cosine similarity works much better. The trade-off is one extra LLM call per query, but this runs in parallel with multi-query generation so the wall-clock cost is shared.
+
+**Why multi-query retrieval?**
+A single phrasing of a question may not match the vocabulary used in the source document. Generating 3 alternatives dramatically increases lexical and semantic coverage. Combined with RRF, chunks that appear across multiple query variants get boosted scores, reducing sensitivity to any one phrasing.
+
 **Why LlamaIndex over LangChain?**
 LlamaIndex has first-class support for hybrid retrievers, node postprocessors, and ChromaDB without needing custom wrapper code. The `QueryFusionRetriever` with `reciprocal_rerank` mode handles BM25 + vector fusion in a few lines.
 
@@ -304,7 +357,7 @@ LlamaIndex has first-class support for hybrid retrievers, node postprocessors, a
 Vector search struggles with exact keyword lookups — product codes, names, numbers. BM25 is strong there but misses paraphrasing. Fusing both gives consistent performance across both query types.
 
 **Why a cross-encoder for re-ranking instead of relying on fusion scores?**
-Bi-encoder similarity scores (used by both BM25 and vector search) score query and document independently. A cross-encoder reads them together and produces a much more accurate relevance estimate. The 22 MB `ms-marco-MiniLM-L-6-v2` model adds ~1–2 s per query on CPU with a measurable quality improvement.
+Bi-encoder similarity scores (used by both BM25 and vector search) score query and document independently. A cross-encoder reads them together and produces a much more accurate relevance estimate. `BAAI/bge-reranker-base` adds ~1–2 s per query on CPU with a measurable quality improvement over the previous `ms-marco-MiniLM-L-6-v2`.
 
 **Why LLM-as-judge for evaluation?**
 Standard RAG evaluation frameworks (RAGAS, TruLens) require either ground-truth datasets or cloud API calls. Using the local LLM itself as judge means evaluation runs fully offline with zero extra dependencies. The trade-off is that the judge and the answerer are the same model, which inflates scores slightly — acceptable for a development feedback signal.
