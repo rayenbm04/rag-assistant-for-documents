@@ -167,6 +167,9 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [sessionSearch, setSessionSearch] = useState('')
   const [selectedCostModel, setSelectedCostModel] = useState('GPT-4o')
   const [tokenStats, setTokenStats]       = useState(null)
+  const [previewFile, setPreviewFile]     = useState(null)  // filename string or null
+  const [previewBlobUrl, setPreviewBlobUrl] = useState(null)
+  const [previewText, setPreviewText]     = useState(null)
 
   // Refs
   const fileInputRef        = useRef(null)
@@ -299,6 +302,38 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const scrollToBottom = useCallback(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
+
+  // ── Load file preview when previewFile changes ───────────────────────
+  useEffect(() => {
+    if (!previewFile) {
+      if (previewBlobUrl) { URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null) }
+      setPreviewText(null)
+      return
+    }
+    const ext = previewFile.split('.').pop().toLowerCase()
+    const isPreviewable = ['pdf','png','jpg','jpeg','gif','bmp','webp'].includes(ext)
+    const isTextPreview = ['docx','xlsx','xls','puml','plantuml','uml','txt','md','csv'].includes(ext)
+
+    if (isPreviewable) {
+      authFetch(`${API}/files/${encodeURIComponent(previewFile)}`)
+        .then(r => r.blob())
+        .then(blob => {
+          const url = URL.createObjectURL(blob)
+          setPreviewBlobUrl(url)
+        })
+        .catch(() => setPreviewBlobUrl(null))
+    } else if (isTextPreview) {
+      authFetch(`${API}/preview/${encodeURIComponent(previewFile)}`)
+        .then(r => r.json())
+        .then(d => setPreviewText(d.text || ''))
+        .catch(() => setPreviewText('[Could not load preview]'))
+    }
+
+    return () => {
+      setPreviewBlobUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null })
+      setPreviewText(null)
+    }
+  }, [previewFile, authFetch])
 
   // ── Load token stats on startup ──────────────────────────────────────
   useEffect(() => {
@@ -897,7 +932,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                   <div
                     key={file.name}
                     className={`file-item ${file.status === 'ready' ? 'file-item--clickable' : ''}`}
-                    onClick={() => { if (file.status === 'ready') window.open(`${API}/files/${encodeURIComponent(file.name)}`, '_blank') }}
+                    onClick={() => { if (file.status === 'ready') setPreviewFile(file.name) }}
                   >
                     <FileIcon />
                     <div className="file-info">
@@ -949,6 +984,46 @@ function MainApp({ authFetch, currentUser, onLogout }) {
           )}
         </aside>
       </div>
+
+      {/* ── File preview modal ── */}
+      {previewFile && (() => {
+        const ext     = previewFile.split('.').pop().toLowerCase()
+        const fileUrl = `${API}/files/${encodeURIComponent(previewFile)}`
+        const isImage = ['png','jpg','jpeg','gif','bmp','webp'].includes(ext)
+        const isPdf   = ext === 'pdf'
+        const hasText = previewText !== null
+        return (
+          <div className="preview-overlay" onClick={() => { setPreviewFile(null) }}>
+            <div className="preview-modal" onClick={e => e.stopPropagation()}>
+              <div className="preview-header">
+                <span className="preview-filename">{previewFile}</span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <a className="preview-open-btn" href={fileUrl} target="_blank" rel="noreferrer">Open in tab ↗</a>
+                  <button className="dashboard-close" onClick={() => setPreviewFile(null)}>✕</button>
+                </div>
+              </div>
+              <div className="preview-body">
+                {isPdf && (
+                  previewBlobUrl
+                    ? <iframe src={previewBlobUrl} title={previewFile} className="preview-iframe" />
+                    : <div className="preview-loading">Loading…</div>
+                )}
+                {isImage && (
+                  previewBlobUrl
+                    ? <img src={previewBlobUrl} alt={previewFile} className="preview-image" />
+                    : <div className="preview-loading">Loading…</div>
+                )}
+                {!isPdf && !isImage && hasText && (
+                  <pre className="preview-text">{previewText}</pre>
+                )}
+                {!isPdf && !isImage && !hasText && (
+                  <div className="preview-loading">Loading…</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Dashboard modal ── */}
       {showDashboard && (

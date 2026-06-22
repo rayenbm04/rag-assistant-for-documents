@@ -1033,13 +1033,38 @@ def dashboard():
 @app.get("/files/{filename}")
 def serve_file(filename: str,
                current_user: UserModel = Depends(get_current_user)):
-    # Users can only access their own files; admins access all
     if current_user.role != "admin" and file_owners.get(filename) != current_user.id:
         raise HTTPException(403, "Access denied")
     path = f"{UPLOAD_DIR}/{filename}"
     if not os.path.exists(path):
         raise HTTPException(404, "File not found")
-    return FileResponse(path)
+    import mimetypes
+    mime, _ = mimetypes.guess_type(filename)
+    return FileResponse(path, media_type=mime or "application/octet-stream")
+
+
+@app.get("/preview/{filename}")
+def preview_file(filename: str,
+                 current_user: UserModel = Depends(get_current_user)):
+    """Return a plain-text preview (first 8000 chars of extracted content)."""
+    if current_user.role != "admin" and file_owners.get(filename) != current_user.id:
+        raise HTTPException(403, "Access denied")
+    path = f"{UPLOAD_DIR}/{filename}"
+    if not os.path.exists(path):
+        raise HTTPException(404, "File not found")
+    ext = filename.lower().rsplit('.', 1)[-1]
+    try:
+        if ext == 'docx':
+            text = extract_docx_content(path, filename)
+        elif ext in ['xlsx', 'xls']:
+            text = extract_excel_content(path, filename)
+        elif ext in ['puml', 'plantuml', 'uml', 'txt', 'md', 'csv']:
+            text = extract_txt_content(path, filename)
+        else:
+            text = ""
+    except Exception as e:
+        text = f"[Preview error: {e}]"
+    return {"text": text[:8000]}
 
 
 class TitleRequest(BaseModel):
