@@ -154,6 +154,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [urlLoading, setUrlLoading]       = useState(false)
   const [urlError, setUrlError]           = useState('')
   const [darkMode, setDarkMode]           = useState(() => localStorage.getItem('rag-theme') === 'dark')
+  const [sessionSearch, setSessionSearch] = useState('')
 
   // Refs
   const fileInputRef        = useRef(null)
@@ -634,27 +635,73 @@ function MainApp({ authFetch, currentUser, onLogout }) {
         <aside className="sidebar-sessions">
           <button className="new-chat-btn" onClick={createSession}>＋ New chat</button>
 
+          <div className="session-search-wrap">
+            <input
+              className="session-search-input"
+              type="text"
+              placeholder="Search chats…"
+              value={sessionSearch}
+              onChange={e => setSessionSearch(e.target.value)}
+            />
+            {sessionSearch && (
+              <button className="session-search-clear" onClick={() => setSessionSearch('')}>✕</button>
+            )}
+          </div>
+
           <div className="session-list">
-            {sessions.map(s => (
-              <div
-                key={s.id}
-                className={`session-item ${s.id === activeSession?.id ? 'active' : ''}`}
-                onClick={() => switchSession(s.id)}
-              >
-                <div className="session-info">
-                  <div className="session-name" title={s.name}>{s.name}</div>
-                  <div className="session-meta">
-                    {s.fileNames.length} file{s.fileNames.length !== 1 ? 's' : ''} &middot;{' '}
-                    {s.history.filter(h => h.answer).length} msg{s.history.filter(h => h.answer).length !== 1 ? 's' : ''}
+            {(() => {
+              const q = sessionSearch.trim().toLowerCase()
+              const filtered = q
+                ? sessions.filter(s =>
+                    s.name.toLowerCase().includes(q) ||
+                    s.history.some(e =>
+                      e.question?.toLowerCase().includes(q) ||
+                      e.answer?.toLowerCase().includes(q)
+                    )
+                  )
+                : sessions
+              if (filtered.length === 0) return (
+                <p className="session-search-empty">No chats match "{sessionSearch}"</p>
+              )
+              return filtered.map(s => {
+                // Find first matching excerpt to show under the session name
+                const q_lc = q
+                const match = q_lc ? s.history.find(e =>
+                  e.question?.toLowerCase().includes(q_lc) ||
+                  e.answer?.toLowerCase().includes(q_lc)
+                ) : null
+                let excerpt = null
+                if (match) {
+                  const src = match.question?.toLowerCase().includes(q_lc) ? match.question : match.answer
+                  const idx = src.toLowerCase().indexOf(q_lc)
+                  const start = Math.max(0, idx - 25)
+                  excerpt = (start > 0 ? '…' : '') + src.slice(start, idx + q_lc.length + 40).trim() + '…'
+                }
+                return (
+                  <div
+                    key={s.id}
+                    className={`session-item ${s.id === activeSession?.id ? 'active' : ''}`}
+                    onClick={() => switchSession(s.id)}
+                  >
+                    <div className="session-info">
+                      <div className="session-name" title={s.name}>{s.name}</div>
+                      {excerpt
+                        ? <div className="session-excerpt">{excerpt}</div>
+                        : <div className="session-meta">
+                            {s.fileNames.length} file{s.fileNames.length !== 1 ? 's' : ''} &middot;{' '}
+                            {s.history.filter(h => h.answer).length} msg{s.history.filter(h => h.answer).length !== 1 ? 's' : ''}
+                          </div>
+                      }
+                    </div>
+                    <button
+                      className="session-delete"
+                      onClick={ev => { ev.stopPropagation(); if (window.confirm('Delete this chat?')) deleteSession(s.id) }}
+                      title="Delete session"
+                    >✕</button>
                   </div>
-                </div>
-                <button
-                  className="session-delete"
-                  onClick={ev => { ev.stopPropagation(); if (window.confirm('Delete this chat?')) deleteSession(s.id) }}
-                  title="Delete session"
-                >✕</button>
-              </div>
-            ))}
+                )
+              })
+            })()}
           </div>
         </aside>
 
