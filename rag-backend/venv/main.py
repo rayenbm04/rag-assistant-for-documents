@@ -1180,36 +1180,44 @@ def preview_file(filename: str,
 # Cache the LibreOffice binary path so we only probe once per server lifetime.
 _LO_BIN: str | None = None
 _LO_BIN_CHECKED: bool = False
-# Windows flag to suppress console windows when spawning subprocesses.
-_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
+def _lo_startupinfo():
+    """Return a STARTUPINFO that hides the window on Windows; None on other platforms."""
+    if os.name == "nt":
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = 0  # SW_HIDE
+        return si
+    return None
 
 
 def _find_libreoffice() -> str | None:
-    """Return path to a working LibreOffice binary (result cached after first call)."""
-    import glob
+    """Return path to a working LibreOffice binary (cached; found by file existence, no subprocess probe)."""
+    import glob, shutil
     global _LO_BIN, _LO_BIN_CHECKED
     if _LO_BIN_CHECKED:
         return _LO_BIN
 
-    # Build candidate list: PATH names first, then glob every versioned install dir
-    candidates = ["soffice", "libreoffice"]
-    for prog_dir in [r"C:\Program Files", r"C:\Program Files (x86)"]:
-        for lo_dir in glob.glob(os.path.join(prog_dir, "LibreOffice*")):
-            candidates.append(os.path.join(lo_dir, "program", "soffice.exe"))
+    # 1. Check PATH first (Linux / macOS / Windows with soffice on PATH)
+    for name in ("soffice", "libreoffice"):
+        found = shutil.which(name)
+        if found:
+            _LO_BIN = found
+            _LO_BIN_CHECKED = True
+            return _LO_BIN
 
-    for candidate in candidates:
-        try:
-            subprocess.run(
-                [candidate, "--version"],
-                capture_output=True, stdin=subprocess.DEVNULL,
-                creationflags=_NO_WINDOW, timeout=5,
-            )
-            _LO_BIN = candidate
-            break
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            continue
-    _LO_BIN_CHECKED = True
-    return _LO_BIN
+    # 2. Glob every versioned LibreOffice install under Program Files (Windows)
+    for prog_dir in [r"C:\Program Files", r"C:\Program Files (x86)"]:
+        for lo_dir in sorted(glob.glob(os.path.join(prog_dir, "LibreOffice*")), reverse=True):
+            exe = os.path.join(lo_dir, "program", "soffice.exe")
+            if os.path.isfile(exe):
+                _LO_BIN = exe
+                _LO_BIN_CHECKED = True
+                return _LO_BIN
+
+    _LO_BIN_CHECKED = True  # not found, cache the miss
+    return None
 
 
 def _pptx_to_pdf_cached(src: str, filename: str) -> str | None:
@@ -1235,7 +1243,7 @@ def _pptx_to_pdf_cached(src: str, filename: str) -> str | None:
                 [lo_bin, "--headless", "--norestore", "--nofirststartwizard",
                  "--convert-to", "pdf", "--outdir", tmpdir, safe_src],
                 capture_output=True, stdin=subprocess.DEVNULL,
-                creationflags=_NO_WINDOW, timeout=120,
+                startupinfo=_lo_startupinfo(), timeout=120,
             )
             if result.returncode != 0:
                 return None
