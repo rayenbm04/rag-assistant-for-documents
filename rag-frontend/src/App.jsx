@@ -684,6 +684,11 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                     ) : (
                       <div className="message-content markdown-body">
                         <ReactMarkdown>{entry.answer}</ReactMarkdown>
+                        <button
+                          className="copy-btn"
+                          onClick={() => navigator.clipboard.writeText(entry.answer)}
+                          title="Copy response"
+                        >Copy</button>
                       </div>
                     )}
                   </div>

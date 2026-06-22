@@ -311,6 +311,34 @@ body {
   border-color: #e53e3e;
 }
 
+.message-content.markdown-body {
+  position: relative;
+}
+.copy-btn {
+  position: absolute;
+  bottom: -4px;
+  right: 0;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-white);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  pointer-events: none;
+}
+.message-content.markdown-body:hover .copy-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+.copy-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
 .message.ai.error .message-content {
   color: #e53e3e;
 }
