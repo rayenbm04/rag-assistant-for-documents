@@ -31,6 +31,16 @@ const SourceIcon = () => (
   </svg>
 )
 
+// ── Cost models ───────────────────────────────────────────────────────────
+const COST_MODELS = [
+  { name: 'GPT-4o',           input: 2.50,  output: 10.00 },
+  { name: 'GPT-4o mini',      input: 0.15,  output: 0.60  },
+  { name: 'Claude Sonnet 4',  input: 3.00,  output: 15.00 },
+  { name: 'Claude Haiku 4',   input: 0.80,  output: 4.00  },
+  { name: 'Gemini 1.5 Pro',   input: 1.25,  output: 5.00  },
+  { name: 'Gemini 1.5 Flash', input: 0.075, output: 0.30  },
+]
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 function evalColor(score) {
   if (score >= 0.8) return 'eval-badge--high'
@@ -155,6 +165,8 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [urlError, setUrlError]           = useState('')
   const [darkMode, setDarkMode]           = useState(() => localStorage.getItem('rag-theme') === 'dark')
   const [sessionSearch, setSessionSearch] = useState('')
+  const [selectedCostModel, setSelectedCostModel] = useState('GPT-4o')
+  const [tokenStats, setTokenStats]       = useState(null)
 
   // Refs
   const fileInputRef        = useRef(null)
@@ -287,6 +299,11 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const scrollToBottom = useCallback(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
+
+  // ── Load token stats on startup ──────────────────────────────────────
+  useEffect(() => {
+    authFetch(`${API}/dashboard`).then(r => r.json()).then(d => setTokenStats(d.tokens)).catch(() => {})
+  }, [authFetch])
 
   // ── Load existing indexed docs on startup ────────────────────────────
   useEffect(() => {
@@ -522,6 +539,8 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                 : entry
             ))
             scrollTimerRef.current = setTimeout(scrollToBottom, 100)
+            // Refresh token stats for cost estimator
+            authFetch(`${API}/dashboard`).then(r => r.json()).then(d => setTokenStats(d.tokens)).catch(() => {})
             // Generate a short title from the first message in the background
             if (isFirstMessage) {
               authFetch(`${API}/title`, {
@@ -812,6 +831,25 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                 : <button key="send"   type="submit"  className="send-button"   disabled={!question.trim()}>Send</button>
               }
             </div>
+            {tokenStats && tokenStats.total > 0 && (() => {
+              const model = COST_MODELS.find(m => m.name === selectedCostModel) || COST_MODELS[0]
+              const cost  = (tokenStats.prompt / 1e6) * model.input + (tokenStats.completion / 1e6) * model.output
+              const costStr = cost < 0.0001 ? '<$0.0001' : `$${cost.toFixed(4)}`
+              return (
+                <div className="cost-estimator">
+                  <span className="cost-label">Session cost on</span>
+                  <select
+                    className="cost-model-select"
+                    value={selectedCostModel}
+                    onChange={e => setSelectedCostModel(e.target.value)}
+                  >
+                    {COST_MODELS.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}
+                  </select>
+                  <span className="cost-value">{costStr}</span>
+                  <span className="cost-tokens">· {tokenStats.total.toLocaleString()} tokens</span>
+                </div>
+              )
+            })()}
           </form>
         </main>
 

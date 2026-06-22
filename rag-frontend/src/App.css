@@ -1332,6 +1332,46 @@ body {
   border-color: var(--text-muted);
 }
 
+/* ── Cost estimator bar ── */
+.cost-estimator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 720px;
+  margin: 8px auto 0;
+  padding: 0 4px;
+  flex-wrap: wrap;
+}
+.cost-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.cost-model-select {
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-white);
+  border: 1px solid var(--border-light);
+  border-radius: 5px;
+  padding: 2px 6px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.cost-model-select:focus {
+  border-color: var(--text-muted);
+}
+.cost-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.cost-tokens {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 /* ── User message meta (timestamp) ── */
 .message-user-meta {
   display: flex;
