@@ -57,6 +57,8 @@ MAX_UPLOAD_MB    = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))
 OLLAMA_BASE_URL  = os.getenv("OLLAMA_BASE_URL",      "http://localhost:11434")
 ENABLE_EVAL        = os.getenv("ENABLE_EVAL",          "true").lower() == "true"
 ENABLE_HYDE        = os.getenv("ENABLE_HYDE",          "true").lower() == "true"
+ENABLE_MULTI_QUERY = os.getenv("ENABLE_MULTI_QUERY",   "true").lower() == "true"
+MULTI_QUERY_N      = int(os.getenv("MULTI_QUERY_N",    "3"))
 ENABLE_RERANK      = os.getenv("ENABLE_RERANK",        "true").lower() == "true"
 RERANK_MODEL       = os.getenv("RERANK_MODEL",         "cross-encoder/ms-marco-MiniLM-L-6-v2")
 PARENT_CHUNK_SIZE  = int(os.getenv("PARENT_CHUNK_SIZE", "512"))
@@ -1482,6 +1484,29 @@ async def hyde_expand(question: str) -> str:
         return question
 
 
+async def multi_query_expand(question: str, n: int = 3) -> list[str]:
+    """Generate n alternative phrasings of the question for multi-query retrieval.
+    Each phrasing approaches the same information need from a different angle,
+    increasing the chance that relevant chunks are surfaced."""
+    prompt = (
+        f"Generate {n} different phrasings of the following question to improve document retrieval. "
+        "Each should approach the same information need from a different angle "
+        "(e.g. different vocabulary, more specific, more general). "
+        "Output only the questions, one per line, no numbering or extra text.\n\n"
+        f"Question: {question}\n\nAlternative phrasings:"
+    )
+    try:
+        result = await Settings.llm.acomplete(prompt)
+        record_tokens(result)
+        lines = [l.strip().lstrip("•-–1234567890.) ") for l in str(result).strip().splitlines() if l.strip()]
+        rewrites = [l for l in lines if l and l != question][:n]
+        print(f"[multi-query] rewrites: {rewrites}")
+        return rewrites if rewrites else [question]
+    except Exception as e:
+        print(f"[multi-query] failed ({e}), using original query")
+        return [question]
+
+
 @app.post("/ask")
 async def ask(q: Question,
               current_user: UserModel = Depends(get_current_user)):
@@ -1574,34 +1599,53 @@ async def ask(q: Question,
                 )
                 session_nodes = get_nodes_for_files(question_files)
 
-                # HyDE: generate a hypothetical passage to use for vector search.
-                # BM25 keeps the original standalone query — keyword search on a
-                # hallucinated passage adds noise rather than helping.
+                # HyDE + Multi-query: run both expansions in parallel, then retrieve.
+                # • HyDE query  → vector search (semantic passage matching)
+                # • Multi-query → additional vector searches (phrasing diversity)
+                # • BM25        → keyword search on original standalone query
+                expand_tasks = []
                 if ENABLE_HYDE:
-                    hyde_query = await hyde_expand(standalone)
+                    expand_tasks.append(hyde_expand(standalone))
+                if ENABLE_MULTI_QUERY:
+                    expand_tasks.append(multi_query_expand(standalone, MULTI_QUERY_N))
+
+                expand_results = await asyncio.gather(*expand_tasks) if expand_tasks else []
+
+                idx = 0
+                if ENABLE_HYDE:
+                    hyde_query = expand_results[idx]; idx += 1
                     yield f"data: {json.dumps({'type': 'hypothesis', 'text': hyde_query})}\n\n"
                 else:
                     hyde_query = standalone
+
+                mq_queries = expand_results[idx] if ENABLE_MULTI_QUERY and idx < len(expand_results) else []
 
                 if session_nodes:
                     bm25_retriever = BM25Retriever.from_defaults(
                         nodes=session_nodes, similarity_top_k=candidates_k
                     )
-                    # Run vector (HyDE) and BM25 (original) in parallel
-                    vector_nodes, bm25_nodes = await asyncio.gather(
-                        vector_retriever.aretrieve(hyde_query),
-                        bm25_retriever.aretrieve(standalone),
+                    # Gather all vector retrievals (HyDE + multi-query) + BM25 in parallel
+                    all_retrieve_coros = (
+                        [vector_retriever.aretrieve(hyde_query)]
+                        + [vector_retriever.aretrieve(q) for q in mq_queries]
+                        + [bm25_retriever.aretrieve(standalone)]
                     )
-                    # Reciprocal rank fusion (RRF) merge
+                    all_results = await asyncio.gather(*all_retrieve_coros)
+                    bm25_nodes    = all_results[-1]
+                    all_vec_lists = all_results[:-1]
+
+                    # Reciprocal rank fusion across all result lists
                     scores: dict[str, float] = {}
                     node_map: dict[str, object] = {}
-                    for rank, n in enumerate(vector_nodes):
-                        scores[n.node_id] = scores.get(n.node_id, 0) + 1.0 / (rank + 60)
-                        node_map[n.node_id] = n
+                    for node_list in all_vec_lists:
+                        for rank, n in enumerate(node_list):
+                            scores[n.node_id] = scores.get(n.node_id, 0) + 1.0 / (rank + 60)
+                            node_map[n.node_id] = n
                     for rank, n in enumerate(bm25_nodes):
                         scores[n.node_id] = scores.get(n.node_id, 0) + 1.0 / (rank + 60)
                         node_map[n.node_id] = n
                     nodes = sorted(node_map.values(), key=lambda n: scores[n.node_id], reverse=True)[:candidates_k]
+                    print(f"[multi-query] merged {len(node_map)} unique chunks from {len(all_retrieve_coros)} queries")
                 else:
                     nodes = await vector_retriever.aretrieve(hyde_query)
 
