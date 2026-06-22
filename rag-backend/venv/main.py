@@ -1,4 +1,6 @@
 import os, shutil, base64, asyncio, hashlib, json, re, uuid
+import requests
+from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import nest_asyncio
   # allows AutoMergingRetriever to run inside FastAPI's event loop
@@ -146,6 +148,9 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+class UrlIngestRequest(BaseModel):
+    url: str
 
 
 class HistoryEntry(BaseModel):
@@ -713,6 +718,78 @@ def add_document_to_index(file_path, filename):
 # ──────────────────────────────────────────
 # API ENDPOINTS
 # ──────────────────────────────────────────
+
+# ── URL helpers ───────────────────────────────────────────────────────────────
+_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; RAGBot/1.0)"}
+_SKIP_TAGS = {"script", "style", "nav", "footer", "header", "aside",
+              "noscript", "form", "button", "iframe", "svg"}
+
+def _fetch_url_text(url: str) -> tuple[str, str]:
+    """Return (title, clean_text) extracted from a URL."""
+    resp = requests.get(url, headers=_HEADERS, timeout=15)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # Remove noise tags
+    for tag in soup(_SKIP_TAGS):
+        tag.decompose()
+
+    # Page title → used as filename
+    title = soup.title.string.strip() if soup.title and soup.title.string else url
+
+    # Prefer semantic content containers
+    body = (soup.find("article") or soup.find("main") or soup.find("body"))
+    lines = []
+    if body:
+        for el in body.find_all(["h1","h2","h3","h4","p","li","td","th","blockquote"]):
+            t = el.get_text(" ", strip=True)
+            if t:
+                lines.append(t)
+    text = "\n".join(lines) if lines else soup.get_text("\n", strip=True)
+
+    return title, text
+
+def _safe_filename(title: str, url: str) -> str:
+    """Turn a page title into a safe .txt filename, fallback to domain."""
+    name = re.sub(r'[\\/*?:"<>|]', "", title)[:80].strip()
+    if not name:
+        from urllib.parse import urlparse
+        name = urlparse(url).netloc
+    return name + ".txt"
+
+
+@app.post("/upload-url")
+async def upload_url(req: UrlIngestRequest,
+                     current_user: UserModel = Depends(get_current_user)):
+    """Fetch a web URL, extract clean text, and index it like any uploaded file."""
+    try:
+        title, text = _fetch_url_text(req.url)
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(400, f"Could not fetch URL: {e}")
+
+    if len(text.strip()) < 100:
+        raise HTTPException(400, "Page returned too little text — it may require JavaScript to render.")
+
+    filename = _safe_filename(title, req.url)
+    dest = os.path.join(UPLOAD_DIR, filename)
+
+    # Write text to disk
+    with open(dest, "w", encoding="utf-8") as f:
+        f.write(f"Source: {req.url}\n\n{text}")
+
+    # Track ownership
+    file_owners[filename] = current_user.id
+    _save_file_owners()
+
+    # Index in background (same pipeline as /upload)
+    indexing_status[filename]   = "indexing"
+    indexing_progress[filename] = {"current": 0, "total": 0}
+    cancelled_files.discard(filename)
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(executor, add_document_to_index, dest, filename)
+
+    return {"name": filename, "status": "indexing", "title": title}
+
 
 @app.post("/upload")
 async def upload(file: UploadFile = File(...),

@@ -150,6 +150,9 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [evalData, setEvalData]           = useState(null)
   const [evalLoading, setEvalLoading]     = useState(false)
   const [evalSelectedQ, setEvalSelectedQ] = useState(null)
+  const [urlInput, setUrlInput]           = useState('')
+  const [urlLoading, setUrlLoading]       = useState(false)
+  const [urlError, setUrlError]           = useState('')
 
   // Refs
   const fileInputRef        = useRef(null)
@@ -395,6 +398,28 @@ function MainApp({ authFetch, currentUser, onLogout }) {
       setGlobalFiles(prev => { const n = { ...prev }; delete n[filename]; return n })
     } catch (e) { console.error("Cancel failed:", e) }
   }, [activeSession?.id, authFetch])
+
+  // ── URL ingestion ─────────────────────────────────────────────────────
+  const handleUrlIngest = useCallback(async (e) => {
+    e.preventDefault()
+    const url = urlInput.trim()
+    if (!url) return
+    setUrlError(''); setUrlLoading(true)
+    try {
+      const res  = await authFetch(`${API}/upload-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setUrlError(data.detail || 'Failed to fetch URL'); return }
+      setUrlInput('')
+      setGlobalFiles(prev => ({ ...prev, [data.name]: { status: 'indexing', size: 0 } }))
+      addFileToSession(data.name)
+      pollStatus(data.name)
+    } catch { setUrlError('Cannot reach server') }
+    finally { setUrlLoading(false) }
+  }, [urlInput, authFetch, addFileToSession, pollStatus])
 
   // ── Cancel response ───────────────────────────────────────────────────
   const handleCancel = useCallback((e) => {
@@ -739,6 +764,21 @@ function MainApp({ authFetch, currentUser, onLogout }) {
               onChange={ev => { handleFileSelect(ev.target.files); ev.target.value = '' }}
             />
           </div>
+
+          <form className="url-ingest-form" onSubmit={handleUrlIngest}>
+            <input
+              className="url-ingest-input"
+              type="url"
+              placeholder="Paste a URL to index…"
+              value={urlInput}
+              onChange={e => { setUrlInput(e.target.value); setUrlError('') }}
+              disabled={urlLoading}
+            />
+            <button className="url-ingest-btn" type="submit" disabled={urlLoading || !urlInput.trim()}>
+              {urlLoading ? '…' : '↓'}
+            </button>
+          </form>
+          {urlError && <p className="url-ingest-error">{urlError}</p>}
 
           {sessionFiles.length > 0 && (
             <div className="file-list">
