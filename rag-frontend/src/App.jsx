@@ -340,7 +340,9 @@ function MainApp({ authFetch, currentUser, onLogout }) {
         f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
         ext === 'xlsx' || ext === 'xls' ||
         f.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-        f.type === 'application/vnd.ms-excel'
+        f.type === 'application/vnd.ms-excel' ||
+        ext === 'puml' || ext === 'plantuml' || ext === 'uml' ||
+        ext === 'md' || ext === 'csv'
     })
 
     for (const f of valid) {
@@ -461,7 +463,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     const tempId = generateId()
     pendingIdRef.current = tempId
 
-    updateHistory(prev => [...prev, { id: tempId, question: currentQuestion, answer: null, sources: [], citations: [], warning: null }])
+    updateHistory(prev => [...prev, { id: tempId, question: currentQuestion, answer: null, sources: [], citations: [], warning: null, sentAt: new Date().toISOString() }])
     scrollTimerRef.current = setTimeout(scrollToBottom, 100)
 
     const sid = activeSession?.id
@@ -726,6 +728,13 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                   <div className="message user">
                     <p className="message-content">{entry.question}</p>
                   </div>
+                  {entry.sentAt && (
+                    <div className="message-user-meta">
+                      <span className="message-timestamp">
+                        {new Date(entry.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="message-wrapper ai">
                   <div className="message ai">
@@ -819,9 +828,9 @@ function MainApp({ authFetch, currentUser, onLogout }) {
           >
             <UploadIcon />
             <p className="upload-text">Click or drag to upload</p>
-            <p className="upload-hint">PDF, Word, Excel, TXT or images</p>
+            <p className="upload-hint">PDF, Word, Excel, UML, TXT or images</p>
             <input
-              ref={fileInputRef} type="file" accept=".pdf,.txt,.docx,.xlsx,.xls,image/*" multiple
+              ref={fileInputRef} type="file" accept=".pdf,.txt,.docx,.xlsx,.xls,.puml,.plantuml,.uml,.md,.csv,image/*" multiple
               style={{ display: 'none' }}
               onChange={ev => { handleFileSelect(ev.target.files); ev.target.value = '' }}
             />

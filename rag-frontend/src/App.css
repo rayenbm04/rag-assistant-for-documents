@@ -37,6 +37,23 @@
   color: #1A1916;
 }
 
+/* ── Dark mode: code blocks ── */
+[data-theme="dark"] .markdown-body code {
+  background: #2A2A27;
+  color: #E8C882;
+  border-color: #3A3A36;
+}
+[data-theme="dark"] .markdown-body pre {
+  background: #1A1A18;
+  border-color: #3A3A36;
+  color: #D4D0C8;
+}
+[data-theme="dark"] .markdown-body pre code {
+  background: none;
+  border: none;
+  color: inherit;
+}
+
 [data-theme="dark"] .auth-submit {
   background: #F0EDE8;
   color: #1A1916;
@@ -429,21 +446,24 @@ body {
   border: 1px solid var(--border-light);
   border-radius: 4px;
   padding: 0.1em 0.35em;
+  color: var(--text-primary);
 }
 
 .markdown-body pre {
-  background: var(--bg-sidebar);
+  background: #EFEFEC;
   border: 1px solid var(--border-light);
   border-radius: 8px;
   padding: 14px 16px;
   overflow-x: auto;
   margin: 0.5em 0 0.75em;
+  color: #1A1916;
 }
 .markdown-body pre code {
   background: none;
   border: none;
   padding: 0;
   font-size: 0.85em;
+  color: var(--text-primary);
 }
 
 .markdown-body blockquote {
@@ -1145,6 +1165,10 @@ body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+  .message.user .message-content,
+  .message.user .message-content p {
+    color: white !important;
+  }
 
   .message-wrapper {
     max-width: 100% !important;
@@ -1306,6 +1330,24 @@ body {
 .logout-btn:hover {
   color: var(--text-primary);
   border-color: var(--text-muted);
+}
+
+/* ── User message meta (timestamp) ── */
+.message-user-meta {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.message-wrapper.user:hover .message-user-meta {
+  opacity: 1;
+}
+.message-timestamp {
+  font-size: 10px;
+  color: var(--text-muted);
 }
 
 /* ── URL ingestion ── */
