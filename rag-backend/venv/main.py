@@ -167,7 +167,10 @@ class Question(BaseModel):
 
 cancelled_files = set()   # filenames that should stop indexing
 
-Settings.llm = Ollama(model=LLM_MODEL, base_url=OLLAMA_BASE_URL, request_timeout=120.0, additional_kwargs={"num_gpu": 99})
+_llm_extra = {"num_gpu": 99}
+if LLM_MODEL.lower().startswith("qwen3"):
+    _llm_extra["think"] = False   # suppress <think> tokens in Qwen3
+Settings.llm = Ollama(model=LLM_MODEL, base_url=OLLAMA_BASE_URL, request_timeout=120.0, additional_kwargs=_llm_extra)
 Settings.embed_model = OllamaEmbedding(model_name=EMBED_MODEL, base_url=OLLAMA_BASE_URL, ollama_additional_kwargs={"num_gpu": 99})
 
 app = FastAPI(title="RAG Assistant API")
@@ -1129,6 +1132,14 @@ def index_stats():
     }
 
 
+@app.get("/debug/chunks/{filename}")
+def debug_chunks(filename: str):
+    """Return all stored chunk texts for a file — for debugging extraction."""
+    results = chroma_collection.get(where={"file_name": filename}, include=["documents"])
+    chunks = results.get("documents", [])
+    return {"filename": filename, "count": len(chunks), "chunks": chunks}
+
+
 @app.get("/dashboard")
 def dashboard():
     files = [f for f in os.listdir(UPLOAD_DIR) if not f.startswith('.')]
@@ -1614,19 +1625,22 @@ async def ask(q: Question,
                     nodes = await loop.run_in_executor(None, _rerank, nodes)
                     print(f"[rerank] kept {len(nodes)}/{candidates_k} chunks")
 
-                # For PPTX files: always pin the overview chunk (contains "Total slides:")
-                # so metadata questions (slide count, titles) are always answerable.
+                # For PPTX files: always pin ALL overview chunks (the ones before
+                # any "--- Slide" block). The overview is split across several child
+                # chunks due to token limits, so we need all of them to guarantee
+                # team names, slide count, etc. are always in the context.
                 retrieved_ids = {n.node_id for n in nodes}
                 pinned = []
                 for fname in question_files:
                     if fname.lower().endswith(".pptx"):
                         all_file_nodes = get_nodes_for_files([fname])
                         for n in all_file_nodes:
-                            if n.node_id not in retrieved_ids and "Total slides:" in n.get_content():
+                            content = n.get_content()
+                            is_overview = not content.lstrip().startswith("--- Slide")
+                            if is_overview and n.node_id not in retrieved_ids:
                                 pinned.append(n)
                                 retrieved_ids.add(n.node_id)
-                                print(f"[pin] injected overview chunk for {fname}")
-                                break
+                        print(f"[pin] injected {len(pinned)} overview chunks for {fname}")
                 all_nodes_final = pinned + list(nodes)
                 context = "\n\n".join(n.get_content() for n in all_nodes_final)
                 sources = list({n.metadata.get("file_name", "unknown") for n in all_nodes_final})
