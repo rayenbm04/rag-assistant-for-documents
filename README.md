@@ -83,6 +83,10 @@ Automatically detected from keywords (*compare, difference, contrast, versus, be
 | DOCX | Paragraphs and tables extracted with `python-docx`; document-level summary header with table row counts |
 | XLSX / XLS | Sheets extracted with `openpyxl` / `xlrd` |
 | TXT | Read directly |
+| URL | Web pages fetched via `requests` + `BeautifulSoup`, cleaned to plain text, and indexed like a local file. The page title becomes the filename. Pages that require JavaScript to render return an error. |
+
+**URL ingestion**
+Paste any web URL into the document panel instead of uploading a file. The backend fetches the page, strips navigation/ads/boilerplate via BeautifulSoup, and indexes the clean text through the same chunking and embedding pipeline as uploaded files. The source URL is prepended to the stored text for citation purposes.
 
 **Page-by-page progress tracking**
 PDF indexing reports progress after each page. The frontend shows a live progress bar ("Page 3 / 12") instead of a generic spinner. Non-PDF files show a pulse animation (single-step processing).
@@ -275,6 +279,7 @@ All endpoints except `/auth/register` and `/auth/login` require `Authorization: 
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/upload` | Upload a file. Returns `{id, name, status}`. Indexing runs in background. |
+| `POST` | `/upload-url` | `{url}` — Fetch a web page, extract clean text, index it like an uploaded file. Returns `{name, status, title}`. |
 | `GET` | `/status/{filename}` | Poll indexing status. Returns `{status, progress}` where progress is `{current, total}` page counts for PDFs. |
 | `GET` | `/files/{filename}` | Serve an uploaded file (for in-browser preview). |
 | `POST` | `/reindex/{filename}` | Clear and re-extract a file's chunks without re-uploading. |
