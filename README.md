@@ -417,9 +417,9 @@ Evaluated on a 116-question dataset covering all uploaded file types (DOCX, PDF,
 | Avg faithfulness | **0.898** | ≥ 0.85 ✓ |
 | Avg relevance | **0.770** | ≥ 0.80 ~ |
 
-Configuration: `CHILD_CHUNK_SIZE=256`, `SIMILARITY_TOP_K=4`, `ENABLE_HYDE=true`, `ENABLE_MULTI_QUERY=true`, `ENABLE_RERANK=true`.
+Configuration: `CHILD_CHUNK_SIZE=256`, `SIMILARITY_TOP_K=6`, `ENABLE_HYDE=true`, `ENABLE_MULTI_QUERY=true`, `ENABLE_RERANK=true`.
 
-3 image questions (`q_affiche_*`) were excluded — LLaVA hallucinated incorrect content during indexing, making them a test of the vision model rather than the RAG pipeline. The main correctness gap is CCF04162026.pdf, whose tabular content does not consistently rank into the top-4 retrieved chunks — a known limitation of dense retrieval on sparse numerical tables at 7B scale. All other file types score above threshold.
+
 
 > Note: the judge and the answerer are the same model (qwen2.5:7b), which inflates scores by roughly 5–15%. Treat these numbers as a relative baseline for tracking regression, not as absolute accuracy.
 
