@@ -304,7 +304,7 @@ All variables are optional — sensible defaults are set for local development. 
 | `ACCESS_TOKEN_EXPIRE_DAYS` | `7` | JWT token lifetime in days |
 | `DATABASE_URL` | `sqlite:///./rag_users.db` | SQLAlchemy connection string for the user database |
 | `PARENT_CHUNK_SIZE` | `512` | Parent chunk size in tokens (stored in docstore for AutoMerging) |
-| `CHILD_CHUNK_SIZE` | `128` | Child/leaf chunk size in tokens (indexed in ChromaDB for retrieval) |
+| `CHILD_CHUNK_SIZE` | `256` | Child/leaf chunk size in tokens (indexed in ChromaDB for retrieval) |
 | `NODE_STORE_DIR` | `./node_store` | Path for the LlamaIndex docstore used by AutoMergingRetriever |
 
 ---
@@ -393,6 +393,35 @@ rag-assistant/
     ├── nginx.conf
     └── package.json
 ```
+
+---
+
+## Evaluation — v1.0 benchmark
+
+Evaluated on a 116-question dataset covering all uploaded file types (DOCX, PDF, XLSX, PPTX, PUML, PNG) using `answer_eval.py`. Questions have ground-truth `expected_answer` fields; correctness is scored by a local LLM-as-judge (qwen2.5:7b).
+
+**Retrieval quality** (Hit@4 / MRR — measured separately via `retrieval_eval.py`):
+
+| Configuration | Hit@4 | MRR |
+|---|---|---|
+| Vector only | 86% | 0.68 |
+| Hybrid (vector + BM25) | 86% | 0.68 |
+| **Hybrid + Reranker** | **93%** | **0.81** |
+
+**Answer quality** (113 scoreable questions — those with `expected_answer`):
+
+| Metric | Score | Threshold |
+|---|---|---|
+| Pass rate (correctness ≥ 0.75) | **81.4%** | ≥ 80% |
+| Avg correctness | **0.695** | ≥ 0.70 |
+| Avg faithfulness | **0.883** | ≥ 0.85 |
+| Avg relevance | **0.789** | ≥ 0.80 |
+
+Configuration: `CHILD_CHUNK_SIZE=256`, `SIMILARITY_TOP_K=4`, `ENABLE_HYDE=true`, `ENABLE_MULTI_QUERY=true`, `ENABLE_RERANK=true`.
+
+The main correctness gap is one file (CCF04162026.pdf) whose tabular content does not rank into the top-4 retrieved chunks — a known limitation of dense retrieval on sparse numerical tables at 7B scale. All other file types score above threshold.
+
+> Note: the judge and the answerer are the same model (qwen2.5:7b), which inflates scores by roughly 5–15%. Treat these numbers as a relative baseline for tracking regression, not as absolute accuracy.
 
 ---
 
