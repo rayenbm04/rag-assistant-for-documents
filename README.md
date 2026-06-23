@@ -244,7 +244,7 @@ venv\Scripts\activate        # Windows
 pip install -r requirements.txt
 
 cp .env.example .env         # edit SECRET_KEY before deploying
-uvicorn venv/main:app --reload
+uvicorn main:app --reload
 ```
 
 On first run, `rag_users.db` is created automatically. The first account registered becomes admin.
@@ -360,7 +360,7 @@ All endpoints except `/auth/register` and `/auth/login` require `Authorization: 
 ```bash
 cd rag-backend
 venv\Scripts\activate
-pip install pytest httpx
+pip install pytest httpx2
 pytest tests/ -v
 ```
 
@@ -374,8 +374,8 @@ All external services (Ollama, ChromaDB, LlamaIndex) are mocked so tests run ful
 rag-assistant/
 ├── docker-compose.yml
 ├── rag-backend/
+│   ├── main.py                  # FastAPI app — auth, all endpoints, RAG pipeline
 │   ├── venv/
-│   │   └── main.py              # FastAPI app — auth, all endpoints, RAG pipeline
 │   ├── tests/
 │   │   ├── conftest.py          # Mocks for offline testing
 │   │   ├── test_extraction.py
@@ -400,24 +400,24 @@ rag-assistant/
 
 Evaluated on a 116-question dataset covering all uploaded file types (DOCX, PDF, XLSX, PPTX, PUML, PNG) using `answer_eval.py`. Questions have ground-truth `expected_answer` fields; correctness is scored by a local LLM-as-judge (qwen2.5:7b).
 
-**Retrieval quality** (Hit@4 / MRR — measured separately via `retrieval_eval.py`):
+**Retrieval quality** (Hit@4 / MRR — measured separately via `eval.py`):
 
-| Configuration | Hit@4 | MRR |
+| Configuration | Hit@6 | MRR |
 |---|---|---|
-| Vector only | 86% | 0.68 |
-| Hybrid (vector + BM25) | 86% | 0.68 |
-| **Hybrid + Reranker** | **93%** | **0.81** |
+| Vector only | 84% | 0.69 |
+| Hybrid (vector + BM25) | 83% | 0.68 |
+| **Hybrid + Reranker** | **85%** | **0.81** |
 
 **Answer quality** (110 scoreable questions — image questions excluded):
 
 | Metric | Score | Threshold |
 |---|---|---|
-| Pass rate (correctness ≥ 0.75) | **83.6%** | ≥ 80% ✓ |
-| Avg correctness | **0.714** | ≥ 0.70 ✓ |
-| Avg faithfulness | **0.898** | ≥ 0.85 ✓ |
-| Avg relevance | **0.770** | ≥ 0.80 ~ |
+| Pass rate (correctness ≥ 0.75) | **82.7%** | ≥ 80% ✓ |
+| Avg correctness | **0.707** | ≥ 0.70 ✓ |
+| Avg faithfulness | **0.923** | ≥ 0.85 ✓ |
+| Avg relevance | **0.797** | ≥ 0.80 ~ |
 
-Configuration: `CHILD_CHUNK_SIZE=256`, `SIMILARITY_TOP_K=6`, `ENABLE_HYDE=true`, `ENABLE_MULTI_QUERY=true`, `ENABLE_RERANK=true`.
+Configuration: `CHILD_CHUNK_SIZE=128`, `SIMILARITY_TOP_K=6`, `ENABLE_HYDE=true`, `ENABLE_MULTI_QUERY=true`, `ENABLE_RERANK=true`.
 
 
 

@@ -1906,7 +1906,7 @@ async def run_eval(top_k: int = SIMILARITY_TOP_K):
     Returns per-question results, aggregate metrics, and a 3-way configuration
     comparison (Vector only / Hybrid / Hybrid + Reranker).
     """
-    dataset_path = os.path.join(os.path.dirname(__file__), "..", "eval_dataset.json")
+    dataset_path = os.path.join(os.path.dirname(__file__), "eval_dataset.json")
     if not os.path.exists(dataset_path):
         raise HTTPException(404, "eval_dataset.json not found in rag-backend/")
 

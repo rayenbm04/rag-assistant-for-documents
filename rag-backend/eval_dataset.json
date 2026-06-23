@@ -355,7 +355,7 @@
     "id": "q_lettre_01",
     "question": "dans ce document, quel est l'email de l'expéditeur ?",
     "source_files": [
-      "résumé (1).pdf.pdf"
+      "résumé (1).pdf"
     ],
     "answer_keywords": [
       "rayen.benmimoun@supcom.tn",
@@ -368,7 +368,7 @@
     "id": "q_lettre_02",
     "question": "dans ce document, quel est le numéro de téléphone de l'expéditeur ?",
     "source_files": [
-      "résumé (1).pdf.pdf"
+      "résumé (1).pdf"
     ],
     "answer_keywords": [
       "+216 25 069 123"
@@ -379,7 +379,7 @@
     "id": "q_lettre_03",
     "question": "dans ce document, combien de montures de lunettes sont demandées ?",
     "source_files": [
-      "résumé (1).pdf.pdf"
+      "résumé (1).pdf"
     ],
     "answer_keywords": [
       "30 montures",
@@ -391,7 +391,7 @@
     "id": "q_lettre_04",
     "question": "dans ce document, quelle est l'école primaire bénéficiaire de la caravane ?",
     "source_files": [
-      "résumé (1).pdf.pdf"
+      "résumé (1).pdf"
     ],
     "answer_keywords": [
       "Cité Essaha",
@@ -403,7 +403,7 @@
     "id": "q_lettre_05",
     "question": "dans ce document, à quelle société est adressée la demande de partenariat ?",
     "source_files": [
-      "résumé (1).pdf.pdf"
+      "résumé (1).pdf"
     ],
     "answer_keywords": [
       "Slim Optique"
@@ -414,7 +414,7 @@
     "id": "q_lettre_06",
     "question": "dans ce document, quel est le nom de l'équipe expéditrice ?",
     "source_files": [
-      "résumé (1).pdf.pdf"
+      "résumé (1).pdf"
     ],
     "answer_keywords": [
       "NAWWARNI",
@@ -426,7 +426,7 @@
     "id": "q_lettre_07",
     "question": "dans ce document, quelle est l'école de l'équipe expéditrice ?",
     "source_files": [
-      "résumé (1).pdf.pdf"
+      "résumé (1).pdf"
     ],
     "answer_keywords": [
       "SUP'COM",
@@ -438,7 +438,7 @@
     "id": "q_lettre_08",
     "question": "dans ce document, quelle est l'adresse du destinataire ?",
     "source_files": [
-      "résumé (1).pdf.pdf"
+      "résumé (1).pdf"
     ],
     "answer_keywords": [
       "Les Berges du Lac",
@@ -450,7 +450,7 @@
     "id": "q_lettre_09",
     "question": "dans ce document, quelle est la date de la caravane de santé visuelle ?",
     "source_files": [
-      "résumé (1).pdf.pdf"
+      "résumé (1).pdf"
     ],
     "answer_keywords": [
       "18 avril",
@@ -462,7 +462,7 @@
     "id": "q_lettre_10",
     "question": "dans ce document, quel est l'objet de la lettre ?",
     "source_files": [
-      "résumé (1).pdf.pdf"
+      "résumé (1).pdf"
     ],
     "answer_keywords": [
       "montures",
@@ -474,7 +474,7 @@
     "id": "q_lettre_11",
     "question": "dans ce document, quel type de montures est demandé ?",
     "source_files": [
-      "résumé (1).pdf.pdf"
+      "résumé (1).pdf"
     ],
     "answer_keywords": [
       "enfants",
@@ -486,7 +486,7 @@
     "id": "q_lettre_12",
     "question": "dans ce document, dans quel cadre s'inscrit ce projet ?",
     "source_files": [
-      "résumé (1).pdf.pdf"
+      "résumé (1).pdf"
     ],
     "answer_keywords": [
       "PACTE",
@@ -498,7 +498,7 @@
     "id": "q_lettre_13",
     "question": "dans ce document, quelle est la mission principale du projet NAWWARNI décrite dans la lettre ?",
     "source_files": [
-      "résumé (1).pdf.pdf"
+      "résumé (1).pdf"
     ],
     "answer_keywords": [
       "échec scolaire",
@@ -510,7 +510,7 @@
     "id": "q_lettre_14",
     "question": "dans ce document, quel est le numéro du projet PACTE ?",
     "source_files": [
-      "résumé (1).pdf.pdf"
+      "résumé (1).pdf"
     ],
     "answer_keywords": [
       "n°26",
