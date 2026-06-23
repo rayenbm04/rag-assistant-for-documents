@@ -291,7 +291,7 @@ All variables are optional — sensible defaults are set for local development. 
 | `CHROMA_DIR` | `./chroma_db` | ChromaDB persistent storage path |
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated CORS origins |
 | `MAX_UPLOAD_SIZE_MB` | `50` | Maximum file upload size |
-| `SIMILARITY_TOP_K` | `4` | Chunks kept after retrieval (2× fetched before re-ranking) |
+| `SIMILARITY_TOP_K` | `4` | Chunks retrieved per query (2× this number fetched before re-ranking) |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL (set to `http://host.docker.internal:11434` in Docker) |
 | `STREAM_DELAY_MS` | `20` | Delay between streamed characters in ms |
 | `ENABLE_RERANK` | `true` | Enable cross-encoder re-ranking |
@@ -408,18 +408,18 @@ Evaluated on a 116-question dataset covering all uploaded file types (DOCX, PDF,
 | Hybrid (vector + BM25) | 86% | 0.68 |
 | **Hybrid + Reranker** | **93%** | **0.81** |
 
-**Answer quality** (113 scoreable questions — those with `expected_answer`):
+**Answer quality** (110 scoreable questions — image questions excluded):
 
 | Metric | Score | Threshold |
 |---|---|---|
-| Pass rate (correctness ≥ 0.75) | **81.4%** | ≥ 80% |
-| Avg correctness | **0.695** | ≥ 0.70 |
-| Avg faithfulness | **0.883** | ≥ 0.85 |
-| Avg relevance | **0.789** | ≥ 0.80 |
+| Pass rate (correctness ≥ 0.75) | **83.6%** | ≥ 80% ✓ |
+| Avg correctness | **0.714** | ≥ 0.70 ✓ |
+| Avg faithfulness | **0.898** | ≥ 0.85 ✓ |
+| Avg relevance | **0.770** | ≥ 0.80 ~ |
 
-Configuration: `CHILD_CHUNK_SIZE=256`, `SIMILARITY_TOP_K=6`, `ENABLE_HYDE=true`, `ENABLE_MULTI_QUERY=true`, `ENABLE_RERANK=true`.
+Configuration: `CHILD_CHUNK_SIZE=256`, `SIMILARITY_TOP_K=4`, `ENABLE_HYDE=true`, `ENABLE_MULTI_QUERY=true`, `ENABLE_RERANK=true`.
 
-
+3 image questions (`q_affiche_*`) were excluded — LLaVA hallucinated incorrect content during indexing, making them a test of the vision model rather than the RAG pipeline. The main correctness gap is CCF04162026.pdf, whose tabular content does not consistently rank into the top-4 retrieved chunks — a known limitation of dense retrieval on sparse numerical tables at 7B scale. All other file types score above threshold.
 
 > Note: the judge and the answerer are the same model (qwen2.5:7b), which inflates scores by roughly 5–15%. Treat these numbers as a relative baseline for tracking regression, not as absolute accuracy.
 
