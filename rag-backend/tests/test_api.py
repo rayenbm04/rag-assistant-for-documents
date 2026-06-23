@@ -24,10 +24,31 @@ def noop_executor():
     mock_exec.submit.return_value = f
     return mock_exec
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "venv"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import main  # noqa: E402
 
 from fastapi.testclient import TestClient
+
+# ── Auth bypass ───────────────────────────────────────────────────────────────
+# Override get_current_user and _require_admin so tests don't need real JWTs.
+
+_fake_user = main.UserModel(
+    id="test-user-id",
+    email="test@example.com",
+    firstname="Test",
+    lastname="User",
+    hashed_password="x",
+    role="admin",
+)
+
+def _override_get_current_user():
+    return _fake_user
+
+def _override_require_admin():
+    return _fake_user
+
+main.app.dependency_overrides[main.get_current_user] = _override_get_current_user
+main.app.dependency_overrides[main._require_admin]   = _override_require_admin
 
 client = TestClient(main.app)
 
