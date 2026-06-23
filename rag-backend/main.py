@@ -42,9 +42,9 @@ from llama_index.embeddings.ollama import OllamaEmbedding
 
 load_dotenv()
 
-LLM_MODEL        = os.getenv("LLM_MODEL",           "mistral:7b-instruct-q4_K_M")
+LLM_MODEL        = os.getenv("LLM_MODEL",           "qwen2.5:7b")
 EMBED_MODEL      = os.getenv("EMBED_MODEL",          "nomic-embed-text")
-VISION_MODEL     = os.getenv("VISION_MODEL",         "llava")
+VISION_MODEL     = os.getenv("VISION_MODEL",         "qwen2.5vl:7b")
 UPLOAD_DIR       = os.getenv("UPLOAD_DIR",           "./uploads")
 CHROMA_DIR       = os.getenv("CHROMA_DIR",           "./chroma_db")
 SLIDES_CACHE_DIR = os.getenv("SLIDES_CACHE_DIR",     "./slides_cache")
