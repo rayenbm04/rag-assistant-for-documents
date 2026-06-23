@@ -8,123 +8,1381 @@
     "_template": {
       "id": "q_YOUR_ID",
       "question": "Your question here?",
-      "source_files": ["your_document.pdf"],
-      "answer_keywords": ["key phrase 1", "key phrase 2"]
+      "source_files": [
+        "your_document.pdf"
+      ],
+      "answer_keywords": [
+        "key phrase 1",
+        "key phrase 2"
+      ]
     }
   },
   {
-    "id": "q_generic_01",
-    "question": " dans ce document , donner le Total TTC",
-    "source_files": ["Devis_NAWAARNI.docx"],
-    "answer_keywords": ["374,500 DT"]
+    "_section": "══════════════════════════════════════════",
+    "_label": "Devis_NAWAARNI.docx  (15 questions)",
+    "_section_end": "══════════════════════════════════════════"
   },
   {
-    "id": "q_generic_11",
-    "question": " dans ce document , donner la qte du jus ",
-    "source_files": ["Devis_NAWAARNI.docx"],
-    "answer_keywords": ["100"]
+    "id": "q_devis_01",
+    "question": "dans ce document, donner le Total TTC",
+    "source_files": [
+      "Devis_NAWAARNI.docx"
+    ],
+    "answer_keywords": [
+      "374,500 DT"
+    ],
+    "expected_answer": "Le total TTC est 374,500 DT."
   },
   {
-    "id": "q_generic_21",
-    "question": " dans ce document , donner le prix unitaire du jus ",
-    "source_files": ["Devis_NAWAARNI.docx"],
-    "answer_keywords": ["2,000 DT"]
+    "id": "q_devis_02",
+    "question": "dans ce document, donner la quantité du jus",
+    "source_files": [
+      "Devis_NAWAARNI.docx"
+    ],
+    "answer_keywords": [
+      "100"
+    ],
+    "expected_answer": "La quantité du jus est 100."
   },
   {
-    "id": "q_generic_31",
-    "question": " dans ce document , donner le Total HTVA",
-    "source_files": ["Devis_NAWAARNI.docx"],
-    "answer_keywords": ["350,000 DT"]
+    "id": "q_devis_03",
+    "question": "dans ce document, donner le prix unitaire du jus",
+    "source_files": [
+      "Devis_NAWAARNI.docx"
+    ],
+    "answer_keywords": [
+      "2,000 DT"
+    ],
+    "expected_answer": "Le prix unitaire du jus est 2,000 DT."
   },
   {
-    "id": "q_generic_41",
-    "question": " dans ce document , donner le nom de clinet et son adresse",
-    "source_files": ["Devis_NAWAARNI.docx"],
-    "answer_keywords": ["NAWAARNI", "Route de Raouede"]
+    "id": "q_devis_04",
+    "question": "dans ce document, donner le Total HTVA",
+    "source_files": [
+      "Devis_NAWAARNI.docx"
+    ],
+    "answer_keywords": [
+      "350,000 DT"
+    ],
+    "expected_answer": "Le total HTVA est 350,000 DT."
   },
   {
-    "_note": "q_generic_02/12/22/42 skipped: LLaVA hallucinated page 1 of this PDF (generated Spanish content instead of reading the Tunisian invoice). Data lives on page 1 so it is not in the index. Re-index after improving LLaVA prompt or switching to a better vision model.",
-    "id": "q_generic_02_SKIP",
-    "question": "dans ce document, donner la date de devis",
-    "source_files": [],
-    "answer_keywords": []
+    "id": "q_devis_05",
+    "question": "dans ce document, donner le nom du client et son adresse",
+    "source_files": [
+      "Devis_NAWAARNI.docx"
+    ],
+    "answer_keywords": [
+      "NAWAARNI",
+      "Route de Raouede"
+    ],
+    "expected_answer": "Le client est NAWAARNI, situé Route de Raouede KM 3,5, Ghazela 2089 El Ghazela."
   },
   {
-    "id": "q_generic_32",
-    "question": "dans ce document, donner le nom de compositeur du devis",
-    "source_files": ["CCF04162026.pdf"],
-    "answer_keywords": ["SYNO-TEC", "SYNO TEC"]
+    "id": "q_devis_06",
+    "question": "dans ce document, donner le nom de la société fournisseur",
+    "source_files": [
+      "Devis_NAWAARNI.docx"
+    ],
+    "answer_keywords": [
+      "Rimess"
+    ],
+    "expected_answer": "La société fournisseur s'appelle Rimess."
   },
   {
-    "_note": "LLaVA hallucinated COVID-19 content but did write 'NAWWARNI' and 'Nawwarini'. Keywords updated to match actual chunk text.",
-    "id": "q_generic_13",
-    "question": "dans ce document, donner le nom de l'equipe de projet",
-    "source_files": ["affiche_liverable.png"],
-    "answer_keywords": ["NAWWARNI", "Nawwarini", "Nawwani", "NAWAARNI"]
+    "id": "q_devis_07",
+    "question": "dans ce document, donner l'email de la société fournisseur",
+    "source_files": [
+      "Devis_NAWAARNI.docx"
+    ],
+    "answer_keywords": [
+      "mariemmariembitounsi@gmail.com"
+    ],
+    "expected_answer": "L'email de la société fournisseur est mariemmariembitounsi@gmail.com."
   },
   {
-    "_note": "SKIP — LLaVA hallucinated the entire image: fabricated a COVID-19 campaign story ('NAWWARNI campaign in Nawwarini region'). Words 'ecole', 'school', 'essaha' are absent from the indexed chunk. Re-index with a better vision model or Tesseract OCR.",
-    "id": "q_generic_23_SKIP",
-    "question": "dans ce document, donner le nom de l'ecole cible",
-    "source_files": [],
-    "answer_keywords": []
+    "id": "q_devis_08",
+    "question": "dans ce document, donner le téléphone de la société fournisseur",
+    "source_files": [
+      "Devis_NAWAARNI.docx"
+    ],
+    "answer_keywords": [
+      "22 0120219"
+    ],
+    "expected_answer": "Le téléphone de la société fournisseur est 22 0120219."
   },
   {
-    "_note": "SKIP — same LLaVA hallucination as q_generic_23. 'SUP'COM' and faculty name never appear in the indexed chunk.",
-    "id": "q_generic_33_SKIP",
-    "question": "dans ce document, donner le nom de faculte",
-    "source_files": [],
-    "answer_keywords": []
+    "id": "q_devis_09",
+    "question": "dans ce document, donner le prix total du croissant",
+    "source_files": [
+      "Devis_NAWAARNI.docx"
+    ],
+    "answer_keywords": [
+      "150,000 DT"
+    ],
+    "expected_answer": "Le prix total du croissant est 150,000 DT."
   },
   {
-    "_note": "SKIP — same LLaVA hallucination. Supervisor name 'Bellhaj/Rim' absent from indexed chunk.",
-    "id": "q_generic_43_SKIP",
-    "question": "dans ce document, le nom de l'encadrant de projet",
-    "source_files": [],
-    "answer_keywords": []
+    "id": "q_devis_10",
+    "question": "dans ce document, donner la quantité du croissant",
+    "source_files": [
+      "Devis_NAWAARNI.docx"
+    ],
+    "answer_keywords": [
+      "100"
+    ],
+    "expected_answer": "La quantité du croissant est 100."
   },
-
   {
-    "_note": "résumé (1).pdf — letter from NAWWARNI team to Slim Optique. Text-based PDF, should parse cleanly with pdfplumber. Update source_files if the filename differs in the RAG index.",
+    "id": "q_devis_11",
+    "question": "dans ce document, donner le prix unitaire du croissant",
+    "source_files": [
+      "Devis_NAWAARNI.docx"
+    ],
+    "answer_keywords": [
+      "1,500 DT"
+    ],
+    "expected_answer": "Le prix unitaire du croissant est 1,500 DT."
+  },
+  {
+    "id": "q_devis_12",
+    "question": "dans ce document, quel est le taux de TVA appliqué ?",
+    "source_files": [
+      "Devis_NAWAARNI.docx"
+    ],
+    "answer_keywords": [
+      "TVA 7%",
+      "7%"
+    ],
+    "expected_answer": "Le taux de TVA appliqué est 7%."
+  },
+  {
+    "id": "q_devis_13",
+    "question": "dans ce document, quel est le montant de la TVA ?",
+    "source_files": [
+      "Devis_NAWAARNI.docx"
+    ],
+    "answer_keywords": [
+      "24,500 DT"
+    ],
+    "expected_answer": "Le montant de la TVA est 24,500 DT."
+  },
+  {
+    "id": "q_devis_14",
+    "question": "dans ce document, combien de désignations sont listées dans le devis ?",
+    "source_files": [
+      "Devis_NAWAARNI.docx"
+    ],
+    "answer_keywords": [
+      "2",
+      "Croissant",
+      "Jus"
+    ],
+    "expected_answer": "Il y a 2 désignations : Croissant et Jus."
+  },
+  {
+    "id": "q_devis_15",
+    "question": "dans ce document, donner le matricule fiscal du client",
+    "source_files": [
+      "Devis_NAWAARNI.docx"
+    ],
+    "answer_keywords": [
+      "1362892R"
+    ],
+    "expected_answer": "Le matricule fiscal du client est 1362892R."
+  },
+  {
+    "_section": "══════════════════════════════════════════",
+    "_label": "CCF04162026.pdf  (13 questions)",
+    "_section_end": "══════════════════════════════════════════"
+  },
+  {
+    "id": "q_ccf_01",
+    "question": "dans ce document, donner le nom de la société compositeur du document",
+    "source_files": [
+      "CCF04162026.pdf"
+    ],
+    "answer_keywords": [
+      "SYNO-TEC",
+      "SYNO TEC"
+    ],
+    "expected_answer": "La société compositrice est SYNO-TEC Corporation."
+  },
+  {
+    "id": "q_ccf_02",
+    "question": "dans ce document, donner l'adresse de SYNO-TEC",
+    "source_files": [
+      "CCF04162026.pdf"
+    ],
+    "answer_keywords": [
+      "6401 Wilton",
+      "Houston",
+      "TX 77089"
+    ],
+    "expected_answer": "L'adresse de SYNO-TEC est 6401 Wilton Rd., Houston, TX 77089-2356."
+  },
+  {
+    "id": "q_ccf_03",
+    "question": "dans ce document, qui sont les destinataires du document ?",
+    "source_files": [
+      "CCF04162026.pdf"
+    ],
+    "answer_keywords": [
+      "JIM HENRY",
+      "KEVIN BARRERAS",
+      "LYNN PARKER"
+    ],
+    "expected_answer": "Les destinataires sont JIM HENRY, KEVIN BARRERAS et LYNN PARKER."
+  },
+  {
+    "id": "q_ccf_04",
+    "question": "dans ce document, qui est l'auteur (From) du document ?",
+    "source_files": [
+      "CCF04162026.pdf"
+    ],
+    "answer_keywords": [
+      "DAVID WILSON"
+    ],
+    "expected_answer": "L'auteur du document est DAVID WILSON."
+  },
+  {
+    "id": "q_ccf_05",
+    "question": "dans ce document, quel est le titre du reviewer ?",
+    "source_files": [
+      "CCF04162026.pdf"
+    ],
+    "answer_keywords": [
+      "QA TECHNICIAN"
+    ],
+    "expected_answer": "Le titre du reviewer est QA TECHNICIAN."
+  },
+  {
+    "id": "q_ccf_06",
+    "question": "dans ce document, quelle est la devise utilisée dans le tableau de paiement ?",
+    "source_files": [
+      "CCF04162026.pdf"
+    ],
+    "answer_keywords": [
+      "USD"
+    ],
+    "expected_answer": "La devise utilisée est USD (dollar américain)."
+  },
+  {
+    "id": "q_ccf_07",
+    "question": "dans ce document, quel est le taux de taxe dans le tableau de paiement ?",
+    "source_files": [
+      "CCF04162026.pdf"
+    ],
+    "answer_keywords": [
+      "8%"
+    ],
+    "expected_answer": "Le taux de taxe est 8%."
+  },
+  {
+    "id": "q_ccf_08",
+    "question": "dans ce document, quel est le nom du fournisseur dans la première ligne du tableau ?",
+    "source_files": [
+      "CCF04162026.pdf"
+    ],
+    "answer_keywords": [
+      "WOTAN INC"
+    ],
+    "expected_answer": "Le fournisseur dans la première ligne est WOTAN INC."
+  },
+  {
+    "id": "q_ccf_09",
+    "question": "dans ce document, quel est le nom du client/acheteur dans la première ligne du tableau ?",
+    "source_files": [
+      "CCF04162026.pdf"
+    ],
+    "answer_keywords": [
+      "SACSYRAS LLC"
+    ],
+    "expected_answer": "Le client/acheteur dans la première ligne est SACSYRAS LLC."
+  },
+  {
+    "id": "q_ccf_10",
+    "question": "dans ce document, quel est le prix unitaire de la transaction WOTAN–SACSYRAS ?",
+    "source_files": [
+      "CCF04162026.pdf"
+    ],
+    "answer_keywords": [
+      "9.75",
+      "$9.75"
+    ],
+    "expected_answer": "Le prix unitaire de la transaction WOTAN–SACSYRAS est $9.75."
+  },
+  {
+    "id": "q_ccf_11",
+    "question": "dans ce document, quel est le montant total de la transaction WOTAN–SACSYRAS ?",
+    "source_files": [
+      "CCF04162026.pdf"
+    ],
+    "answer_keywords": [
+      "19.50",
+      "$19.50"
+    ],
+    "expected_answer": "Le montant total de la transaction WOTAN–SACSYRAS est $19.50."
+  },
+  {
+    "id": "q_ccf_12",
+    "question": "dans ce document, quel est le nom du deuxième fournisseur dans le tableau ?",
+    "source_files": [
+      "CCF04162026.pdf"
+    ],
+    "answer_keywords": [
+      "KELKA-TECH"
+    ],
+    "expected_answer": "Le deuxième fournisseur dans le tableau est KELKA-TECH INC."
+  },
+  {
+    "id": "q_ccf_13",
+    "question": "dans ce document, quel est le nom du troisième fournisseur dans le tableau ?",
+    "source_files": [
+      "CCF04162026.pdf"
+    ],
+    "answer_keywords": [
+      "PRAXIS LABORATOIRES"
+    ],
+    "expected_answer": "Le troisième fournisseur dans le tableau est PRAXIS LABORATOIRES SASU."
+  },
+  {
+    "_section": "══════════════════════════════════════════",
+    "_label": "résumé (1).pdf.pdf  (14 questions)",
+    "_section_end": "══════════════════════════════════════════"
+  },
+  {
     "id": "q_lettre_01",
     "question": "dans ce document, quel est l'email de l'expéditeur ?",
-    "source_files": ["résumé (1).pdf.pdf"],
-    "answer_keywords": ["rayen.benmimoun@supcom.tn", "rayen.benmimoun@supcom", "benmimoun@supcom"]
+    "source_files": [
+      "résumé (1).pdf.pdf"
+    ],
+    "answer_keywords": [
+      "rayen.benmimoun@supcom.tn",
+      "rayen.benmimoun@supcom",
+      "benmimoun@supcom"
+    ],
+    "expected_answer": "L'email de l'expéditeur est rayen.benmimoun@supcom.tn."
   },
   {
     "id": "q_lettre_02",
     "question": "dans ce document, quel est le numéro de téléphone de l'expéditeur ?",
-    "source_files": ["résumé (1).pdf.pdf"],
-    "answer_keywords": ["+216 25 069 123"]
+    "source_files": [
+      "résumé (1).pdf.pdf"
+    ],
+    "answer_keywords": [
+      "+216 25 069 123"
+    ],
+    "expected_answer": "Le numéro de téléphone de l'expéditeur est +216 25 069 123."
   },
   {
     "id": "q_lettre_03",
     "question": "dans ce document, combien de montures de lunettes sont demandées ?",
-    "source_files": ["résumé (1).pdf.pdf"],
-    "answer_keywords": ["30 montures", "30"]
+    "source_files": [
+      "résumé (1).pdf.pdf"
+    ],
+    "answer_keywords": [
+      "30 montures",
+      "30"
+    ],
+    "expected_answer": "30 montures de lunettes sont demandées."
   },
   {
     "id": "q_lettre_04",
     "question": "dans ce document, quelle est l'école primaire bénéficiaire de la caravane ?",
-    "source_files": ["résumé (1).pdf.pdf"],
-    "answer_keywords": ["Cité Essaha", "Ariana"]
+    "source_files": [
+      "résumé (1).pdf.pdf"
+    ],
+    "answer_keywords": [
+      "Cité Essaha",
+      "Ariana"
+    ],
+    "expected_answer": "L'école primaire bénéficiaire est l'École Primaire Cité Essaha, à Ariana."
   },
   {
     "id": "q_lettre_05",
     "question": "dans ce document, à quelle société est adressée la demande de partenariat ?",
-    "source_files": ["résumé (1).pdf.pdf"],
-    "answer_keywords": ["Slim Optique"]
+    "source_files": [
+      "résumé (1).pdf.pdf"
+    ],
+    "answer_keywords": [
+      "Slim Optique"
+    ],
+    "expected_answer": "La demande est adressée à Slim Optique."
   },
-
   {
-    "_note": "Group photo image. LLaVA will describe the scene visually — keywords target the most salient elements. Update source_files to match the exact filename used when indexing. If LLaVA hallucinates, mark as SKIP and run dump_chunks.py to see the actual indexed text.",
+    "id": "q_lettre_06",
+    "question": "dans ce document, quel est le nom de l'équipe expéditrice ?",
+    "source_files": [
+      "résumé (1).pdf.pdf"
+    ],
+    "answer_keywords": [
+      "NAWWARNI",
+      "PACTE n°26"
+    ],
+    "expected_answer": "L'équipe expéditrice est l'équipe PACTE n°26 du projet NAWWARNI."
+  },
+  {
+    "id": "q_lettre_07",
+    "question": "dans ce document, quelle est l'école de l'équipe expéditrice ?",
+    "source_files": [
+      "résumé (1).pdf.pdf"
+    ],
+    "answer_keywords": [
+      "SUP'COM",
+      "Supérieure des Communications"
+    ],
+    "expected_answer": "L'école de l'équipe est SUP'COM (École Supérieure des Communications de Tunis)."
+  },
+  {
+    "id": "q_lettre_08",
+    "question": "dans ce document, quelle est l'adresse du destinataire ?",
+    "source_files": [
+      "résumé (1).pdf.pdf"
+    ],
+    "answer_keywords": [
+      "Les Berges du Lac",
+      "Tunis"
+    ],
+    "expected_answer": "L'adresse du destinataire est Les Berges du Lac 2, Tunis."
+  },
+  {
+    "id": "q_lettre_09",
+    "question": "dans ce document, quelle est la date de la caravane de santé visuelle ?",
+    "source_files": [
+      "résumé (1).pdf.pdf"
+    ],
+    "answer_keywords": [
+      "18 avril",
+      "18 avril 2026"
+    ],
+    "expected_answer": "La date de la caravane de santé visuelle est le 18 avril 2026."
+  },
+  {
+    "id": "q_lettre_10",
+    "question": "dans ce document, quel est l'objet de la lettre ?",
+    "source_files": [
+      "résumé (1).pdf.pdf"
+    ],
+    "answer_keywords": [
+      "montures",
+      "caravane de santé"
+    ],
+    "expected_answer": "L'objet de la lettre est une demande de mise à disposition de montures pour une caravane de santé sociale."
+  },
+  {
+    "id": "q_lettre_11",
+    "question": "dans ce document, quel type de montures est demandé ?",
+    "source_files": [
+      "résumé (1).pdf.pdf"
+    ],
+    "answer_keywords": [
+      "enfants",
+      "juniors"
+    ],
+    "expected_answer": "Les montures demandées sont des modèles pour enfants/juniors."
+  },
+  {
+    "id": "q_lettre_12",
+    "question": "dans ce document, dans quel cadre s'inscrit ce projet ?",
+    "source_files": [
+      "résumé (1).pdf.pdf"
+    ],
+    "answer_keywords": [
+      "PACTE",
+      "module PACTE"
+    ],
+    "expected_answer": "Le projet s'inscrit dans le cadre du module PACTE de SUP'COM."
+  },
+  {
+    "id": "q_lettre_13",
+    "question": "dans ce document, quelle est la mission principale du projet NAWWARNI décrite dans la lettre ?",
+    "source_files": [
+      "résumé (1).pdf.pdf"
+    ],
+    "answer_keywords": [
+      "échec scolaire",
+      "troubles visuels"
+    ],
+    "expected_answer": "La mission principale est de lutter contre l'échec scolaire lié aux troubles visuels non diagnostiqués."
+  },
+  {
+    "id": "q_lettre_14",
+    "question": "dans ce document, quel est le numéro du projet PACTE ?",
+    "source_files": [
+      "résumé (1).pdf.pdf"
+    ],
+    "answer_keywords": [
+      "n°26",
+      "26"
+    ],
+    "expected_answer": "Le numéro du projet PACTE est le n°26."
+  },
+  {
+    "_section": "══════════════════════════════════════════",
+    "_label": "takalif.xlsx  (8 questions)",
+    "_section_end": "══════════════════════════════════════════"
+  },
+  {
+    "id": "q_takalif_01",
+    "question": "dans ce document, quel est le total général des dépenses ?",
+    "source_files": [
+      "takalif.xlsx"
+    ],
+    "answer_keywords": [
+      "180660"
+    ],
+    "expected_answer": "Le total général des dépenses est 180 660."
+  },
+  {
+    "id": "q_takalif_02",
+    "question": "dans ce document, quel est le coût du cyclocol ?",
+    "source_files": [
+      "takalif.xlsx"
+    ],
+    "answer_keywords": [
+      "8550"
+    ],
+    "expected_answer": "Le coût du cyclocol est 8 550."
+  },
+  {
+    "id": "q_takalif_03",
+    "question": "dans ce document, quel est le coût de la pause café ?",
+    "source_files": [
+      "takalif.xlsx"
+    ],
+    "answer_keywords": [
+      "32000"
+    ],
+    "expected_answer": "Le coût de la pause café est 32 000."
+  },
+  {
+    "id": "q_takalif_04",
+    "question": "dans ce document, quel est le coût des compresses ?",
+    "source_files": [
+      "takalif.xlsx"
+    ],
+    "answer_keywords": [
+      "51000"
+    ],
+    "expected_answer": "Le coût des compresses est 51 000."
+  },
+  {
+    "id": "q_takalif_05",
+    "question": "dans ce document, quel est le coût du cebesine ?",
+    "source_files": [
+      "takalif.xlsx"
+    ],
+    "answer_keywords": [
+      "31000"
+    ],
+    "expected_answer": "Le coût du cebesine est 31 000."
+  },
+  {
+    "id": "q_takalif_06",
+    "question": "dans ce document, quel est le coût du gel larmes ?",
+    "source_files": [
+      "takalif.xlsx"
+    ],
+    "answer_keywords": [
+      "58110",
+      "gel_larmes"
+    ],
+    "expected_answer": "Le coût du gel larmes est 58 110."
+  },
+  {
+    "id": "q_takalif_07",
+    "question": "dans ce document, combien de postes de dépenses sont listés ?",
+    "source_files": [
+      "takalif.xlsx"
+    ],
+    "answer_keywords": [
+      "cyclocol",
+      "pause cafe",
+      "compresse",
+      "cebesine",
+      "gel_larmes"
+    ],
+    "expected_answer": "Il y a 5 postes de dépenses : cyclocol, pause café, compresses, cebesine, et gel larmes."
+  },
+  {
+    "id": "q_takalif_08",
+    "question": "dans ce document, quelle est la dépense la plus élevée ?",
+    "source_files": [
+      "takalif.xlsx"
+    ],
+    "answer_keywords": [
+      "gel_larmes",
+      "58110"
+    ],
+    "expected_answer": "La dépense la plus élevée est le gel larmes avec 58 110."
+  },
+  {
+    "_section": "══════════════════════════════════════════",
+    "_label": "gym_mld.puml  (20 questions)",
+    "_section_end": "══════════════════════════════════════════"
+  },
+  {
+    "id": "q_gym_01",
+    "question": "dans ce document, combien d'entités le diagramme UML contient-il ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "17"
+    ],
+    "expected_answer": "Le diagramme UML contient 17 entités."
+  },
+  {
+    "id": "q_gym_02",
+    "question": "dans ce document, quelle est la clé primaire de l'entité Membre ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "id_membre",
+      "PK"
+    ],
+    "expected_answer": "La clé primaire de l'entité Membre est id_membre."
+  },
+  {
+    "id": "q_gym_03",
+    "question": "dans ce document, quels attributs possède l'entité Employe ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "salaire",
+      "matricule",
+      "id_employe"
+    ],
+    "expected_answer": "L'entité Employe possède les attributs : id_employe, matricule, nom, prenom, telephone, salaire, et id_employe_superviseur."
+  },
+  {
+    "id": "q_gym_04",
+    "question": "dans ce document, quelle entité contient l'attribut salaire ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "Employe"
+    ],
+    "expected_answer": "L'attribut salaire appartient à l'entité Employe."
+  },
+  {
+    "id": "q_gym_05",
+    "question": "dans ce document, quelle est la clé primaire de l'entité Equipement ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "num_serie",
+      "PK"
+    ],
+    "expected_answer": "La clé primaire de l'entité Equipement est num_serie."
+  },
+  {
+    "id": "q_gym_06",
+    "question": "dans ce document, quelle entité contient des casiers (Casier) ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "Vestiaire",
+      "contient"
+    ],
+    "expected_answer": "L'entité Vestiaire contient des casiers (relation Vestiaire–Casier)."
+  },
+  {
+    "id": "q_gym_07",
+    "question": "dans ce document, quelle est la relation entre Employe et Employe ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "supervise"
+    ],
+    "expected_answer": "La relation entre Employe et Employe est une relation de supervision : un employé supervise d'autres employés."
+  },
+  {
+    "id": "q_gym_08",
+    "question": "dans ce document, quels attributs possède l'entité TypeAbonnement ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "prix",
+      "duree",
+      "acces_cours"
+    ],
+    "expected_answer": "L'entité TypeAbonnement possède les attributs : id_type, libelle, prix, duree, acces_cours."
+  },
+  {
+    "id": "q_gym_09",
+    "question": "dans ce document, quelle est la cardinalité de la relation Membre–Souscription ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "1",
+      "0..*",
+      "souscrit"
+    ],
+    "expected_answer": "La cardinalité de la relation Membre–Souscription est 1 à 0..* (un membre peut avoir zéro ou plusieurs souscriptions)."
+  },
+  {
+    "id": "q_gym_10",
+    "question": "dans ce document, quelles entités sont liées à l'entité Maintenance ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "Employe",
+      "Equipement"
+    ],
+    "expected_answer": "L'entité Maintenance est liée à Employe et à Equipement."
+  },
+  {
+    "id": "q_gym_11",
+    "question": "dans ce document, quelle entité possède l'attribut notes_coach ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "Programme"
+    ],
+    "expected_answer": "L'attribut notes_coach appartient à l'entité Programme."
+  },
+  {
+    "id": "q_gym_12",
+    "question": "dans ce document, quelle entité possède l'attribut capacite_max ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "Salle",
+      "Evenement"
+    ],
+    "expected_answer": "L'attribut capacite_max est présent dans les entités Salle et Evenement."
+  },
+  {
+    "id": "q_gym_13",
+    "question": "dans ce document, quelle est la relation entre Session et Salle ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "se déroule dans",
+      "deroule"
+    ],
+    "expected_answer": "La relation entre Session et Salle est que la Session se déroule dans une Salle."
+  },
+  {
+    "id": "q_gym_14",
+    "question": "dans ce document, quels attributs possède l'entité Casier ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "statut",
+      "taille",
+      "id_vestiaire"
+    ],
+    "expected_answer": "L'entité Casier possède les attributs : id_casier, numero, statut, taille, id_membre et id_vestiaire."
+  },
+  {
+    "id": "q_gym_15",
+    "question": "dans ce document, quelle entité possède l'attribut prix_participation ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "Evenement"
+    ],
+    "expected_answer": "L'attribut prix_participation appartient à l'entité Evenement."
+  },
+  {
+    "id": "q_gym_16",
+    "question": "dans ce document, quelle est la relation entre Cours et Reservation ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "concerne"
+    ],
+    "expected_answer": "La relation entre Cours et Reservation est que Cours concerne Reservation."
+  },
+  {
+    "id": "q_gym_17",
+    "question": "dans ce document, quels attributs possède l'entité Passage ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "date_passage",
+      "heure_passage",
+      "id_membre"
+    ],
+    "expected_answer": "L'entité Passage possède les attributs : id_passage, date_passage, heure_passage et id_membre."
+  },
+  {
+    "id": "q_gym_18",
+    "question": "dans ce document, quelle entité possède l'attribut certif_medical ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "Membre"
+    ],
+    "expected_answer": "L'attribut certif_medical appartient à l'entité Membre."
+  },
+  {
+    "id": "q_gym_19",
+    "question": "dans ce document, quelle est la relation entre Membre et Produit ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "achète",
+      "achete"
+    ],
+    "expected_answer": "La relation entre Membre et Produit est que le Membre achète des Produits."
+  },
+  {
+    "id": "q_gym_20",
+    "question": "dans ce document, quels attributs possède l'entité Reservation ?",
+    "source_files": [
+      "gym_mld.puml"
+    ],
+    "answer_keywords": [
+      "date_reservation",
+      "statut_resa",
+      "id_session"
+    ],
+    "expected_answer": "L'entité Reservation possède les attributs : id_reservation, date_reservation, statut_resa, id_membre et id_session."
+  },
+  {
+    "_section": "══════════════════════════════════════════",
+    "_label": "Soutenance Mi-Parcours NAWWARNI.pptx  (20 questions)",
+    "_section_end": "══════════════════════════════════════════"
+  },
+  {
+    "id": "q_mip_01",
+    "question": "dans ce document, combien de slides contient la présentation ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "15",
+      "Total slides"
+    ],
+    "expected_answer": "La présentation contient 15 slides."
+  },
+  {
+    "id": "q_mip_02",
+    "question": "dans ce document, quels sont les noms des membres de l'équipe ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "ABIDA",
+      "ALBOUCHI",
+      "ATTIA",
+      "BEAOUI",
+      "BEN MIMOUN",
+      "BEN TAMARZIZT"
+    ],
+    "expected_answer": "Les membres de l'équipe sont : ABIDA Hamza Habib, ALBOUCHI Samar, ATTIA Iheb, BEAOUI Mouhamed Ali, BEN MIMOUN Rayen et BEN TAMARZIZT Mahdi."
+  },
+  {
+    "id": "q_mip_03",
+    "question": "dans ce document, quel est le nom de la tutrice du projet ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "BELHAJ Rim",
+      "Mme BELHAJ"
+    ],
+    "expected_answer": "La tutrice du projet est Mme BELHAJ Rim."
+  },
+  {
+    "id": "q_mip_04",
+    "question": "dans ce document, quel est le numéro du projet PACTE ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "26",
+      "PACTE n° 26"
+    ],
+    "expected_answer": "Le numéro du projet PACTE est le n°26."
+  },
+  {
+    "id": "q_mip_05",
+    "question": "dans ce document, quelle est l'année académique du projet ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "2025-2026"
+    ],
+    "expected_answer": "L'année académique du projet est 2025-2026."
+  },
+  {
+    "id": "q_mip_06",
+    "question": "dans ce document, quelle est l'école partenaire institutionnelle ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "Cité Essaha"
+    ],
+    "expected_answer": "L'école partenaire institutionnelle est l'École Primaire Cité Essaha."
+  },
+  {
+    "id": "q_mip_07",
+    "question": "dans ce document, quel est l'âge ciblé des enfants ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "6 à 12 ans",
+      "6",
+      "12"
+    ],
+    "expected_answer": "L'âge ciblé des enfants est de 6 à 12 ans."
+  },
+  {
+    "id": "q_mip_08",
+    "question": "dans ce document, combien d'élèves sont ciblés par la campagne ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "50 et 75",
+      "50",
+      "75"
+    ],
+    "expected_answer": "Entre 50 et 75 élèves sont ciblés par la campagne."
+  },
+  {
+    "id": "q_mip_09",
+    "question": "dans ce document, quels sont les partenaires techniques et médicaux ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "Optique Distribution",
+      "Slim Optique"
+    ],
+    "expected_answer": "Les partenaires techniques sont Optique Distribution et Slim Optique."
+  },
+  {
+    "id": "q_mip_10",
+    "question": "dans ce document, quel est le montant de la subvention de Vermeg ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "1000DT",
+      "1000 DT"
+    ],
+    "expected_answer": "La subvention de Vermeg est de 1000 DT."
+  },
+  {
+    "id": "q_mip_11",
+    "question": "dans ce document, quelle est la date de déploiement de la caravane ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "4 Avril",
+      "Samedi 4 Avril"
+    ],
+    "expected_answer": "La date de déploiement de la caravane est le samedi 4 avril."
+  },
+  {
+    "id": "q_mip_12",
+    "question": "dans ce document, quels sont les trois objectifs du projet ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "Dépister",
+      "Orienter",
+      "Sensibiliser"
+    ],
+    "expected_answer": "Les trois objectifs du projet sont : Dépister, Orienter et Sensibiliser."
+  },
+  {
+    "id": "q_mip_13",
+    "question": "dans ce document, à quel slide correspond l'état d'avancement financier ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "Slide 11",
+      "Finances",
+      "eleventh"
+    ],
+    "expected_answer": "L'état d'avancement financier est présenté au slide 11."
+  },
+  {
+    "id": "q_mip_14",
+    "question": "dans ce document, quelle action reste à faire pour la clôture financière ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "encaissement",
+      "fonds de sponsoring",
+      "Clôture Financière"
+    ],
+    "expected_answer": "L'action restante pour la clôture financière est l'encaissement des fonds de sponsoring."
+  },
+  {
+    "id": "q_mip_15",
+    "question": "dans ce document, quel est le titre du slide 9 ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "Échéancier Prévisionnel",
+      "ninth"
+    ],
+    "expected_answer": "Le titre du slide 9 est Échéancier Prévisionnel."
+  },
+  {
+    "id": "q_mip_16",
+    "question": "dans ce document, quel constat est fait sur l'échec scolaire ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "troubles de la vision",
+      "échec scolaire"
+    ],
+    "expected_answer": "Le constat est que les troubles de la vision non diagnostiqués contribuent à l'échec scolaire."
+  },
+  {
+    "id": "q_mip_17",
+    "question": "dans ce document, quand est prévu le bilan de l'action ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "Fin Avril"
+    ],
+    "expected_answer": "Le bilan est prévu fin avril."
+  },
+  {
+    "id": "q_mip_18",
+    "question": "dans ce document, quel est le titre du dernier slide ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "Merci pour votre attention",
+      "fifteenth"
+    ],
+    "expected_answer": "Le dernier slide (slide 15) est un slide de remerciement : Merci pour votre attention."
+  },
+  {
+    "id": "q_mip_19",
+    "question": "dans ce document, quelle est l'institution d'accueil de l'équipe ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "Sup'Com",
+      "SUP'COM"
+    ],
+    "expected_answer": "L'institution d'accueil de l'équipe est SUP'COM."
+  },
+  {
+    "id": "q_mip_20",
+    "question": "dans ce document, quelle période est consacrée à la préparation administrative ?",
+    "source_files": [
+      "Soutenance Mi-Parcours NAWWARNI.pptx"
+    ],
+    "answer_keywords": [
+      "Janvier",
+      "Février"
+    ],
+    "expected_answer": "La période de préparation administrative correspond aux mois de janvier et février."
+  },
+  {
+    "_section": "══════════════════════════════════════════",
+    "_label": "soutenance finale pacte.pptx  (20 questions)",
+    "_section_end": "══════════════════════════════════════════"
+  },
+  {
+    "id": "q_finale_01",
+    "question": "dans ce document, combien de slides contient la présentation ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "34",
+      "Total slides"
+    ],
+    "expected_answer": "La présentation contient 34 slides."
+  },
+  {
+    "id": "q_finale_02",
+    "question": "dans ce document, quelle édition du programme PACTE est-ce ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "14",
+      "14ème édition"
+    ],
+    "expected_answer": "C'est la 14ème édition du programme PACTE."
+  },
+  {
+    "id": "q_finale_03",
+    "question": "dans ce document, quels sont les noms des membres de l'équipe ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "ABIDA",
+      "ALBOUCHI",
+      "BEN MIMOUN",
+      "BEN TAMARZIZT"
+    ],
+    "expected_answer": "Les membres de l'équipe sont : ABIDA Hamza Habib, ALBOUCHI Samar, ATTIA Iheb, BEAOUI Mouhamed Ali, BEN MIMOUN Rayen et BEN TAMARZIZT Mahdi."
+  },
+  {
+    "id": "q_finale_04",
+    "question": "dans ce document, quel est le nom de la tutrice du projet ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "BELHAJ Rim",
+      "Mme BELHAJ"
+    ],
+    "expected_answer": "La tutrice du projet est Mme BELHAJ Rim."
+  },
+  {
+    "id": "q_finale_05",
+    "question": "dans ce document, comment est défini le projet NAWWARNI dans la slide d'identité ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "caravane de santé visuelle",
+      "solidaire"
+    ],
+    "expected_answer": "Le projet NAWWARNI est défini comme une caravane de santé visuelle solidaire."
+  },
+  {
+    "id": "q_finale_06",
+    "question": "dans ce document, quel est le titre de la slide d'introduction ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "Introduction",
+      "third slide"
+    ],
+    "expected_answer": "Le titre de la slide d'introduction est Introduction (slide 3)."
+  },
+  {
+    "id": "q_finale_07",
+    "question": "dans ce document, quel est le titre du slide 10 ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "Objectifs du projet",
+      "tenth"
+    ],
+    "expected_answer": "Le titre du slide 10 est Objectifs du projet."
+  },
+  {
+    "id": "q_finale_08",
+    "question": "dans ce document, quel est le titre du slide 15 ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "Échéancier réalisé",
+      "fifteenth"
+    ],
+    "expected_answer": "Le titre du slide 15 est Échéancier réalisé."
+  },
+  {
+    "id": "q_finale_09",
+    "question": "dans ce document, à quel slide correspond Le Jour J ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "Slide 18",
+      "eighteenth",
+      "Le Jour J"
+    ],
+    "expected_answer": "Le Jour J correspond au slide 18."
+  },
+  {
+    "id": "q_finale_10",
+    "question": "dans ce document, quel est le titre du slide sur les résultats quantitatifs ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "Résultats quantitatifs",
+      "Slide 24"
+    ],
+    "expected_answer": "Le titre du slide sur les résultats quantitatifs est Résultats quantitatifs (slide 24)."
+  },
+  {
+    "id": "q_finale_11",
+    "question": "dans ce document, à quel slide sont présentées les difficultés rencontrées ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "Difficultés rencontrées",
+      "Slide 28"
+    ],
+    "expected_answer": "Les difficultés rencontrées sont présentées au slide 28."
+  },
+  {
+    "id": "q_finale_12",
+    "question": "dans ce document, quel est le titre du slide sur les coûts et financement ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "Coûts",
+      "plan de financement",
+      "Slide 27"
+    ],
+    "expected_answer": "Le titre du slide sur les coûts et financement est Coûts et plan de financement (slide 27)."
+  },
+  {
+    "id": "q_finale_13",
+    "question": "dans ce document, à quel slide se trouve la conclusion ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "Conclusion",
+      "Slide 31"
+    ],
+    "expected_answer": "La conclusion se trouve au slide 31."
+  },
+  {
+    "id": "q_finale_14",
+    "question": "dans ce document, quel facteur est présenté comme déterminant pour la réussite scolaire dans l'introduction ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "santé visuelle",
+      "réussite scolaire"
+    ],
+    "expected_answer": "La santé visuelle est présentée comme le facteur déterminant pour la réussite scolaire."
+  },
+  {
+    "id": "q_finale_15",
+    "question": "dans ce document, quel est le numéro du projet PACTE ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "26",
+      "PACTE n° 26"
+    ],
+    "expected_answer": "Le numéro du projet PACTE est le n°26."
+  },
+  {
+    "id": "q_finale_16",
+    "question": "dans ce document, quel est le titre du slide sur les partenaires ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "Nos partenaires",
+      "Slide 11",
+      "eleventh"
+    ],
+    "expected_answer": "Le titre du slide sur les partenaires est Nos partenaires (slide 11)."
+  },
+  {
+    "id": "q_finale_17",
+    "question": "dans ce document, quel est le titre du slide sur les voies d'approfondissement ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "Voies d'approfondissement",
+      "Slide 30"
+    ],
+    "expected_answer": "Le titre du slide sur les voies d'approfondissement est Voies d'approfondissement (slide 30)."
+  },
+  {
+    "id": "q_finale_18",
+    "question": "dans ce document, quel est le titre du slide sur la population cible ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "Population cible",
+      "Slide 9",
+      "ninth"
+    ],
+    "expected_answer": "Le titre du slide sur la population cible est Population cible (slide 9)."
+  },
+  {
+    "id": "q_finale_19",
+    "question": "dans ce document, quel est le titre du slide sur l'organisme d'accueil ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "Organisme d'accueil",
+      "Slide 8",
+      "eighth"
+    ],
+    "expected_answer": "Le titre du slide sur l'organisme d'accueil est Organisme d'accueil (slide 8)."
+  },
+  {
+    "id": "q_finale_20",
+    "question": "dans ce document, quelle année académique est mentionnée ?",
+    "source_files": [
+      "soutenance finale pacte.pptx"
+    ],
+    "answer_keywords": [
+      "2025-2026"
+    ],
+    "expected_answer": "L'année académique mentionnée est 2025-2026."
+  },
+  {
+    "_section": "══════════════════════════════════════════",
+    "_label": "Screenshot 2026-04-24 204354.png  (5 questions)",
+    "_section_end": "══════════════════════════════════════════"
+  },
+  {
     "id": "q_photo_01",
     "question": "dans ce document, combien de personnes sont visibles sur la photo ?",
-    "source_files": ["Screenshot 2026-04-24 204354.png"],
-    "answer_keywords": ["group", "people", "personnes", "individuals"]
+    "source_files": [
+      "Screenshot 2026-04-24 204354.png"
+    ],
+    "answer_keywords": [
+      "group",
+      "people",
+      "personnes",
+      "individuals"
+    ]
   },
   {
-    "_note": "SKIP — LLaVA doesn't describe headwear/hijab; it only says 'dark clothing' for all individuals. The model can't reliably describe religious attire.",
+    "_note": "SKIP — LLaVA doesn't describe headwear/hijab reliably",
     "id": "q_photo_02_SKIP",
     "question": "dans ce document, quel type de vêtement porte certaines femmes sur la photo ?",
     "source_files": [],
@@ -133,7 +1391,83 @@
   {
     "id": "q_photo_03",
     "question": "dans ce document, quel accessoire porte l'un des hommes sur la photo ?",
-    "source_files": ["Screenshot 2026-04-24 204354.png"],
-    "answer_keywords": ["hat", "chapeau", "cap"]
+    "source_files": [
+      "Screenshot 2026-04-24 204354.png"
+    ],
+    "answer_keywords": [
+      "hat",
+      "chapeau",
+      "cap"
+    ]
+  },
+  {
+    "id": "q_photo_04",
+    "question": "dans ce document, quel est le cadre ou lieu de la photo ?",
+    "source_files": [
+      "Screenshot 2026-04-24 204354.png"
+    ],
+    "answer_keywords": [
+      "courtyard",
+      "gate",
+      "outdoor",
+      "extérieur"
+    ]
+  },
+  {
+    "id": "q_photo_05",
+    "question": "dans ce document, est-ce que des personnes portent des lunettes sur la photo ?",
+    "source_files": [
+      "Screenshot 2026-04-24 204354.png"
+    ],
+    "answer_keywords": [
+      "glasses",
+      "lunettes"
+    ]
+  },
+  {
+    "_section": "══════════════════════════════════════════",
+    "_label": "affiche_liverable.png  (3 questions — LLaVA hallucinated heavily; keywords target actual indexed text)",
+    "_section_end": "══════════════════════════════════════════"
+  },
+  {
+    "_note": "LLaVA hallucinated COVID-19 content but did write 'NAWWARNI'. Keywords match actual chunk.",
+    "id": "q_affiche_01",
+    "question": "dans ce document, donner le nom de l'equipe de projet",
+    "source_files": [
+      "affiche_liverable.png"
+    ],
+    "answer_keywords": [
+      "NAWWARNI",
+      "Nawwarini",
+      "NAWAARNI"
+    ],
+    "expected_answer": "Le nom de l'équipe de projet est NAWWARNI."
+  },
+  {
+    "_note": "LLaVA wrote 'caravane de sante visuelle' in the hallucinated chunk — matches real project theme.",
+    "id": "q_affiche_02",
+    "question": "dans ce document, quel est le thème principal de l'affiche ?",
+    "source_files": [
+      "affiche_liverable.png"
+    ],
+    "answer_keywords": [
+      "santé visuelle",
+      "sante visuelle",
+      "caravane"
+    ],
+    "expected_answer": "Le thème principal de l'affiche est la santé visuelle / caravane de santé visuelle solidaire."
+  },
+  {
+    "_note": "LLaVA mentioned SUP'COM in the chunk text.",
+    "id": "q_affiche_03",
+    "question": "dans ce document, quelle école est mentionnée sur l'affiche ?",
+    "source_files": [
+      "affiche_liverable.png"
+    ],
+    "answer_keywords": [
+      "Sup'Com",
+      "SUP'COM"
+    ],
+    "expected_answer": "L'école mentionnée sur l'affiche est SUP'COM."
   }
 ]

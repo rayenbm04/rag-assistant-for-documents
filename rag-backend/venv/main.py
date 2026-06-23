@@ -1059,6 +1059,11 @@ async def upload(file: UploadFile = File(...),
     content = await file.read()
     incoming_hash = hashlib.md5(content).hexdigest()
 
+    # Strip repeated extensions e.g. "résumé.pdf.pdf" → "résumé.pdf"
+    _stem, _ext = os.path.splitext(file.filename)
+    if os.path.splitext(_stem)[1].lower() == _ext.lower():
+        file.filename = _stem
+
     # Skip re-indexing if the file is already indexed and content is unchanged
     if (
         file_hashes.get(file.filename) == incoming_hash
