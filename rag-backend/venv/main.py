@@ -3,8 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 from pptx import Presentation as PptxPresentation
 from datetime import datetime, timedelta
-import nest_asyncio
-  # allows AutoMergingRetriever to run inside FastAPI's event loop
+import nest_asyncio  # allows AutoMergingRetriever to run inside FastAPI's event loop
 import pdfplumber
 from PIL import Image
 from docx import Document as DocxDocument
@@ -15,7 +14,6 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 from dotenv import load_dotenv
-# ── Auth ──
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy import create_engine, Column, String, DateTime
@@ -42,7 +40,6 @@ from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.llms.ollama import Ollama
 from llama_index.embeddings.ollama import OllamaEmbedding
 
-# ── Load environment variables from .env ──
 load_dotenv()
 
 LLM_MODEL        = os.getenv("LLM_MODEL",           "mistral:7b-instruct-q4_K_M")
@@ -68,7 +65,6 @@ SECRET_KEY             = os.getenv("SECRET_KEY",             "change-me-in-produ
 ACCESS_TOKEN_EXPIRE_DAYS = int(os.getenv("ACCESS_TOKEN_EXPIRE_DAYS", "7"))
 DATABASE_URL           = os.getenv("DATABASE_URL",           "sqlite:///./rag_users.db")
 
-# ── SQLAlchemy / User DB ──────────────────────────────────────────────────────
 _engine      = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
 _Base        = declarative_base()
@@ -80,12 +76,11 @@ class UserModel(_Base):
     firstname       = Column(String, nullable=False)
     lastname        = Column(String, nullable=False)
     hashed_password = Column(String, nullable=False)
-    role            = Column(String, default="user")   # "admin" | "user"
+    role            = Column(String, default="user")
     created_at      = Column(DateTime, default=datetime.utcnow)
 
 _Base.metadata.create_all(bind=_engine)
 
-# ── JWT / password utils ──────────────────────────────────────────────────────
 _pwd_ctx      = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -128,7 +123,6 @@ def _require_admin(current_user: UserModel = Depends(get_current_user)):
         raise HTTPException(403, "Admin access required")
     return current_user
 
-# ── File-ownership persistence ────────────────────────────────────────────────
 _FILE_OWNERS_PATH = "./file_owners.json"
 
 def _load_file_owners() -> dict:
@@ -143,7 +137,6 @@ def _save_file_owners():
 
 file_owners: dict[str, str] = _load_file_owners()   # {filename: user_id}
 
-# ── Pydantic auth schemas ─────────────────────────────────────────────────────
 class RegisterRequest(BaseModel):
     email: str
     password: str
@@ -184,7 +177,6 @@ os.makedirs(UPLOAD_DIR,      exist_ok=True)
 os.makedirs(NODE_STORE_DIR,  exist_ok=True)
 os.makedirs(SLIDES_CACHE_DIR, exist_ok=True)
 
-# ── Auth endpoints ────────────────────────────────────────────────────────────
 
 @app.post("/auth/register")
 def auth_register(req: RegisterRequest):
@@ -194,7 +186,7 @@ def auth_register(req: RegisterRequest):
             raise HTTPException(400, "Email already registered")
         if len(req.password) < 6:
             raise HTTPException(400, "Password must be at least 6 characters")
-        is_first = db.query(UserModel).count() == 0   # first user → admin
+        is_first = db.query(UserModel).count() == 0
         user = UserModel(
             id=str(uuid.uuid4()),
             email=req.email,
@@ -253,12 +245,10 @@ def auth_set_role(user_id: str, body: dict,
     finally:
         db.close()
 
-# ── ChromaDB (vector store) ──
 chroma_client     = chromadb.PersistentClient(path=CHROMA_DIR)
 chroma_collection = chroma_client.get_or_create_collection("rag_docs")
 vector_store      = ChromaVectorStore(chroma_collection=chroma_collection)
 
-# ── Node docstore (parent chunks for AutoMergingRetriever) ──
 _ds_path = os.path.join(NODE_STORE_DIR, "docstore.json")
 if PARENT_CHILD_AVAILABLE:
     if os.path.exists(_ds_path):
@@ -279,7 +269,6 @@ storage_context = StorageContext.from_defaults(
     **({"docstore": docstore} if docstore is not None else {}),
 )
 
-# ── global state ──
 index = None
 indexing_status = {}        # {"filename": "indexing" | "ready" | "error"}
 indexing_progress = {}      # {"filename": {"current": int, "total": int}}
@@ -287,7 +276,6 @@ file_hashes = {}            # {"filename": md5_hex} — used to skip re-indexing
 executor = ThreadPoolExecutor(max_workers=2)
 token_usage = {"prompt": 0, "completion": 0, "requests": 0}
 
-# ── Cross-encoder reranker (loaded once at startup) ──
 reranker = None
 if ENABLE_RERANK:
     try:
@@ -301,7 +289,6 @@ if ENABLE_RERANK:
 def parse_eval_score(text: str) -> float | None:
     """Extract a 0.0–1.0 score from LLM output. Robust to prose around the number."""
     text = text.strip()
-    # Match: 1.0, 0.85, .5, or bare integers 0 or 1
     match = re.search(r'\b(1\.?0*|0?\.\d+|[01])\b', text)
     if match:
         return round(min(max(float(match.group(1)), 0.0), 1.0), 2)
@@ -317,7 +304,6 @@ def record_tokens(result):
     token_usage["completion"] += completion_tokens
     return prompt_tokens, completion_tokens
 
-# ── load existing index on startup ──
 if chroma_collection.count() > 0:
     index = VectorStoreIndex.from_vector_store(
         vector_store,
@@ -326,9 +312,7 @@ if chroma_collection.count() > 0:
     print(f"Loaded index — {chroma_collection.count()} chunks in ChromaDB")
 
 
-# ──────────────────────────────────────────
 # EXTRACTION FUNCTIONS
-# ──────────────────────────────────────────
 
 def pil_image_to_base64(pil_image):
     import io
@@ -498,7 +482,6 @@ def extract_pptx_content(file_path, filename):
     prs = PptxPresentation(file_path)
     total = len(prs.slides)
 
-    # ── Collect slide titles first for the index ──────────────────────────
     def _slide_title(slide):
         """Return title placeholder text, or first non-empty text as fallback."""
         first_text = ""
@@ -517,7 +500,6 @@ def extract_pptx_content(file_path, filename):
                 first_text = text  # keep first text as fallback
         return first_text
 
-    # Collect titles + first body line per slide for the rich overview
     slide_titles = []
     slide_first_body = []
     for slide in prs.slides:
@@ -530,7 +512,6 @@ def extract_pptx_content(file_path, filename):
             t = shape.text_frame.text.strip()
             if not t or t == title:
                 continue
-            # Take only the first non-empty line of body text
             first_line = next((ln.strip() for ln in t.splitlines() if ln.strip()), "")
             if first_line:
                 first_body = first_line
@@ -543,7 +524,7 @@ def extract_pptx_content(file_path, filename):
                  "fourteenth","fifteenth","sixteenth","seventeenth","eighteenth",
                  "nineteenth","twentieth"]
 
-    pname = os.path.splitext(filename)[0]  # filename without extension = presentation name
+    pname = os.path.splitext(filename)[0]
 
     def _shape_text(shape) -> str:
         """Extract all text from a shape, including tables."""
@@ -571,7 +552,6 @@ def extract_pptx_content(file_path, filename):
             if t and t != first_title:
                 slide1_body_lines.append(t)
 
-    # ── Slide overview block ──────────────────────────────────────────────────
     overview_lines = [
         f"  Slide {i} ({_ORDINALS[i-1] if i <= len(_ORDINALS) else ''} slide): {title}" if title
         else f"  Slide {i} ({_ORDINALS[i-1] if i <= len(_ORDINALS) else ''} slide)"
@@ -587,7 +567,6 @@ def extract_pptx_content(file_path, filename):
     )
     parts = [overview]
 
-    # ── Per-slide detail blocks ───────────────────────────────────────────────
     for i, slide in enumerate(prs.slides, 1):
         title_text = slide_titles[i - 1]
         body_lines = []
@@ -630,7 +609,6 @@ def extract_uml_content(file_path, filename):
 
     lines = raw.splitlines()
 
-    # ── 1. Extract class/entity names ─────────────────────────────────────
     class_re  = re.compile(r'^\s*class\s+(\w+)', re.IGNORECASE)
     entity_re = re.compile(r'^\s*entity\s+(\w+)', re.IGNORECASE)
     classes = []
@@ -639,7 +617,6 @@ def extract_uml_content(file_path, filename):
         if m and m.group(1) not in classes:
             classes.append(m.group(1))
 
-    # ── 2. Extract attribute blocks ───────────────────────────────────────
     class_blocks: dict = {}
     current_class = None
     brace_depth = 0
@@ -660,7 +637,6 @@ def extract_uml_content(file_path, filename):
                 if stripped and stripped not in ('{', '}'):
                     class_blocks[current_class].append(stripped)
 
-    # ── 3. Extract relationships and convert to English sentences ─────────
     rel_re = re.compile(
         r'^\s*(\w+)\s+"?([^"]*)"?\s+(-+>|<-+|\.+>|<\.+|--)\s+"?([^"]*)"?\s+(\w+)'
         r'(?:\s*:\s*(.+))?'
@@ -686,17 +662,14 @@ def extract_uml_content(file_path, filename):
             label = (label or "").strip() or "is related to"
             relationships.append(f"{src} {label} {dst}")
 
-    # ── 4. Map relationships to each entity ───────────────────────────────
     entity_rels: dict = {cls: [] for cls in classes}
     for rel in relationships:
         for cls in classes:
             if re.search(r'\b' + re.escape(cls) + r'\b', rel, re.IGNORECASE):
                 entity_rels[cls].append(rel)
 
-    # ── 5. Build structured output ────────────────────────────────────────
     parts = []
 
-    # Summary header
     parts.append(
         f"UML Diagram: {filename}\n"
         f"Total entities/tables: {len(classes)}\n"
@@ -736,7 +709,6 @@ def extract_docx_content(file_path, filename):
     print(f"Reading Word document: {filename}")
     doc = DocxDocument(file_path)
 
-    # ── Pass 1: collect table summaries for the document header ──
     table_summaries = []
     table_blocks = []
     for i, table in enumerate(doc.tables):
@@ -754,7 +726,6 @@ def extract_docx_content(file_path, filename):
         table_summaries.append(f"  Table {i + 1}: {data_rows} data row(s)")
         table_blocks.append((i + 1, data_rows, rows))
 
-    # ── Document header with table summary (stays in its own chunk) ──
     # Only count tables with 2+ data rows as "real" data tables; single-row
     # tables are usually layout/header artefacts in Word documents.
     real_tables = [(t_num, dr, rows) for t_num, dr, rows in table_blocks if dr >= 2]
@@ -768,12 +739,10 @@ def extract_docx_content(file_path, filename):
 
     parts = [header]
 
-    # ── Pass 2: paragraphs ──
     for para in doc.paragraphs:
         if para.text.strip():
             parts.append(para.text)
 
-    # ── Pass 3: full table content ──
     for t_num, data_rows, rows in table_blocks:
         parts.append(f"\n[Table {t_num}] — {data_rows} data row(s)")
         parts.extend(rows)
@@ -908,7 +877,6 @@ def add_document_to_index(file_path, filename):
         )
 
         if PARENT_CHILD_AVAILABLE:
-            # ── Parent-child chunking ──────────────────────────────────────────
             # Two levels: parent (~512 tokens, in docstore) + leaf (~128 tokens,
             # in ChromaDB). AutoMergingRetriever promotes siblings to parent at
             # query time → LLM gets richer context, retrieval stays precise.
@@ -947,7 +915,6 @@ def add_document_to_index(file_path, filename):
             else:
                 index.insert_nodes(leaf_nodes)
         else:
-            # ── Flat chunking fallback ─────────────────────────────────────────
             if index is None:
                 index = VectorStoreIndex.from_documents([doc], storage_context=storage_context)
             else:
@@ -972,11 +939,8 @@ def add_document_to_index(file_path, filename):
         indexing_progress.pop(filename, None)
         print(f"Indexing error for {filename}: {e}")
 
-# ──────────────────────────────────────────
 # API ENDPOINTS
-# ──────────────────────────────────────────
 
-# ── URL helpers ───────────────────────────────────────────────────────────────
 _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; RAGBot/1.0)"}
 _SKIP_TAGS = {"script", "style", "nav", "footer", "header", "aside",
               "noscript", "form", "button", "iframe", "svg"}
@@ -987,11 +951,9 @@ def _fetch_url_text(url: str) -> tuple[str, str]:
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
 
-    # Remove noise tags
     for tag in soup(_SKIP_TAGS):
         tag.decompose()
 
-    # Page title → used as filename
     title = soup.title.string.strip() if soup.title and soup.title.string else url
 
     # Prefer semantic content containers
@@ -1030,15 +992,12 @@ async def upload_url(req: UrlIngestRequest,
     filename = _safe_filename(title, req.url)
     dest = os.path.join(UPLOAD_DIR, filename)
 
-    # Write text to disk
     with open(dest, "w", encoding="utf-8") as f:
         f.write(f"Source: {req.url}\n\n{text}")
 
-    # Track ownership
     file_owners[filename] = current_user.id
     _save_file_owners()
 
-    # Index in background (same pipeline as /upload)
     indexing_status[filename]   = "indexing"
     indexing_progress[filename] = {"current": 0, "total": 0}
     cancelled_files.discard(filename)
@@ -1515,7 +1474,6 @@ async def multi_query_expand(question: str, n: int = 3) -> list[str]:
 @app.post("/ask")
 async def ask(q: Question,
               current_user: UserModel = Depends(get_current_user)):
-    # Session has no files linked
     if not q.files:
         raise HTTPException(400, "No documents in this chat. Upload a file to get started.")
 
@@ -1575,7 +1533,6 @@ async def ask(q: Question,
                         return
                 print("[/ask] Indexing done — proceeding to answer.")
 
-            # 1. Condense follow-up into standalone question for retrieval
             standalone = await condense_question(question, history)
 
             # 2. Retrieve relevant chunks — two modes:
@@ -1694,7 +1651,6 @@ async def ask(q: Question,
                 context = "\n\n".join(n.get_content() for n in all_nodes_final)
                 sources = list({n.metadata.get("file_name", "unknown") for n in all_nodes_final})
 
-            # 3. Build final prompt with history + context
             history_section = ""
             if history:
                 history_lines = "\n".join(
@@ -1747,7 +1703,6 @@ async def ask(q: Question,
             token_usage["completion"] += len(full_response.split())
             token_usage["requests"]   += 1
 
-            # 6. Send done event with sources + optional warning
             still_indexing = [f for f, s in indexing_status.items() if s == "indexing"]
             warning = (
                 f"Still indexing: {', '.join(still_indexing)}. Results may be incomplete."
@@ -1811,13 +1766,11 @@ async def ask(q: Question,
 @app.delete("/documents/all")
 def clear_all():
     global index, storage_context
-    # clear ChromaDB
     chroma_client.delete_collection("rag_docs")
     global chroma_collection, vector_store
     chroma_collection = chroma_client.get_or_create_collection("rag_docs")
     vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
     
-    # clear uploads folder
     for f in os.listdir(UPLOAD_DIR):
         try:
             os.remove(f"{UPLOAD_DIR}/{f}")
@@ -1849,10 +1802,8 @@ def clear_all():
 @app.delete("/documents/{filename}")
 async def delete_document(filename: str,
                           current_user: UserModel = Depends(get_current_user)):
-    # Only owner or admin can delete
     if current_user.role != "admin" and file_owners.get(filename) != current_user.id:
         raise HTTPException(403, "Access denied")
-    # 1. delete physical file
     path = f"{UPLOAD_DIR}/{filename}"
     if os.path.exists(path):
         try:
@@ -1860,7 +1811,6 @@ async def delete_document(filename: str,
         except Exception as e:
             print(f"Failed to delete physical file {filename}: {e}")
 
-    # 2. delete chunks from ChromaDB
     try:
         results = chroma_collection.get(
             where={"file_name": filename}
@@ -1871,7 +1821,6 @@ async def delete_document(filename: str,
     except Exception as e:
         print(f"ChromaDB delete error: {e}")
 
-    # 3. rebuild index from remaining chunks
     global index, storage_context
     if chroma_collection.count() > 0:
         # Create a fresh storage context to clear in-memory node caches!
@@ -1900,7 +1849,6 @@ async def delete_document(filename: str,
     else:
         index = None
 
-    # 4. clean status + ownership
     indexing_status.pop(filename, None)
     file_owners.pop(filename, None)
     _save_file_owners()
@@ -1918,7 +1866,6 @@ async def reindex_document(filename: str,
     if not os.path.exists(path):
         raise HTTPException(404, "File not found")
 
-    # Remove stale chunks from ChromaDB
     try:
         results = chroma_collection.get(where={"file_name": filename})
         if results["ids"]:
@@ -1981,7 +1928,6 @@ async def run_eval(top_k: int = SIMILARITY_TOP_K):
             condition=FilterCondition.OR,
         )
 
-    # ── Retrieval modes ────────────────────────────────────────────────────────
 
     async def _vec_only(question, source_files, k):
         """Pure vector similarity — no BM25, no reranker."""
@@ -2046,7 +1992,6 @@ async def run_eval(top_k: int = SIMILARITY_TOP_K):
             nodes = await loop.run_in_executor(None, _rr)
         return list(nodes)[:k]
 
-    # ── Evaluate all questions across all 3 configs ───────────────────────────
 
     per_question = []
     vec_hits, vec_mrrs   = [], []

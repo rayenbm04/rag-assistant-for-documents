@@ -1,4 +1,3 @@
-/* ── CSS Variables ── */
 :root {
   --bg-main:        #F5F3EF;
   --bg-white:       #FFFFFF;
@@ -37,7 +36,6 @@
   color: #1A1916;
 }
 
-/* ── Dark mode: code blocks ── */
 [data-theme="dark"] .markdown-body code {
   background: #2A2A27;
   color: #E8C882;
@@ -59,7 +57,6 @@
   color: #1A1916;
 }
 
-/* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -69,10 +66,8 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── Google Font import (Playfair Display for logo) ── */
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&display=swap');
 
-/* ── App shell ── */
 .app {
   display: flex;
   flex-direction: column;
@@ -80,7 +75,6 @@ body {
   background-color: var(--bg-main);
 }
 
-/* ── Navbar ── */
 .navbar {
   display: flex;
   align-items: center;
@@ -99,14 +93,12 @@ body {
   letter-spacing: -0.02em;
 }
 
-/* ── Main layout ── */
 .main-container {
   display: flex;
   flex: 1;
   overflow: hidden;
 }
 
-/* ── Sidebars ── */
 .sidebar-files,
 .sidebar-sessions {
   background-color: var(--bg-sidebar);
@@ -141,7 +133,6 @@ body {
   letter-spacing: 0.08em;
 }
 
-/* ── Upload zone ── */
 .upload-zone {
   border: 2px dashed var(--border-dashed);
   border-radius: 12px;
@@ -182,7 +173,6 @@ body {
   margin: 6px 0 0;
 }
 
-/* ── File list ── */
 .file-list {
   display: flex;
   flex-direction: column;
@@ -248,7 +238,6 @@ body {
   color: var(--text-primary);
 }
 
-/* ── Chat area ── */
 .chat-area {
   flex: 1;
   display: flex;
@@ -267,7 +256,6 @@ body {
   gap: 8px;
 }
 
-/* ── Empty state ── */
 .chat-empty {
   flex: 1;
   display: flex;
@@ -302,7 +290,6 @@ body {
   max-width: 320px;
 }
 
-/* ── Conversation entry ── */
 .conversation-entry {
   display: flex;
   flex-direction: column;
@@ -310,7 +297,6 @@ body {
   margin-bottom: 16px;
 }
 
-/* ── Message wrappers ── */
 .message-wrapper {
   display: flex;
   flex-direction: column;
@@ -327,7 +313,6 @@ body {
   align-items: flex-start;
 }
 
-/* ── Messages ── */
 .message {
   padding: 14px 18px;
   border-radius: 18px;
@@ -400,7 +385,6 @@ body {
   white-space: pre-wrap;
 }
 
-/* ── Markdown body (AI responses only) ── */
 .markdown-body p {
   margin: 0 0 0.75em;
 }
@@ -506,7 +490,6 @@ body {
   opacity: 0.7;
 }
 
-/* ── Sources ── */
 .sources {
   margin-top: 10px;
   display: flex;
@@ -549,7 +532,6 @@ body {
   font-weight: 500;
 }
 
-/* ── Eval scores ── */
 .eval-scores {
   display: flex;
   align-items: center;
@@ -598,7 +580,6 @@ body {
 .eval-score-value.eval-badge--mid  { color: #7A4E0C; }
 .eval-score-value.eval-badge--low  { color: #9B2020; }
 
-/* ── Eval: configuration comparison table ── */
 .eval-config-table {
   width: 100%;
   border: 1px solid var(--border);
@@ -624,14 +605,12 @@ body {
 .eval-config-name   { flex: 1; }
 .eval-config-metric { width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
 
-/* ── Eval: clickable question rows ── */
 .eval-q-row {
   cursor: pointer;
   transition: background 0.1s;
 }
 .eval-q-row:hover { background: var(--bg-secondary); }
 
-/* ── Eval: per-question detail card ── */
 .eval-detail-card {
   margin: 2px 0 6px 0;
   padding: 10px 12px;
@@ -664,7 +643,6 @@ body {
 .eval-chunk-hit  { color: #276030; }
 .eval-chunk-miss { color: #9B2020; }
 
-/* ── Indexing progress bar ── */
 .progress-bar-wrap {
   width: 100%;
   height: 4px;
@@ -680,7 +658,6 @@ body {
   min-width: 4px;
 }
 
-/* ── Input bar ── */
 .input-bar {
   padding: 16px 32px 24px;
   background: linear-gradient(to top, var(--bg-main) 85%, transparent);
@@ -722,7 +699,6 @@ body {
   cursor: not-allowed;
 }
 
-/* ── Send button ── */
 .send-button {
   padding: 13px 26px;
   font-size: 14px;
@@ -750,7 +726,6 @@ body {
   cursor: not-allowed;
 }
 
-/* ── Loading dots ── */
 .loading-dots {
   display: flex;
   gap: 5px;
@@ -773,7 +748,6 @@ body {
   50%       { opacity: 1;    transform: scale(1);    }
 }
 
-/* ── Scrollbar styling ── */
 .chat-messages::-webkit-scrollbar,
 .sidebar-files::-webkit-scrollbar,
 .sidebar-sessions::-webkit-scrollbar { width: 4px; }
@@ -784,7 +758,6 @@ body {
 .sidebar-files::-webkit-scrollbar-thumb,
 .sidebar-sessions::-webkit-scrollbar-thumb { background: var(--border-dashed); border-radius: 4px; }
 
-/* ── Responsive ── */
 @media (max-width: 768px) {
   .sidebar-files, .sidebar-sessions { display: none; }
   .navbar  { padding: 0 20px; }
@@ -807,7 +780,6 @@ body {
   border-color: var(--text-muted);
 }
 
-/* ── Session UI ── */
 .new-chat-btn {
   width: 100%;
   font-family: inherit;
@@ -935,7 +907,6 @@ body {
   margin: 10px 0;
 }
 
-/* ── Dashboard modal ── */
 .dashboard-overlay {
   position: fixed;
   inset: 0;
@@ -1106,7 +1077,6 @@ body {
   transform: scale(1.03);
 }
 
-/* ── HyDE hypothesis block ── */
 .hypothesis-block {
   margin-bottom: 8px;
 }
@@ -1146,7 +1116,6 @@ body {
   opacity: 0.7;
 }
 
-/* ── Scroll-to-bottom button ── */
 .scroll-down-btn {
   position: absolute;
   bottom: 100px;
@@ -1173,7 +1142,6 @@ body {
   transform: translateX(-50%) scale(1.08);
 }
 
-/* ── Prompt navigator (in right sidebar) ── */
 .prompt-nav-sidebar {
   display: flex;
   flex-direction: column;
@@ -1234,14 +1202,11 @@ body {
   color: var(--text-secondary);
 }
 
-/* ── Print header (hidden on screen, visible when printing) ── */
 .print-header {
   display: none;
 }
 
-/* ── Print / Export PDF ── */
 @media print {
-  /* Hide all UI chrome */
   .navbar,
   .sidebar-files,
   .sidebar-sessions,
@@ -1251,7 +1216,6 @@ body {
     display: none !important;
   }
 
-  /* Show the print header */
   .print-header {
     display: block;
     padding: 0 0 20px;
@@ -1271,7 +1235,6 @@ body {
     margin-top: 4px;
   }
 
-  /* Full-width layout */
   body, .app, .main-container, .chat-area {
     display: block !important;
     width: 100% !important;
@@ -1287,7 +1250,6 @@ body {
     max-height: none !important;
   }
 
-  /* Message bubbles */
   .message {
     max-height: none !important;
     overflow: visible !important;
@@ -1317,18 +1279,15 @@ body {
     margin-bottom: 20px !important;
   }
 
-  /* Source pills */
   .sources {
     display: flex !important;
   }
 
-  /* Warning banners */
   .chat-empty {
     display: none !important;
   }
 }
 
-/* ── Auth screen ── */
 .auth-screen {
   min-height: 100vh;
   display: flex;
@@ -1431,7 +1390,6 @@ body {
   padding: 0;
 }
 
-/* ── User badge in navbar ── */
 .user-badge {
   display: flex;
   align-items: center;
@@ -1470,7 +1428,6 @@ body {
   border-color: var(--text-muted);
 }
 
-/* ── File preview modal ── */
 .preview-overlay {
   position: fixed;
   inset: 0;
@@ -1573,7 +1530,6 @@ body {
   border: none;
 }
 
-/* ── Cost estimator bar ── */
 .cost-estimator {
   display: flex;
   align-items: center;
@@ -1613,7 +1569,6 @@ body {
   color: var(--text-muted);
 }
 
-/* ── User message meta (timestamp) ── */
 .message-user-meta {
   display: flex;
   justify-content: flex-end;
@@ -1631,7 +1586,6 @@ body {
   color: var(--text-muted);
 }
 
-/* ── URL ingestion ── */
 .url-ingest-form {
   display: flex;
   gap: 6px;

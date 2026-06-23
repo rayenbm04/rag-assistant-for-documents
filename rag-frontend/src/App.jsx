@@ -4,7 +4,6 @@ import './App.css'
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000"
 
-// ── Icons ──────────────────────────────────────────────────────────────────
 const UploadIcon = () => (
   <svg className="upload-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -31,7 +30,6 @@ const SourceIcon = () => (
   </svg>
 )
 
-// ── Cost models ───────────────────────────────────────────────────────────
 const COST_MODELS = [
   { name: 'GPT-4o',           input: 2.50,  output: 10.00 },
   { name: 'GPT-4o mini',      input: 0.15,  output: 0.60  },
@@ -41,7 +39,6 @@ const COST_MODELS = [
   { name: 'Gemini 1.5 Flash', input: 0.075, output: 0.30  },
 ]
 
-// ── Helpers ────────────────────────────────────────────────────────────────
 function evalColor(score) {
   if (score >= 0.8) return 'eval-badge--high'
   if (score >= 0.5) return 'eval-badge--mid'
@@ -61,7 +58,6 @@ function createNewSession() {
   return { id: generateId(), name: 'New chat', createdAt: new Date().toISOString(), fileNames: [], history: [] }
 }
 
-// ── Auth ───────────────────────────────────────────────────────────────────
 function AuthScreen({ onAuth }) {
   const [view, setView]     = useState('login')   // 'login' | 'register'
   const [email, setEmail]   = useState('')
@@ -126,9 +122,7 @@ function AuthScreen({ onAuth }) {
   )
 }
 
-// ── Main App (authenticated) ────────────────────────────────────────────────
 function MainApp({ authFetch, currentUser, onLogout }) {
-  // Sessions persisted in localStorage
   const sessionsKey    = `rag-sessions-${currentUser.id}`
   const activeKey      = `rag-active-session-${currentUser.id}`
 
@@ -151,7 +145,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   // Shared across sessions so we never re-index the same file twice
   const [globalFiles, setGlobalFiles] = useState({})
 
-  // UI state
   const [question, setQuestion]       = useState('')
   const [isLoading, setIsLoading]     = useState(false)
   const [isDragOver, setIsDragOver]   = useState(false)
@@ -173,7 +166,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [previewBlobUrl, setPreviewBlobUrl] = useState(null)
   const [previewText, setPreviewText]     = useState(null)
 
-  // Refs
   const fileInputRef        = useRef(null)
   const chatEndRef          = useRef(null)
   const chatScrollRef       = useRef(null)
@@ -187,7 +179,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const historyIndexRef     = useRef(-1)
   const draftQuestionRef    = useRef('')
 
-  // Derived
   const activeSession    = sessions.find(s => s.id === activeSessionId) || sessions[0]
   const history          = activeSession?.history    || []
   const sessionFileNames = activeSession?.fileNames  || []
@@ -202,19 +193,16 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   // Keep historyRef in sync (fixes stale-closure issue in handleSubmit)
   useEffect(() => { historyRef.current = history }, [history])
 
-  // Dark mode
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light')
     localStorage.setItem('rag-theme', darkMode ? 'dark' : 'light')
   }, [darkMode])
 
-  // Persist sessions
   useEffect(() => { localStorage.setItem(sessionsKey, JSON.stringify(sessions)) }, [sessions])
   useEffect(() => {
     if (activeSession?.id) localStorage.setItem(activeKey, activeSession.id)
   }, [activeSession?.id])
 
-  // ── Session helpers ───────────────────────────────────────────────────
   const updateHistory = useCallback((updater) => {
     const sid = activeSession?.id
     setSessions(prev => prev.map(s =>
@@ -281,7 +269,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     }))
   }, [activeSession?.id])
 
-  // ── Prompt history navigation (arrow keys) ───────────────────────────
   const handleInputKeyDown = useCallback((e) => {
     if (isLoadingRef.current) return
     const completed = historyRef.current.filter(h => h.answer !== null)
@@ -306,7 +293,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
-  // ── Show/hide scroll-to-bottom arrow based on scroll position ────────
   useEffect(() => {
     const el = chatScrollRef.current
     if (!el) return
@@ -318,7 +304,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     return () => el.removeEventListener('scroll', onScroll)
   }, [])
 
-  // ── Load file preview when previewFile changes ───────────────────────
   useEffect(() => {
     if (!previewFile) {
       if (previewBlobUrl) { URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null) }
@@ -356,12 +341,10 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     }
   }, [previewFile, authFetch])
 
-  // ── Load token stats on startup ──────────────────────────────────────
   useEffect(() => {
     authFetch(`${API}/dashboard`).then(r => r.json()).then(d => setTokenStats(d.tokens)).catch(() => {})
   }, [authFetch])
 
-  // ── Load existing indexed docs on startup ────────────────────────────
   useEffect(() => {
     authFetch(`${API}/documents`)
       .then(r => r.json())
@@ -373,7 +356,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
       .catch(() => {})
   }, [authFetch])
 
-  // ── Poll indexing status ──────────────────────────────────────────────
   const pollStatus = useCallback((filename) => {
     if (pollingRef.current[filename]) return
     pollingRef.current[filename] = setInterval(async () => {
@@ -396,7 +378,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
 
   useEffect(() => () => Object.values(pollingRef.current).forEach(clearInterval), [])
 
-  // ── Upload ────────────────────────────────────────────────────────────
   const uploadToBackend = useCallback(async (file) => {
     const fd = new FormData()
     fd.append("file", file)
@@ -452,10 +433,8 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     }
   }, [globalFiles, addFileToSession, uploadToBackend, pollStatus, authFetch])
 
-  // ── Remove file ───────────────────────────────────────────────────────
   const handleRemoveFile = useCallback(async (filename) => {
     const sid = activeSession?.id
-    // Unlink from current session
     setSessions(prev => prev.map(s =>
       s.id === sid ? { ...s, fileNames: s.fileNames.filter(n => n !== filename) } : s
     ))
@@ -469,7 +448,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     }
   }, [activeSession?.id, sessions, authFetch])
 
-  // ── Re-index file ─────────────────────────────────────────────────────
   const handleReindexFile = useCallback(async (filename) => {
     setGlobalFiles(prev => ({ ...prev, [filename]: { ...prev[filename], status: 'indexing' } }))
     try {
@@ -481,7 +459,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     }
   }, [authFetch, pollStatus])
 
-  // ── Cancel indexing ───────────────────────────────────────────────────
   const handleCancelIndexing = useCallback(async (filename) => {
     try {
       await authFetch(`${API}/cancel/${encodeURIComponent(filename)}`, { method: "POST" })
@@ -494,7 +471,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     } catch (e) { console.error("Cancel failed:", e) }
   }, [activeSession?.id, authFetch])
 
-  // ── URL ingestion ─────────────────────────────────────────────────────
   const handleUrlIngest = useCallback(async (e) => {
     e.preventDefault()
     const url = urlInput.trim()
@@ -516,7 +492,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     finally { setUrlLoading(false) }
   }, [urlInput, authFetch, addFileToSession, pollStatus])
 
-  // ── Cancel response ───────────────────────────────────────────────────
   const handleCancel = useCallback((e) => {
     if (e?.preventDefault) e.preventDefault()
     if (scrollTimerRef.current) { clearTimeout(scrollTimerRef.current); scrollTimerRef.current = null }
@@ -538,7 +513,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null }
   }, [])
 
-  // ── Submit ────────────────────────────────────────────────────────────
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault()
     if (!question.trim() || isLoadingRef.current) return
@@ -668,7 +642,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     }
   }, [question, scrollToBottom, updateHistory, sessionFileNames, activeSession, authFetch])
 
-  // ── Dashboard ─────────────────────────────────────────────────────────
   const openDashboard = useCallback(async () => {
     setShowDashboard(true)
     setEvalData(null)
@@ -711,7 +684,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     ? evalEntries.reduce((a, e) => a + e.eval.answer_relevance, 0) / evalEntries.length
     : null
 
-  // ── Render ────────────────────────────────────────────────────────────
   return (
     <div className="app">
       <nav className="navbar">
@@ -735,7 +707,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
       </nav>
 
       <div className="main-container">
-        {/* ── Sessions sidebar (left) ── */}
         <aside className="sidebar-sessions">
           <button className="new-chat-btn" onClick={createSession}>＋ New chat</button>
 
@@ -922,7 +893,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
             <div ref={chatEndRef} />
           </div>
 
-          {/* ── Scroll-to-bottom arrow ── */}
           {showScrollDown && (
             <button
               className="scroll-down-btn"
@@ -966,9 +936,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
           </form>
         </main>
 
-        {/* ── Files sidebar (right) ── */}
         <aside className="sidebar-files">
-          {/* Prompt navigator */}
           {history.filter(e => e.question).length > 0 && (
             <div className="prompt-nav-sidebar">
               <button
@@ -1099,7 +1067,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
         </aside>
       </div>
 
-      {/* ── File preview modal ── */}
       {previewFile && (() => {
         const ext     = previewFile.split('.').pop().toLowerCase()
         const fileUrl = `${API}/files/${encodeURIComponent(previewFile)}`
@@ -1144,7 +1111,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
         )
       })()}
 
-      {/* ── Dashboard modal ── */}
       {showDashboard && (
         <div className="dashboard-overlay" onClick={() => setShowDashboard(false)}>
           <div className="dashboard-modal" onClick={e => e.stopPropagation()}>
@@ -1357,7 +1323,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   )
 }
 
-// ── Root App — handles auth state, renders AuthScreen or MainApp ────────────
 function App() {
   const [authToken, setAuthToken] = useState(() => localStorage.getItem('rag_token'))
   const [currentUser, setCurrentUser] = useState(() => {
