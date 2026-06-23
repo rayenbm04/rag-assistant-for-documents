@@ -62,6 +62,13 @@ PARENT_CHUNK_SIZE  = int(os.getenv("PARENT_CHUNK_SIZE", "512"))
 CHILD_CHUNK_SIZE   = int(os.getenv("CHILD_CHUNK_SIZE",  "128"))
 NODE_STORE_DIR     = os.getenv("NODE_STORE_DIR",        "./node_store")
 SECRET_KEY             = os.getenv("SECRET_KEY",             "change-me-in-production")
+if SECRET_KEY == "change-me-in-production":
+    import warnings
+    warnings.warn(
+        "SECRET_KEY is set to the default insecure value. "
+        "Set a random SECRET_KEY in .env before deploying.",
+        stacklevel=1,
+    )
 ACCESS_TOKEN_EXPIRE_DAYS = int(os.getenv("ACCESS_TOKEN_EXPIRE_DAYS", "7"))
 DATABASE_URL           = os.getenv("DATABASE_URL",           "sqlite:///./rag_users.db")
 
@@ -176,6 +183,15 @@ app.add_middleware(CORSMiddleware,
 os.makedirs(UPLOAD_DIR,      exist_ok=True)
 os.makedirs(NODE_STORE_DIR,  exist_ok=True)
 os.makedirs(SLIDES_CACHE_DIR, exist_ok=True)
+
+
+def _safe_upload_path(filename: str) -> str:
+    """Resolve filename inside UPLOAD_DIR and reject any path traversal attempt."""
+    safe = os.path.realpath(os.path.join(UPLOAD_DIR, os.path.basename(filename)))
+    upload_root = os.path.realpath(UPLOAD_DIR)
+    if not safe.startswith(upload_root + os.sep) and safe != upload_root:
+        raise HTTPException(400, "Invalid filename")
+    return safe
 
 
 @app.post("/auth/register")
@@ -1090,7 +1106,7 @@ def list_documents(current_user: UserModel = Depends(get_current_user)):
 
 
 @app.get("/index/stats")
-def index_stats():
+def index_stats(current_user: UserModel = Depends(_require_admin)):
     return {
         "total_chunks": chroma_collection.count(),
         "files": os.listdir(UPLOAD_DIR),
@@ -1099,7 +1115,7 @@ def index_stats():
 
 
 @app.get("/debug/chunks/{filename}")
-def debug_chunks(filename: str):
+def debug_chunks(filename: str, current_user: UserModel = Depends(_require_admin)):
     """Return all stored chunk texts for a file — for debugging extraction."""
     results = chroma_collection.get(where={"file_name": filename}, include=["documents"])
     chunks = results.get("documents", [])
@@ -1107,7 +1123,7 @@ def debug_chunks(filename: str):
 
 
 @app.get("/dashboard")
-def dashboard():
+def dashboard(current_user: UserModel = Depends(get_current_user)):
     files = [f for f in os.listdir(UPLOAD_DIR) if not f.startswith('.')]
     ready = [f for f in files if indexing_status.get(f, "ready") == "ready"]
     indexing = [f for f in files if indexing_status.get(f, "") == "indexing"]
@@ -1154,7 +1170,7 @@ def serve_file(filename: str,
                current_user: UserModel = Depends(get_current_user)):
     if current_user.role != "admin" and file_owners.get(filename) != current_user.id:
         raise HTTPException(403, "Access denied")
-    path = f"{UPLOAD_DIR}/{filename}"
+    path = _safe_upload_path(filename)
     if not os.path.exists(path):
         raise HTTPException(404, "File not found")
     import mimetypes
@@ -1168,7 +1184,7 @@ def preview_file(filename: str,
     """Return a plain-text preview (first 8000 chars of extracted content)."""
     if current_user.role != "admin" and file_owners.get(filename) != current_user.id:
         raise HTTPException(403, "Access denied")
-    path = f"{UPLOAD_DIR}/{filename}"
+    path = _safe_upload_path(filename)
     if not os.path.exists(path):
         raise HTTPException(404, "File not found")
     ext = filename.lower().rsplit('.', 1)[-1]
@@ -1275,7 +1291,7 @@ def slides_pdf(filename: str,
     if current_user.role != "admin" and file_owners.get(filename) != current_user.id:
         raise HTTPException(403, "Access denied")
 
-    src = os.path.join(UPLOAD_DIR, filename)
+    src = _safe_upload_path(filename)
     if not os.path.exists(src):
         raise HTTPException(404, "File not found")
 
@@ -1764,7 +1780,7 @@ async def ask(q: Question,
         }
     )
 @app.delete("/documents/all")
-def clear_all():
+def clear_all(current_user: UserModel = Depends(_require_admin)):
     global index, storage_context
     chroma_client.delete_collection("rag_docs")
     global chroma_collection, vector_store
@@ -1804,7 +1820,7 @@ async def delete_document(filename: str,
                           current_user: UserModel = Depends(get_current_user)):
     if current_user.role != "admin" and file_owners.get(filename) != current_user.id:
         raise HTTPException(403, "Access denied")
-    path = f"{UPLOAD_DIR}/{filename}"
+    path = _safe_upload_path(filename)
     if os.path.exists(path):
         try:
             os.remove(path)
@@ -2068,7 +2084,7 @@ async def run_eval(top_k: int = SIMILARITY_TOP_K):
 
 
 @app.post("/cancel/{filename}")
-def cancel_indexing(filename: str):
+def cancel_indexing(filename: str, current_user: UserModel = Depends(get_current_user)):
     if indexing_status.get(filename) == "indexing":
         cancelled_files.add(filename)
         return {"message": f"Cancellation requested for {filename}"}
