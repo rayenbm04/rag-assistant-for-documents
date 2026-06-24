@@ -154,6 +154,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [dashboardData, setDashboardData] = useState(null)
   const [evalData, setEvalData]           = useState(null)
   const [evalLoading, setEvalLoading]     = useState(false)
+  const [chunkView, setChunkView]         = useState({})   // { [filename]: { open, loading, chunks } }
   const [evalSelectedQ, setEvalSelectedQ] = useState(null)
   const [urlInput, setUrlInput]           = useState('')
   const [urlLoading, setUrlLoading]       = useState(false)
@@ -1223,12 +1224,64 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                   <div className="dashboard-section">
                     <h3 className="dashboard-section-title">Documents</h3>
                     <div className="dashboard-doc-list">
-                      {Object.entries(dashboardData.documents.file_chunks).map(([name, chunks]) => (
-                        <div key={name} className="dashboard-doc-row">
-                          <span className="dashboard-doc-name">{name}</span>
-                          <span className="dashboard-doc-chunks">{chunks} chunks</span>
-                        </div>
-                      ))}
+                      {Object.entries(dashboardData.documents.file_chunks).map(([name, chunks]) => {
+                        const cv = chunkView[name] || {}
+                        const toggleChunks = async () => {
+                          if (cv.open) {
+                            setChunkView(p => ({ ...p, [name]: { ...p[name], open: false } }))
+                            return
+                          }
+                          if (cv.chunks) {
+                            setChunkView(p => ({ ...p, [name]: { ...p[name], open: true } }))
+                            return
+                          }
+                          setChunkView(p => ({ ...p, [name]: { open: true, loading: true, chunks: null } }))
+                          try {
+                            const res = await authFetch(`${API}/debug/chunks/${encodeURIComponent(name)}`)
+                            const data = await res.json()
+                            setChunkView(p => ({ ...p, [name]: { open: true, loading: false, chunks: data.chunks || [] } }))
+                          } catch {
+                            setChunkView(p => ({ ...p, [name]: { open: true, loading: false, chunks: [] } }))
+                          }
+                        }
+                        return (
+                          <div key={name}>
+                            <div className="dashboard-doc-row" onClick={toggleChunks}
+                              style={{ cursor: 'pointer', userSelect: 'none' }}>
+                              <span className="dashboard-doc-name">
+                                <span style={{ marginRight: '6px', fontSize: '10px', color: 'var(--text-muted)' }}>
+                                  {cv.open ? '▼' : '▶'}
+                                </span>
+                                {name}
+                              </span>
+                              <span className="dashboard-doc-chunks">{chunks} chunks</span>
+                            </div>
+                            {cv.open && (
+                              <div style={{ margin: '4px 0 10px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                {cv.loading && <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>Loading chunks…</p>}
+                                {cv.chunks && cv.chunks.length === 0 && <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No chunks found.</p>}
+                                {cv.chunks && cv.chunks.map((text, i) => (
+                                  <div key={i} style={{
+                                    background: 'var(--bg-secondary, #f5f5f5)',
+                                    borderRadius: '6px',
+                                    padding: '8px 10px',
+                                    fontSize: '12px',
+                                    color: 'var(--text-primary)',
+                                    whiteSpace: 'pre-wrap',
+                                    lineHeight: '1.5',
+                                    borderLeft: '3px solid var(--accent, #888)'
+                                  }}>
+                                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                      Chunk {i + 1}
+                                    </span>
+                                    {text}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
