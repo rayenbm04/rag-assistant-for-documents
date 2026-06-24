@@ -244,7 +244,21 @@ function MainApp({ authFetch, currentUser, onLogout }) {
 
   const deleteSession = useCallback((id) => {
     setSessions(prev => {
+      const target = prev.find(s => s.id === id)
       const remaining = prev.filter(s => s.id !== id)
+
+      // Delete files from the server that are not used by any other session
+      if (target?.fileNames?.length) {
+        const otherFiles = new Set(remaining.flatMap(s => s.fileNames))
+        target.fileNames.forEach(filename => {
+          if (!otherFiles.has(filename)) {
+            authFetch(`${API}/documents/${encodeURIComponent(filename)}`, { method: 'DELETE' })
+              .then(() => setGlobalFiles(prev => { const n = { ...prev }; delete n[filename]; return n }))
+              .catch(e => console.error('Delete file on session removal failed:', e))
+          }
+        })
+      }
+
       if (remaining.length === 0) {
         const fresh = createNewSession()
         setActiveSessionId(fresh.id)
@@ -253,7 +267,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
       if (activeSession?.id === id) setActiveSessionId(remaining[0].id)
       return remaining
     })
-  }, [activeSession?.id])
+  }, [activeSession?.id, authFetch])
 
   const addFileToSession = useCallback((filename) => {
     const sid = activeSession?.id
@@ -499,15 +513,12 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     pendingIdRef.current = null
     isLoadingRef.current = false
     if (cancelledId) {
-      // Keep whatever was generated so far — just mark it stopped
+      // Remove the pending entry and restore the question to the input bar
       setSessions(prev => prev.map(s => ({
         ...s,
-        history: s.history.map(h =>
-          h.id === cancelledId
-            ? { ...h, answer: (h.answer ?? '').trim() || null, stopped: true }
-            : h
-        )
+        history: s.history.filter(h => h.id !== cancelledId)
       })))
+      setQuestion(currentQuestionRef.current)
     }
     setIsLoading(false)
     if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null }
