@@ -291,6 +291,7 @@ indexing_progress = {}      # {"filename": {"current": int, "total": int}}
 file_hashes = {}            # {"filename": md5_hex} — used to skip re-indexing unchanged files
 executor = ThreadPoolExecutor(max_workers=2)
 token_usage = {"prompt": 0, "completion": 0, "requests": 0}
+query_stats = {"total": 0, "total_ms": 0}   # questions asked + cumulative response time
 
 reranker = None
 if ENABLE_RERANK:
@@ -342,12 +343,29 @@ def image_to_base64(file_path):
         return base64.b64encode(f.read()).decode("utf-8")
 
 
-def analyze_image_with_llava(image_b64, context_hint="", doc_mode=False):
+_UML_KEYWORDS = {
+    "uml", "diagram", "diagramme", "schema", "schéma", "architecture",
+    "class", "classe", "sequence", "usecase", "use_case", "use-case",
+    "activity", "component", "deployment", "statechart", "er_diagram",
+    "erd", "flowchart", "dataflow", "dfd",
+}
+
+def _is_uml_image(filename: str) -> bool:
+    """Return True if the filename suggests a UML or architecture diagram."""
+    stem = os.path.splitext(filename.lower())[0]
+    # match any keyword as a whole word/token in the stem
+    tokens = set(re.split(r'[\s_\-\.]+', stem))
+    return bool(tokens & _UML_KEYWORDS)
+
+
+def analyze_image_with_llava(image_b64, context_hint="", doc_mode=False, uml_mode=False, fast=False):
     """Send image to LLaVA and extract ALL content useful for Q&A.
 
     doc_mode=True  → optimised for scanned documents / invoices / tables:
                      verbatim transcription, every table row, all numbers.
-    doc_mode=False → optimised for photos / diagrams / screenshots:
+    uml_mode=True  → optimised for UML / architecture / ER diagrams:
+                     entities, relationships, methods, diagram type.
+    doc_mode=False → optimised for photos / screenshots:
                      visual description, colours, structure, purpose.
     """
     if doc_mode:
@@ -381,6 +399,32 @@ Follow these rules strictly:
 5. If text is partially illegible, write [illegible] in that spot — do not guess.
 
 Be exhaustive. This transcription is the ONLY source of information for answering user questions about this document."""
+    elif uml_mode:
+        # Compact prompt: same info, far fewer output tokens.
+        # Verbose format was filling the context window and cutting off mid-diagram.
+        prompt = f"""Extract all technical information from this diagram. Use compact format to fit everything.
+
+{"File: " + context_hint if context_hint else ""}
+
+Output in this exact format:
+
+DIAGRAM_TYPE: <type>
+PURPOSE: <one sentence>
+
+ENTITIES:
+<name>: <attr1>, <attr2>, <attr3>
+<name>: <attr1>, <attr2>
+(one line per entity, list ALL entities visible, do not stop early)
+
+RELATIONSHIPS:
+<source> <cardinality> -> <cardinality> <target>: <label>
+(one line per relationship, list ALL arrows/connections)
+
+Rules:
+- List EVERY entity/class/table visible, scan the entire diagram
+- List EVERY arrow or connection
+- Use exact names as written in the diagram
+- Do not skip any entity even if it seems minor"""
     else:
         prompt = f"""You are a document analysis assistant. Analyze this image completely and extract ALL useful information.
 
@@ -407,13 +451,30 @@ STEP 5 — PURPOSE: What is the overall meaning or purpose of this image?
 
 Be exhaustive — your description will be the ONLY source of information about this image when answering user questions."""
 
+    # UML/diagram mode needs much longer output to list every entity.
+    # doc_mode (scanned pages) needs moderate length.
+    # Regular images and fast mode stay at the model default (~2048).
+    # qwen2.5vl:7b has a 4096 context window by default.
+    # Prompt itself uses ~300–500 tokens, leaving ~3500 for generation.
+    if uml_mode:
+        num_predict = 3500   # max useful given 4096 context
+    elif doc_mode:
+        num_predict = 3000
+    else:
+        num_predict = 1500   # photos/screenshots need less
+
     response = ollama.chat(
         model=VISION_MODEL,
         messages=[{
             "role": "user",
             "content": prompt,
             "images": [image_b64]
-        }]
+        }],
+        options={
+            "num_predict": num_predict,
+            "temperature": 0.1,
+            "num_gpu": 99,   # offload all layers to GPU (RTX 4070 has enough VRAM)
+        }
     )
     return response["message"]["content"]
 
@@ -528,9 +589,13 @@ def extract_image_content(file_path, filename):
     """Extract content from standalone image using LLaVA"""
     print(f"Analyzing image with LLaVA: {filename}")
     image_b64 = image_to_base64(file_path)
+    is_uml = _is_uml_image(filename)
+    if is_uml:
+        print(f"  UML/diagram detected — using diagram extraction prompt")
     description = analyze_image_with_llava(
         image_b64,
-        context_hint=f"Image file '{filename}'"
+        context_hint=f"Image file '{filename}'",
+        uml_mode=is_uml,
     )
     return f"Image file: {filename}\n\n{description}"
 
@@ -1321,7 +1386,14 @@ def dashboard(current_user: UserModel = Depends(get_current_user)):
             "completion": token_usage["completion"],
             "total": token_usage["prompt"] + token_usage["completion"],
             "requests": token_usage["requests"],
-        }
+        },
+        "queries": {
+            "total": query_stats["total"],
+            "avg_response_ms": (
+                round(query_stats["total_ms"] / query_stats["total"])
+                if query_stats["total"] > 0 else 0
+            ),
+        },
     }
 
 
@@ -1407,9 +1479,11 @@ def _find_libreoffice() -> str | None:
     return None
 
 
-def _pptx_to_pdf_cached(src: str, filename: str) -> str | None:
-    """Convert PPTX at *src* to PDF and cache it. Returns cached PDF path, or None on failure."""
+def _doc_to_pdf_cached(src: str, filename: str) -> str | None:
+    """Convert any LibreOffice-compatible file (PPTX, DOCX, XLSX…) to PDF and cache it.
+    Returns cached PDF path, or None on failure."""
     import tempfile
+    ext        = os.path.splitext(filename)[1].lower()   # e.g. ".docx"
     stem       = os.path.splitext(filename)[0]
     mtime      = int(os.path.getmtime(src))
     cache_name = f"{stem}_{mtime}.pdf"
@@ -1424,7 +1498,7 @@ def _pptx_to_pdf_cached(src: str, filename: str) -> str | None:
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
-            safe_src = os.path.join(tmpdir, "input.pptx")
+            safe_src = os.path.join(tmpdir, f"input{ext}")
             shutil.copy2(src, safe_src)
             result = subprocess.run(
                 [lo_bin, "--headless", "--norestore", "--nofirststartwizard",
@@ -1434,7 +1508,7 @@ def _pptx_to_pdf_cached(src: str, filename: str) -> str | None:
             )
             if result.returncode != 0:
                 return None
-            converted = os.path.join(tmpdir, "input.pdf")
+            converted = os.path.join(tmpdir, f"input.pdf")
             if not os.path.exists(converted):
                 return None
             shutil.move(converted, cached)
@@ -1442,6 +1516,11 @@ def _pptx_to_pdf_cached(src: str, filename: str) -> str | None:
         return None
 
     return cached
+
+
+def _pptx_to_pdf_cached(src: str, filename: str) -> str | None:
+    """Alias kept for backwards compatibility — delegates to _doc_to_pdf_cached."""
+    return _doc_to_pdf_cached(src, filename)
 
 
 @app.get("/slides-pdf/{filename}")
@@ -1462,6 +1541,34 @@ def slides_pdf(filename: str,
             raise HTTPException(500,
                 "LibreOffice not found. Install it from https://www.libreoffice.org "
                 "and make sure 'soffice' is on your PATH.")
+        raise HTTPException(500, "LibreOffice conversion failed")
+
+    stem = os.path.splitext(filename)[0]
+    return FileResponse(cached, media_type="application/pdf", filename=stem + ".pdf")
+
+
+_DOC_PREVIEW_EXTS = {'.docx', '.doc', '.xlsx', '.xls', '.odt', '.ods', '.csv'}
+
+@app.get("/doc-pdf/{filename}")
+def doc_pdf(filename: str,
+            current_user: UserModel = Depends(get_current_user)):
+    """Return a PDF rendition of a Word / Excel file for in-browser preview."""
+    if current_user.role != "admin" and file_owners.get(filename) != current_user.id:
+        raise HTTPException(403, "Access denied")
+
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in _DOC_PREVIEW_EXTS:
+        raise HTTPException(400, f"Unsupported file type for PDF preview: {ext}")
+
+    src = _safe_upload_path(filename)
+    if not os.path.exists(src):
+        raise HTTPException(404, "File not found")
+
+    cached = _doc_to_pdf_cached(src, filename)
+    if not cached:
+        if _find_libreoffice() is None:
+            raise HTTPException(500,
+                "LibreOffice not found. Install it to enable Word/Excel preview.")
         raise HTTPException(500, "LibreOffice conversion failed")
 
     stem = os.path.splitext(filename)[0]
@@ -1492,10 +1599,22 @@ async def generate_title(req: TitleRequest):
 
 
 _COMPARISON_KEYWORDS = {
+    # English
     'compare', 'comparison', 'contrast', 'difference', 'differences',
     'versus', ' vs ', ' vs.', 'similar', 'similarity', 'both documents',
     'both files', 'each document', 'each file', 'across documents',
     'across files', 'which document', 'which file', 'between the two',
+    'from the pdf', 'from the uml', 'from both', 'in both',
+    'the pdf and', 'and the pdf', 'the uml and', 'and the uml',
+    'the diagram and', 'and the diagram',
+    # French
+    'comparer', 'comparaison', 'différence', 'différences',
+    'les deux documents', 'les deux fichiers', 'chaque document',
+    'à partir du pdf', 'à partir du diagramme', 'à partir des documents',
+    'depuis le pdf', 'depuis le diagramme', 'selon le pdf', 'selon le uml',
+    'le pdf et', 'et le pdf', 'le diagramme et', 'et le diagramme',
+    'du pdf et', 'et du pdf', 'du diagramme et', 'et du diagramme',
+    'dans les deux', 'les fichiers', 'ces documents',
 }
 
 def is_comparison_query(question: str, num_files: int) -> bool:
@@ -1741,11 +1860,36 @@ async def ask(q: Question,
 
             exhaustive = is_exhaustive_query(question)
             if comparison_mode:
-                chunks_per_file = max(2, SIMILARITY_TOP_K // len(question_files))
+                # Raise chunks_per_file generously — structured files (UML, MLD, schema)
+                # need ALL entity blocks, and regular comparison benefits from more context too.
+                chunks_per_file = max(8, SIMILARITY_TOP_K)
                 print(f"[compare] {len(question_files)} files × {chunks_per_file} chunks each")
                 nodes, context, sources = await retrieve_per_file(
                     standalone, question_files, chunks_per_file
                 )
+                # For UML/PUML files: pin ALL nodes so no entity block is ever missing.
+                retrieved_ids = {n.node_id for n in nodes}
+                pinned_ctx: dict[str, list] = {}
+                for fname in question_files:
+                    if (fname.lower().split('.')[-1] in ('puml', 'plantuml', 'uml')
+                            or _is_uml_image(fname)):
+                        all_uml_nodes = get_nodes_for_files([fname])
+                        extras = [n for n in all_uml_nodes if n.node_id not in retrieved_ids]
+                        if extras:
+                            pinned_ctx[fname] = extras
+                            for n in extras:
+                                retrieved_ids.add(n.node_id)
+                            print(f"[pin] injected {len(extras)} UML/diagram chunks for {fname}")
+                if pinned_ctx:
+                    # Rebuild labeled context with pinned nodes appended per file
+                    extra_parts = []
+                    for fname, enodes in pinned_ctx.items():
+                        extra_parts.append(
+                            f"=== Document: {fname} (additional entities) ===\n"
+                            + "\n\n".join(n.get_content() for n in enodes)
+                        )
+                    context = context + "\n\n" + "\n\n".join(extra_parts)
+                    nodes = nodes + [n for extras in pinned_ctx.values() for n in extras]
             else:
                 exhaustive = is_exhaustive_query(question)
                 if exhaustive:
@@ -1857,6 +2001,19 @@ async def ask(q: Question,
                                 pinned.append(n)
                                 retrieved_ids.add(n.node_id)
                         print(f"[pin] injected {len(pinned)} overview chunks for {fname}")
+                    elif (fname.lower().split('.')[-1] in ('puml', 'plantuml', 'uml')
+                          or _is_uml_image(fname)):
+                        # UML/diagram files: pin ALL chunks — structured data,
+                        # no partial retrieval allowed (later entity blocks must not be dropped).
+                        all_file_nodes = get_nodes_for_files([fname])
+                        uml_pinned = 0
+                        for n in all_file_nodes:
+                            if n.node_id not in retrieved_ids:
+                                pinned.append(n)
+                                retrieved_ids.add(n.node_id)
+                                uml_pinned += 1
+                        if uml_pinned:
+                            print(f"[pin] injected {uml_pinned} UML/diagram chunks for {fname}")
                     else:
                         # Pin MLD overview nodes (any file that has schema_chunk='overview')
                         all_file_nodes = get_nodes_for_files([fname])
@@ -1877,13 +2034,19 @@ async def ask(q: Question,
                 history_section = f"Conversation history:\n{history_lines}\n\n"
 
             if comparison_mode:
+                src_list = ", ".join(f'"{f}"' for f in question_files)
                 system_instruction = (
                     "You are a document assistant. You have been given excerpts from multiple documents, "
-                    "each clearly labeled with its filename. "
-                    "Answer using ONLY the provided context. "
-                    "When the question involves comparison, explicitly contrast the documents — "
-                    "highlight agreements, differences, and anything unique to each. "
-                    "If a document lacks relevant information, say so explicitly.\n\n"
+                    f"each clearly labeled with its filename: {src_list}.\n"
+                    "Answer using ONLY the provided context.\n"
+                    "CRITICAL RULES for multi-document answers:\n"
+                    "- Always cite which document each piece of information comes from, "
+                    "using the filename in parentheses e.g. (from mld.pdf) or (from diagram.puml).\n"
+                    "- For UML / PlantUML files: extract and list EVERY entity/class with ALL its attributes "
+                    "and ALL its relationships. Do not stop early — include every entity block in the context.\n"
+                    "- When the question asks to explain or describe, cover both documents exhaustively — "
+                    "do not omit any entity, class, or section that appears in the context.\n"
+                    "- If a document lacks relevant information, say so explicitly.\n\n"
                 )
             else:
                 system_instruction = (
@@ -1920,6 +2083,7 @@ async def ask(q: Question,
             #    of how many chars Ollama bundles into each chunk.
             STREAM_DELAY = float(os.getenv("STREAM_DELAY_MS", "20")) / 1000
             full_response = ""
+            _t0 = asyncio.get_event_loop().time()
             async for chunk in await Settings.llm.astream_complete(final_prompt):
                 if chunk.delta:
                     full_response += chunk.delta
@@ -1930,6 +2094,11 @@ async def ask(q: Question,
             # 5. Approximate token count for streaming (no raw field available per chunk)
             token_usage["completion"] += len(full_response.split())
             token_usage["requests"]   += 1
+
+            # Track query stats for dashboard
+            _elapsed_ms = int((asyncio.get_event_loop().time() - _t0) * 1000)
+            query_stats["total"]    += 1
+            query_stats["total_ms"] += _elapsed_ms
 
             still_indexing = [f for f, s in indexing_status.items() if s == "indexing"]
             warning = (

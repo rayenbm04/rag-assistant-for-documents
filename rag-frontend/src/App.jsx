@@ -155,6 +155,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [evalData, setEvalData]           = useState(null)
   const [evalLoading, setEvalLoading]     = useState(false)
   const [chunkView, setChunkView]         = useState({})   // { [filename]: { open, loading, chunks } }
+  const [summaryView, setSummaryView]     = useState({})   // { [filename]: { loading, text } }
   const [evalSelectedQ, setEvalSelectedQ] = useState(null)
   const [urlInput, setUrlInput]           = useState('')
   const [urlLoading, setUrlLoading]       = useState(false)
@@ -328,7 +329,8 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     const ext = previewFile.split('.').pop().toLowerCase()
     const isPreviewable = ['pdf','png','jpg','jpeg','gif','bmp','webp'].includes(ext)
     const isPptx        = ext === 'pptx'
-    const isTextPreview = ['docx','xlsx','xls','puml','plantuml','uml','txt','md','csv'].includes(ext)
+    const isDocPreview  = ['docx','doc','xlsx','xls'].includes(ext)
+    const isTextPreview = ['puml','plantuml','uml','txt','md','csv'].includes(ext)
 
     if (isPreviewable) {
       authFetch(`${API}/files/${encodeURIComponent(previewFile)}`)
@@ -337,6 +339,14 @@ function MainApp({ authFetch, currentUser, onLogout }) {
         .catch(() => setPreviewBlobUrl(null))
     } else if (isPptx) {
       authFetch(`${API}/slides-pdf/${encodeURIComponent(previewFile)}`)
+        .then(r => {
+          if (!r.ok) return r.json().then(d => Promise.reject(d.detail || 'Conversion failed'))
+          return r.blob()
+        })
+        .then(blob => setPreviewBlobUrl(URL.createObjectURL(blob)))
+        .catch(err => setPreviewText(typeof err === 'string' ? err : 'Could not convert to PDF'))
+    } else if (isDocPreview) {
+      authFetch(`${API}/doc-pdf/${encodeURIComponent(previewFile)}`)
         .then(r => {
           if (!r.ok) return r.json().then(d => Promise.reject(d.detail || 'Conversion failed'))
           return r.blob()
@@ -657,7 +667,8 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const openDashboard = useCallback(async () => {
     setShowDashboard(true)
     setEvalData(null)
-    setChunkView({})   // clear cached chunks so reopening always shows fresh data
+    setChunkView({})    // clear cached chunks so reopening always shows fresh data
+    setSummaryView({})  // clear cached summaries
     try { const res = await authFetch(`${API}/dashboard`); setDashboardData(await res.json()) }
     catch { setDashboardData(null) }
   }, [authFetch])
@@ -872,7 +883,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                   )}
                   {entry.sources?.length > 0 && entry.answer !== null && (
                     <div className="sources">
-                      {entry.mode === 'comparison' && (
+                      {false && entry.mode === 'comparison' && (
                         <span className="source-pill comparison-badge" title="Per-file balanced retrieval was used">
                           ⇄ Comparing {entry.sources.length} docs
                         </span>
@@ -1083,10 +1094,9 @@ function MainApp({ authFetch, currentUser, onLogout }) {
       {previewFile && (() => {
         const ext     = previewFile.split('.').pop().toLowerCase()
         const fileUrl = `${API}/files/${encodeURIComponent(previewFile)}`
-        const isImage    = ['png','jpg','jpeg','gif','bmp','webp'].includes(ext)
-        const isPdf      = ext === 'pdf'
-        const isPptx     = ext === 'pptx'
-        const hasText    = previewText !== null
+        const isImage      = ['png','jpg','jpeg','gif','bmp','webp'].includes(ext)
+        const isPdfLike    = ['pdf','pptx','docx','doc','xlsx','xls'].includes(ext)
+        const hasText      = previewText !== null
         return (
           <div className="preview-overlay" onClick={() => { setPreviewFile(null) }}>
             <div className="preview-modal" onClick={e => e.stopPropagation()}>
@@ -1100,11 +1110,11 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                 </div>
               </div>
               <div className="preview-body">
-                {(isPdf || isPptx) && (
+                {isPdfLike && (
                   previewBlobUrl
                     ? <iframe src={previewBlobUrl} title={previewFile} className="preview-iframe" />
                     : hasText
-                      ? <pre className="preview-text">{previewText}</pre>  // LibreOffice error message
+                      ? <pre className="preview-text">{previewText}</pre>
                       : <div className="preview-loading">Converting to PDF…</div>
                 )}
                 {isImage && (
@@ -1112,10 +1122,10 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                     ? <img src={previewBlobUrl} alt={previewFile} className="preview-image" />
                     : <div className="preview-loading">Loading…</div>
                 )}
-                {!isPdf && !isImage && hasText && (
+                {!isPdfLike && !isImage && hasText && (
                   <pre className="preview-text">{previewText}</pre>
                 )}
-                {!isPdf && !isImage && !hasText && (
+                {!isPdfLike && !isImage && !hasText && (
                   <div className="preview-loading">Loading…</div>
                 )}
               </div>
@@ -1135,10 +1145,10 @@ function MainApp({ authFetch, currentUser, onLogout }) {
               <>
                 <div className="dashboard-cards">
                   {[
-                    { label: 'Questions asked',  value: totalQuestions },
-                    { label: 'Documents ready',  value: dashboardData.documents.ready },
-                    { label: 'Total chunks',     value: dashboardData.chunks.total },
-                    { label: 'Chunks per query', value: dashboardData.config.similarity_top_k },
+                    { label: 'Questions asked',   value: dashboardData.queries?.total ?? totalQuestions },
+                    { label: 'Avg response time', value: dashboardData.queries?.avg_response_ms ? `${(dashboardData.queries.avg_response_ms / 1000).toFixed(1)}s` : '—' },
+                    { label: 'Documents ready',   value: dashboardData.documents.ready },
+                    { label: 'Total chunks',      value: dashboardData.chunks.total },
                   ].map(({ label, value }) => (
                     <div key={label} className="dashboard-card">
                       <div className="dashboard-card-value">{value}</div>
@@ -1245,6 +1255,49 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                             setChunkView(p => ({ ...p, [name]: { open: true, loading: false, chunks: [] } }))
                           }
                         }
+                        const sv = summaryView[name] || {}
+                        const summarize = async (e) => {
+                          e.stopPropagation()
+                          if (sv.loading) return
+                          // toggle off if already shown
+                          if (sv.text) {
+                            setSummaryView(p => ({ ...p, [name]: { ...p[name], text: null } }))
+                            return
+                          }
+                          setSummaryView(p => ({ ...p, [name]: { loading: true, text: null } }))
+                          try {
+                            let accumulated = ''
+                            const res = await authFetch(`${API}/ask`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                question: 'Résume ce document complètement : couvre tous les sujets principaux, points clés et détails importants. Ne saute rien.',
+                                files: [name],
+                                history: [],
+                              }),
+                            })
+                            const reader = res.body.getReader()
+                            const decoder = new TextDecoder()
+                            let buf = ''
+                            while (true) {
+                              const { done, value } = await reader.read()
+                              if (done) break
+                              buf += decoder.decode(value, { stream: true })
+                              const lines = buf.split('\n')
+                              buf = lines.pop()
+                              for (const line of lines) {
+                                if (!line.startsWith('data: ')) continue
+                                try {
+                                  const msg = JSON.parse(line.slice(6))
+                                  if (msg.type === 'token') accumulated += msg.content
+                                } catch {}
+                              }
+                              setSummaryView(p => ({ ...p, [name]: { loading: false, text: accumulated || '…' } }))
+                            }
+                          } catch {
+                            setSummaryView(p => ({ ...p, [name]: { loading: false, text: 'Error generating summary.' } }))
+                          }
+                        }
                         return (
                           <div key={name}>
                             <div className="dashboard-doc-row" onClick={toggleChunks}
@@ -1255,8 +1308,35 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                                 </span>
                                 {name}
                               </span>
-                              <span className="dashboard-doc-chunks">{chunks} chunks</span>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <button
+                                  onClick={summarize}
+                                  style={{
+                                    fontSize: '11px', padding: '2px 8px', borderRadius: '4px',
+                                    border: '1px solid var(--border, #ccc)', background: sv.text ? 'var(--accent, #888)' : 'transparent',
+                                    color: sv.text ? '#fff' : 'var(--text-muted)', cursor: 'pointer',
+                                    opacity: sv.loading ? 0.6 : 1,
+                                  }}
+                                  title="Generate a summary of this document"
+                                >
+                                  {sv.loading ? '…' : sv.text ? '✕ Summary' : '∑ Summarize'}
+                                </button>
+                                <span className="dashboard-doc-chunks">{chunks} chunks</span>
+                              </span>
                             </div>
+                            {sv.text && (
+                              <div style={{
+                                margin: '4px 0 8px 16px', padding: '10px 12px',
+                                background: 'var(--bg-secondary, #f5f5f5)', borderRadius: '6px',
+                                fontSize: '12px', color: 'var(--text-primary)', lineHeight: '1.6',
+                                whiteSpace: 'pre-wrap', borderLeft: '3px solid var(--accent, #888)'
+                              }}>
+                                <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+                                  Summary — {name}
+                                </span>
+                                {sv.text}
+                              </div>
+                            )}
                             {cv.open && (
                               <div style={{ margin: '4px 0 10px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                 {cv.loading && <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>Loading chunks…</p>}
