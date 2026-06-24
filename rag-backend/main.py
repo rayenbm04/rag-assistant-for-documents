@@ -329,7 +329,6 @@ if chroma_collection.count() > 0:
     print(f"Loaded index — {chroma_collection.count()} chunks in ChromaDB")
 
 
-# EXTRACTION FUNCTIONS
 
 def pil_image_to_base64(pil_image):
     import io
@@ -400,8 +399,6 @@ Follow these rules strictly:
 
 Be exhaustive. This transcription is the ONLY source of information for answering user questions about this document."""
     elif uml_mode:
-        # Compact prompt: same info, far fewer output tokens.
-        # Verbose format was filling the context window and cutting off mid-diagram.
         prompt = f"""Extract all technical information from this diagram. Use compact format to fit everything.
 
 {"File: " + context_hint if context_hint else ""}
@@ -451,17 +448,12 @@ STEP 5 — PURPOSE: What is the overall meaning or purpose of this image?
 
 Be exhaustive — your description will be the ONLY source of information about this image when answering user questions."""
 
-    # UML/diagram mode needs much longer output to list every entity.
-    # doc_mode (scanned pages) needs moderate length.
-    # Regular images and fast mode stay at the model default (~2048).
-    # qwen2.5vl:7b has a 4096 context window by default.
-    # Prompt itself uses ~300–500 tokens, leaving ~3500 for generation.
     if uml_mode:
-        num_predict = 3500   # max useful given 4096 context
+        num_predict = 3500
     elif doc_mode:
         num_predict = 3000
     else:
-        num_predict = 1500   # photos/screenshots need less
+        num_predict = 1500
 
     response = ollama.chat(
         model=VISION_MODEL,
@@ -473,7 +465,7 @@ Be exhaustive — your description will be the ONLY source of information about 
         options={
             "num_predict": num_predict,
             "temperature": 0.1,
-            "num_gpu": 99,   # offload all layers to GPU (RTX 4070 has enough VRAM)
+            "num_gpu": 99,
         }
     )
     return response["message"]["content"]
@@ -516,14 +508,11 @@ def _fix_pdf_text(text: str) -> str:
     1. (cid:N) sequences — unresolved ligatures / special glyphs.
     2. Wrong characters from MacRoman / custom PDF font encoding.
     """
-    # Fix CID sequences first (exact matches)
     for cid, replacement in _CID_MAP.items():
         text = text.replace(cid, replacement)
 
-    # Fix any remaining (cid:N) we don't have in the map — drop them
     text = re.sub(r'\(cid:\d+\)', '', text)
 
-    # Fix encoding mis-maps
     for wrong, correct in _ENCODING_FIX.items():
         text = text.replace(wrong, correct)
 
@@ -540,7 +529,6 @@ def extract_pdf_content(file_path, filename, on_progress=None):
             on_progress(0, total_pages)
 
         for i, page in enumerate(pdf.pages):
-            # check if cancelled
             if filename in cancelled_files:
                 print(f"Indexing cancelled: {filename}")
                 raise InterruptedError(f"Cancelled by user")
@@ -818,7 +806,6 @@ def extract_uml_content(file_path, filename):
         f"possede=has, anime=runs, encadre=coaches.\n"
     )
 
-    # One self-contained block per entity
     for cls in classes:
         block = f"\nEntity: {cls}\n"
         attrs = class_blocks.get(cls, [])
@@ -830,7 +817,6 @@ def extract_uml_content(file_path, filename):
             block += "\n".join(f"  - {r}" for r in rels) + "\n"
         parts.append(block)
 
-    # Raw source (fallback)
     parts.append(f"\n--- Raw UML source ---\n{raw}")
 
     return "\n".join(parts)
@@ -1071,9 +1057,7 @@ def add_document_to_index(file_path, filename):
             text = f"[Unsupported file: {filename}]"
             doc_type = "unknown"
 
-        # ── Schema-aware chunking ──────────────────────────────────────────────
         # Relational schemas (MLD / SQL DDL) have a natural delimiter: ';'.
-        # Each entity definition is self-contained and ends with ';'.
         # Fixed-size token splitting cuts entities in half, making it impossible
         # for the LLM to read a definition in one piece.
         # When the extracted text looks like an MLD, bypass HierarchicalNodeParser
@@ -1111,7 +1095,6 @@ def add_document_to_index(file_path, filename):
                 index.insert_nodes(schema_nodes)
 
         else:
-            # ── Standard token-based chunking ──────────────────────────────────
             doc = Document(
                 text=text,
                 metadata={"file_name": filename, "file_path": file_path, "doc_type": doc_type}
@@ -1180,8 +1163,6 @@ def add_document_to_index(file_path, filename):
         indexing_progress.pop(filename, None)
         print(f"Indexing error for {filename}: {e}")
 
-# API ENDPOINTS
-
 _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; RAGBot/1.0)"}
 _SKIP_TAGS = {"script", "style", "nav", "footer", "header", "aside",
               "noscript", "form", "button", "iframe", "svg"}
@@ -1197,7 +1178,6 @@ def _fetch_url_text(url: str) -> tuple[str, str]:
 
     title = soup.title.string.strip() if soup.title and soup.title.string else url
 
-    # Prefer semantic content containers
     body = (soup.find("article") or soup.find("main") or soup.find("body"))
     lines = []
     if body:
@@ -1277,7 +1257,6 @@ async def upload(file: UploadFile = File(...),
 
     path = f"{UPLOAD_DIR}/{file.filename}"
 
-    # Clean old ChromaDB chunks for this filename
     try:
         results = chroma_collection.get(where={"file_name": file.filename})
         if results["ids"]:
@@ -1286,7 +1265,6 @@ async def upload(file: UploadFile = File(...),
     except Exception as e:
         print(f"Cleanup error: {e}")
 
-    # Save new file (ensure uploads dir exists in case it was deleted)
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     with open(path, "wb") as f:
         f.write(content)
@@ -1353,7 +1331,6 @@ def dashboard(current_user: UserModel = Depends(get_current_user)):
     ready = [f for f in files if indexing_status.get(f, "ready") == "ready"]
     indexing = [f for f in files if indexing_status.get(f, "") == "indexing"]
 
-    # Per-file chunk counts
     file_chunks = {}
     for f in files:
         try:
@@ -1436,7 +1413,6 @@ def preview_file(filename: str,
     return {"text": text[:8000]}
 
 
-# Cache the LibreOffice binary path so we only probe once per server lifetime.
 _LO_BIN: str | None = None
 _LO_BIN_CHECKED: bool = False
 
@@ -1714,7 +1690,6 @@ async def retrieve_per_file(
 async def condense_question(question: str, history: list[HistoryEntry]) -> str:
     """Normalise typos/abbreviations and, when there is history, rewrite as a standalone question."""
     if not history:
-        # No history — just fix typos and normalise phrasing
         prompt = (
             "Fix any spelling mistakes, typos, or grammatical errors in the following question "
             "and rephrase it as a clear, well-formed question. "
@@ -1795,14 +1770,12 @@ async def ask(q: Question,
     if not q.files:
         raise HTTPException(400, "No documents in this chat. Upload a file to get started.")
 
-    # Check file ownership — users can only query their own files
     if current_user.role != "admin":
         forbidden = [f for f in q.files if file_owners.get(f) != current_user.id]
         if forbidden:
             raise HTTPException(403, f"Access denied to: {', '.join(forbidden)}")
 
-    # Wait only for THIS session's files that are still indexing.
-    # We do this *inside* the SSE generator so the client can cancel at any time.
+    # Wait inside the SSE generator (not here) so the client can cancel at any time.
     session_indexing = [f for f in q.files if indexing_status.get(f) == "indexing"]
 
     if not index:
@@ -1836,8 +1809,6 @@ async def ask(q: Question,
 
     async def event_stream():
         try:
-            # 0. If files are still indexing, wait here inside the stream so
-            #    the client can cancel at any time via the SSE connection.
             if session_indexing:
                 print(f"[/ask] Waiting for {session_indexing} to finish indexing...")
                 wait_timeout = 600
@@ -1853,9 +1824,6 @@ async def ask(q: Question,
 
             standalone = await condense_question(question, history)
 
-            # 2. Retrieve relevant chunks — two modes:
-            #    • Comparison: per-file balanced retrieval with labeled context
-            #    • Standard:   unified hybrid (BM25 + vector) with cross-encoder rerank
             comparison_mode = is_comparison_query(question, len(question_files))
 
             exhaustive = is_exhaustive_query(question)
@@ -1881,7 +1849,6 @@ async def ask(q: Question,
                                 retrieved_ids.add(n.node_id)
                             print(f"[pin] injected {len(extras)} UML/diagram chunks for {fname}")
                 if pinned_ctx:
-                    # Rebuild labeled context with pinned nodes appended per file
                     extra_parts = []
                     for fname, enodes in pinned_ctx.items():
                         extra_parts.append(
@@ -1937,7 +1904,6 @@ async def ask(q: Question,
                     bm25_retriever = BM25Retriever.from_defaults(
                         nodes=session_nodes, similarity_top_k=candidates_k
                     )
-                    # Gather all vector retrievals (HyDE + multi-query) + BM25 in parallel
                     all_retrieve_coros = (
                         [vector_retriever.aretrieve(hyde_query)]
                         + [vector_retriever.aretrieve(q) for q in mq_queries]
@@ -2095,7 +2061,6 @@ async def ask(q: Question,
             token_usage["completion"] += len(full_response.split())
             token_usage["requests"]   += 1
 
-            # Track query stats for dashboard
             _elapsed_ms = int((asyncio.get_event_loop().time() - _t0) * 1000)
             query_stats["total"]    += 1
             query_stats["total_ms"] += _elapsed_ms
@@ -2108,7 +2073,6 @@ async def ask(q: Question,
             citations = build_citations(nodes)
             yield f"data: {json.dumps({'type': 'done', 'sources': sources, 'citations': citations, 'warning': warning, 'mode': 'comparison' if comparison_mode else 'standard'})}\n\n"
 
-            # 7. RAG eval — LLM-as-judge (faithfulness + answer relevance)
             if ENABLE_EVAL and full_response.strip():
                 try:
                     eval_ctx = context[:3000]
@@ -2220,7 +2184,7 @@ async def delete_document(filename: str,
 
     global index, storage_context
     if chroma_collection.count() > 0:
-        # Create a fresh storage context to clear in-memory node caches!
+        # Recreate storage context to clear in-memory node caches after deletion.
         if PARENT_CHILD_AVAILABLE:
             docstore = SimpleDocumentStore()
 
@@ -2270,7 +2234,7 @@ async def reindex_document(filename: str,
     except Exception as e:
         print(f"[reindex] ChromaDB cleanup error: {e}")
 
-    # Clear hash so it won't be skipped
+    # Clear hash so the upload endpoint won't skip re-indexing due to unchanged content.
     file_hashes.pop(filename, None)
     indexing_status[filename] = "indexing"
 
@@ -2421,7 +2385,6 @@ async def run_eval(top_k: int = SIMILARITY_TOP_K):
         hyb_hits.append(hh);  hyb_mrrs.append(hm)
         full_hits.append(fh); full_mrrs.append(fm)
 
-        # Per-chunk detail from the production (full) pipeline
         retrieved = [
             {
                 "file": n.metadata.get("file_name", "?"),

@@ -59,7 +59,7 @@ function createNewSession() {
 }
 
 function AuthScreen({ onAuth }) {
-  const [view, setView]     = useState('login')   // 'login' | 'register'
+  const [view, setView]     = useState('login')
   const [email, setEmail]   = useState('')
   const [password, setPassword] = useState('')
   const [firstname, setFirstname]   = useState('')
@@ -141,8 +141,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     try { return localStorage.getItem(activeKey) } catch { return null }
   })
 
-  // Global file registry: filename → { status, size }
-  // Shared across sessions so we never re-index the same file twice
   const [globalFiles, setGlobalFiles] = useState({})
 
   const [question, setQuestion]       = useState('')
@@ -154,8 +152,8 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [dashboardData, setDashboardData] = useState(null)
   const [evalData, setEvalData]           = useState(null)
   const [evalLoading, setEvalLoading]     = useState(false)
-  const [chunkView, setChunkView]         = useState({})   // { [filename]: { open, loading, chunks } }
-  const [summaryView, setSummaryView]     = useState({})   // { [filename]: { loading, text } }
+  const [chunkView, setChunkView]         = useState({})
+  const [summaryView, setSummaryView]     = useState({})
   const [evalSelectedQ, setEvalSelectedQ] = useState(null)
   const [urlInput, setUrlInput]           = useState('')
   const [urlLoading, setUrlLoading]       = useState(false)
@@ -164,7 +162,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [sessionSearch, setSessionSearch] = useState('')
   const [selectedCostModel, setSelectedCostModel] = useState('GPT-4o')
   const [tokenStats, setTokenStats]       = useState(null)
-  const [previewFile, setPreviewFile]     = useState(null)  // filename string or null
+  const [previewFile, setPreviewFile]     = useState(null)
   const [previewBlobUrl, setPreviewBlobUrl] = useState(null)
   const [previewText, setPreviewText]     = useState(null)
 
@@ -192,7 +190,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   }))
   const anyIndexing = sessionFiles.some(f => f.status === 'indexing' || f.status === 'uploading')
 
-  // Keep historyRef in sync (fixes stale-closure issue in handleSubmit)
   useEffect(() => { historyRef.current = history }, [history])
 
   useEffect(() => {
@@ -215,7 +212,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   }, [activeSession?.id])
 
   const createSession = useCallback(() => {
-    // Don't create a new session if the current one is already empty
     if (activeSession && activeSession.history.length === 0 && activeSession.fileNames.length === 0) {
       setActiveSessionId(activeSession.id)
       return
@@ -227,7 +223,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   }, [activeSession])
 
   const switchSession = useCallback((id) => {
-    // Cancel any in-flight request
     if (isLoadingRef.current) {
       const cancelledId = pendingIdRef.current
       pendingIdRef.current = null
@@ -249,7 +244,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
       const target = prev.find(s => s.id === id)
       const remaining = prev.filter(s => s.id !== id)
 
-      // Delete files from the server that are not used by any other session
       if (target?.fileNames?.length) {
         const otherFiles = new Set(remaining.flatMap(s => s.fileNames))
         target.fileNames.forEach(filename => {
@@ -275,9 +269,8 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     const sid = activeSession?.id
     setSessions(prev => prev.map(s => {
       if (s.id !== sid || s.fileNames.includes(filename)) return s
-      // Auto-name session from filename if still untitled and no messages yet
       const shouldRename = s.name === 'New chat' && s.history.length === 0
-      const nameFromFile = filename.replace(/\.[^/.]+$/, '') // strip extension
+      const nameFromFile = filename.replace(/\.[^/.]+$/, '')
       const name = shouldRename
         ? (nameFromFile.length > 35 ? nameFromFile.slice(0, 35) + '…' : nameFromFile)
         : s.name
@@ -445,7 +438,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
         pollStatus(f.name)
         continue
       }
-      // New file → upload, register, link
       setGlobalFiles(prev => ({ ...prev, [f.name]: { status: 'uploading', size: f.size } }))
       addFileToSession(f.name)
       try {
@@ -463,7 +455,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     setSessions(prev => prev.map(s =>
       s.id === sid ? { ...s, fileNames: s.fileNames.filter(n => n !== filename) } : s
     ))
-    // Delete from server only if no other session uses it
     const otherUses = sessions.some(s => s.id !== sid && s.fileNames.includes(filename))
     if (!otherUses) {
       try {
@@ -524,7 +515,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     pendingIdRef.current = null
     isLoadingRef.current = false
     if (cancelledId) {
-      // Remove the pending entry and restore the question to the input bar
       setSessions(prev => prev.map(s => ({
         ...s,
         history: s.history.filter(h => h.id !== cancelledId)
@@ -566,7 +556,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
           history:  historyRef.current
             .filter(e => e.answer !== null && !e.answer.startsWith('Error:'))
             .map(e => ({ question: e.question, answer: e.answer })),
-          files: sessionFileNames,  // session-scoped retrieval
+          files: sessionFileNames,
         }),
         signal: abortControllerRef.current.signal
       })
@@ -577,7 +567,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
         throw new Error(err.detail || `Server error: ${res.status}`)
       }
 
-      // Stream SSE tokens
       const reader  = res.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
@@ -610,9 +599,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                 : entry
             ))
             scrollTimerRef.current = setTimeout(scrollToBottom, 100)
-            // Refresh token stats for cost estimator
             authFetch(`${API}/dashboard`).then(r => r.json()).then(d => setTokenStats(d.tokens)).catch(() => {})
-            // Generate a short title from the first message in the background
             if (isFirstMessage) {
               authFetch(`${API}/title`, {
                 method: 'POST',
@@ -667,8 +654,8 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const openDashboard = useCallback(async () => {
     setShowDashboard(true)
     setEvalData(null)
-    setChunkView({})    // clear cached chunks so reopening always shows fresh data
-    setSummaryView({})  // clear cached summaries
+    setChunkView({})
+    setSummaryView({})
     try { const res = await authFetch(`${API}/dashboard`); setDashboardData(await res.json()) }
     catch { setDashboardData(null) }
   }, [authFetch])
@@ -763,7 +750,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                 <p className="session-search-empty">No chats match "{sessionSearch}"</p>
               )
               return filtered.map(s => {
-                // Find first matching excerpt to show under the session name
                 const q_lc = q
                 const match = q_lc ? s.history.find(e =>
                   e.question?.toLowerCase().includes(q_lc) ||
@@ -883,11 +869,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                   )}
                   {entry.sources?.length > 0 && entry.answer !== null && (
                     <div className="sources">
-                      {false && entry.mode === 'comparison' && (
-                        <span className="source-pill comparison-badge" title="Per-file balanced retrieval was used">
-                          ⇄ Comparing {entry.sources.length} docs
-                        </span>
-                      )}
                       {(entry.citations?.length > 0 ? entry.citations : entry.sources.map(s => ({ file: s, pages: [] }))).map((c, i) => (
                         <span key={i} className="source-pill">
                           <SourceIcon />
@@ -1259,7 +1240,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                         const summarize = async (e) => {
                           e.stopPropagation()
                           if (sv.loading) return
-                          // toggle off if already shown
                           if (sv.text) {
                             setSummaryView(p => ({ ...p, [name]: { ...p[name], text: null } }))
                             return
@@ -1395,7 +1375,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
 
                   {evalData && !evalData.error && (
                     <>
-                      {/* Configuration comparison table */}
                       {evalData.configurations && (
                         <div className="eval-config-table">
                           <div className="eval-config-row eval-config-header">
@@ -1413,7 +1392,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                         </div>
                       )}
 
-                      {/* Per-question table — click a row to see retrieved chunks */}
                       <div className="dashboard-doc-list" style={{ marginTop: '8px' }}>
                         <div className="dashboard-doc-row" style={{ fontWeight: 600, fontSize: '11px', color: 'var(--text-muted)' }}>
                           <span style={{ flex: 2 }}>Question ID</span>
