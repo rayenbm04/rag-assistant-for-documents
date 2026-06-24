@@ -657,6 +657,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const openDashboard = useCallback(async () => {
     setShowDashboard(true)
     setEvalData(null)
+    setChunkView({})   // clear cached chunks so reopening always shows fresh data
     try { const res = await authFetch(`${API}/dashboard`); setDashboardData(await res.json()) }
     catch { setDashboardData(null) }
   }, [authFetch])

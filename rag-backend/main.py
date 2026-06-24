@@ -418,6 +418,57 @@ Be exhaustive — your description will be the ONLY source of information about 
     return response["message"]["content"]
 
 
+# ---------------------------------------------------------------------------
+# CID ligature map: covers the most common unresolved glyphs pdfplumber
+# produces when a PDF embeds a custom font with ligatures.
+# ---------------------------------------------------------------------------
+_CID_MAP: dict[str, str] = {
+    "(cid:11)": "fi", "(cid:12)": "fl", "(cid:13)": "ff",
+    "(cid:14)": "ffi", "(cid:15)": "ffl",
+    "(cid:28)": "fi", "(cid:29)": "fl", "(cid:30)": "ff",
+    "(cid:31)": "ffi", "(cid:32)": "ffl",
+    # other common cid glyphs in LaTeX/TeX-generated PDFs
+    "(cid:1)":  "!", "(cid:2)": "\"", "(cid:3)": "#",
+}
+
+# Characters that appear when pdfplumber mis-maps accented Latin-1 chars
+# through a MacRoman or custom encoding.  Key = wrong glyph, value = correct.
+_ENCODING_FIX: dict[str, str] = {
+    "Ø": "é",   # 0xC3 / MacRoman mismatch — most common in French PDFs
+    "ø": "è",
+    "Æ": "à",
+    "æ": "â",
+    "Å": "ê",
+    "å": "ë",
+    "Ã": "î",
+    "ã": "ï",
+    "Œ": "ô",
+    "œ": "ù",
+    "Ç": "ç",
+    "ß": "û",
+    "†": "°",
+}
+
+def _fix_pdf_text(text: str) -> str:
+    """
+    Post-process pdfplumber output to fix two common artefacts:
+    1. (cid:N) sequences — unresolved ligatures / special glyphs.
+    2. Wrong characters from MacRoman / custom PDF font encoding.
+    """
+    # Fix CID sequences first (exact matches)
+    for cid, replacement in _CID_MAP.items():
+        text = text.replace(cid, replacement)
+
+    # Fix any remaining (cid:N) we don't have in the map — drop them
+    text = re.sub(r'\(cid:\d+\)', '', text)
+
+    # Fix encoding mis-maps
+    for wrong, correct in _ENCODING_FIX.items():
+        text = text.replace(wrong, correct)
+
+    return text
+
+
 def extract_pdf_content(file_path, filename, on_progress=None):
     full_content = f"Document: {filename}\n\n"
 
@@ -436,7 +487,7 @@ def extract_pdf_content(file_path, filename, on_progress=None):
             page_num = i + 1
             full_content += f"\n{'='*40}\nPage {page_num}/{total_pages}\n{'='*40}\n"
 
-            text = page.extract_text() or ""
+            text = _fix_pdf_text(page.extract_text() or "")
             if text.strip():
                 full_content += f"\n[Text content]\n{text}\n"
 
@@ -848,6 +899,74 @@ def get_nodes_for_files(file_names: list) -> list:
     return nodes
 
 
+
+def _looks_like_mld(text: str) -> bool:
+    """Heuristic: text contains ≥3 relational-schema entity definitions like: word = (...)."""
+    return len(re.findall(r'\w+\s*=\s*\(', text)) >= 3
+
+
+def _split_schema_by_semicolons(text: str, filename: str, doc_type: str) -> list:
+    """
+    For relational-schema (MLD) text where each entity definition ends with ';',
+    produce one TextNode per entity instead of splitting by token count.
+    Also prepends an overview node listing all entity/table names so that
+    exhaustive queries ("list all entities") always retrieve the full index
+    regardless of top-K.
+    """
+    entity_nodes = []
+    entity_names = []
+
+    for part in text.split(';'):
+        clean = part.strip()
+        # Drop empty parts and short extractor-added headers (page markers, etc.)
+        if not clean or len(clean) < 15:
+            continue
+        # Strip page-marker lines (===...===) that may be prepended by the extractor
+        lines = [l for l in clean.splitlines()
+                 if not l.strip().startswith('=') and l.strip() not in ('[Text content]', '')]
+        clean = '\n'.join(lines).strip()
+        if not clean or len(clean) < 10:
+            continue
+        # Grab the entity/table name: last word before the first '='
+        entity_name = ''
+        if '=' in clean:
+            candidate = clean.split('=')[0].strip().split()
+            entity_name = candidate[-1] if candidate else ''
+            if entity_name:
+                entity_names.append(entity_name)
+        entity_nodes.append(TextNode(
+            text=clean + ';',
+            metadata={
+                'file_name': filename,
+                'doc_type':  doc_type,
+                'entity':    entity_name,
+                'schema_chunk': 'entity',
+            }
+        ))
+
+    # Overview node — lists every table/entity name in one chunk.
+    # Scores highest on "list all entities / tables" queries and ensures
+    # exhaustive answers even when top-K < total entity count.
+    if entity_names:
+        overview_text = (
+            f"MLD schema overview for {filename}\n"
+            f"Total tables/entities: {len(entity_names)}\n"
+            f"Entity list: {', '.join(entity_names)}\n"
+            f"Tables: {'; '.join(entity_names)}"
+        )
+        overview_node = TextNode(
+            text=overview_text,
+            metadata={
+                'file_name': filename,
+                'doc_type':  doc_type,
+                'entity':    'overview',
+                'schema_chunk': 'overview',
+            }
+        )
+        return [overview_node] + entity_nodes
+
+    return entity_nodes
+
 def add_document_to_index(file_path, filename):
     global index
     try:
@@ -887,54 +1006,95 @@ def add_document_to_index(file_path, filename):
             text = f"[Unsupported file: {filename}]"
             doc_type = "unknown"
 
-        doc = Document(
-            text=text,
-            metadata={"file_name": filename, "file_path": file_path, "doc_type": doc_type}
-        )
+        # ── Schema-aware chunking ──────────────────────────────────────────────
+        # Relational schemas (MLD / SQL DDL) have a natural delimiter: ';'.
+        # Each entity definition is self-contained and ends with ';'.
+        # Fixed-size token splitting cuts entities in half, making it impossible
+        # for the LLM to read a definition in one piece.
+        # When the extracted text looks like an MLD, bypass HierarchicalNodeParser
+        # and create one TextNode per entity instead.
+        if _looks_like_mld(text):
+            print(f"Schema detected in {filename} — using semicolon-delimiter chunking")
+            schema_nodes = _split_schema_by_semicolons(text, filename, doc_type)
+            print(f"  → {len(schema_nodes)} entity chunks")
 
-        if PARENT_CHILD_AVAILABLE:
-            # Two levels: parent (~512 tokens, in docstore) + leaf (~128 tokens,
-            # in ChromaDB). AutoMergingRetriever promotes siblings to parent at
-            # query time → LLM gets richer context, retrieval stays precise.
+            # Clear stale nodes from docstore AND ChromaDB before inserting new ones
+            try:
+                stale = chroma_collection.get(where={"file_name": filename})
+                if stale["ids"]:
+                    chroma_collection.delete(ids=stale["ids"])
+                    print(f"  Deleted {len(stale['ids'])} stale ChromaDB chunks for {filename}")
+            except Exception as e:
+                print(f"  Warning: could not clear stale ChromaDB chunks: {e}")
 
-            # Remove stale docstore nodes for this file before re-indexing so
-            # ChromaDB and the docstore never reference each other's old IDs.
-            old_node_ids = [
-                nid for nid, node in storage_context.docstore.docs.items()
-                if node.metadata.get("file_name") == filename
-            ]
-            for nid in old_node_ids:
-                try:
-                    storage_context.docstore.delete_document(nid)
-                except Exception:
-                    pass
-            if old_node_ids:
-                print(f"Removed {len(old_node_ids)} stale docstore nodes for {filename}")
-
-            parser     = HierarchicalNodeParser.from_defaults(
-                chunk_sizes=[PARENT_CHUNK_SIZE, CHILD_CHUNK_SIZE]
-            )
-            all_nodes  = parser.get_nodes_from_documents([doc])
-            leaf_nodes = get_leaf_nodes(all_nodes)
-
-            for node in all_nodes:
-                node.metadata.setdefault("file_name", filename)
-                node.metadata.setdefault("doc_type",  doc_type)
-
-            storage_context.docstore.add_documents(all_nodes)
-            _persist_docstore()
+            if PARENT_CHILD_AVAILABLE:
+                old_node_ids = [
+                    nid for nid, node in storage_context.docstore.docs.items()
+                    if node.metadata.get("file_name") == filename
+                ]
+                for nid in old_node_ids:
+                    try:
+                        storage_context.docstore.delete_document(nid)
+                    except Exception:
+                        pass
 
             if index is None:
                 index = VectorStoreIndex(
-                    leaf_nodes, storage_context=storage_context, show_progress=False
+                    schema_nodes, storage_context=storage_context, show_progress=False
                 )
             else:
-                index.insert_nodes(leaf_nodes)
+                index.insert_nodes(schema_nodes)
+
         else:
-            if index is None:
-                index = VectorStoreIndex.from_documents([doc], storage_context=storage_context)
+            # ── Standard token-based chunking ──────────────────────────────────
+            doc = Document(
+                text=text,
+                metadata={"file_name": filename, "file_path": file_path, "doc_type": doc_type}
+            )
+
+            if PARENT_CHILD_AVAILABLE:
+                # Two levels: parent (~512 tokens, in docstore) + leaf (~128 tokens,
+                # in ChromaDB). AutoMergingRetriever promotes siblings to parent at
+                # query time → LLM gets richer context, retrieval stays precise.
+
+                # Remove stale docstore nodes for this file before re-indexing so
+                # ChromaDB and the docstore never reference each other's old IDs.
+                old_node_ids = [
+                    nid for nid, node in storage_context.docstore.docs.items()
+                    if node.metadata.get("file_name") == filename
+                ]
+                for nid in old_node_ids:
+                    try:
+                        storage_context.docstore.delete_document(nid)
+                    except Exception:
+                        pass
+                if old_node_ids:
+                    print(f"Removed {len(old_node_ids)} stale docstore nodes for {filename}")
+
+                parser     = HierarchicalNodeParser.from_defaults(
+                    chunk_sizes=[PARENT_CHUNK_SIZE, CHILD_CHUNK_SIZE]
+                )
+                all_nodes  = parser.get_nodes_from_documents([doc])
+                leaf_nodes = get_leaf_nodes(all_nodes)
+
+                for node in all_nodes:
+                    node.metadata.setdefault("file_name", filename)
+                    node.metadata.setdefault("doc_type",  doc_type)
+
+                storage_context.docstore.add_documents(all_nodes)
+                _persist_docstore()
+
+                if index is None:
+                    index = VectorStoreIndex(
+                        leaf_nodes, storage_context=storage_context, show_progress=False
+                    )
+                else:
+                    index.insert_nodes(leaf_nodes)
             else:
-                index.insert(doc)
+                if index is None:
+                    index = VectorStoreIndex.from_documents([doc], storage_context=storage_context)
+                else:
+                    index.insert(doc)
 
         indexing_status[filename] = "ready"
         indexing_progress.pop(filename, None)
@@ -1346,6 +1506,29 @@ def is_comparison_query(question: str, num_files: int) -> bool:
     return any(kw in q for kw in _COMPARISON_KEYWORDS)
 
 
+_EXHAUSTIVE_KEYWORDS = (
+    # English
+    "list all", "list every", "list each", "show all", "show every",
+    "enumerate", "extract all", "extract every", "extract each",
+    "give me all", "give me every", "give me a list",
+    "what are all", "what are the", "all the",
+    "summarize", "summarise", "summary", "resume", "résumé",
+    "overview", "full list", "complete list",
+    # French
+    "liste", "lister", "listez", "liste toutes", "liste tous",
+    "énumère", "énumérer", "énumérez",
+    "extraire", "extrait", "extraire tout", "extraire toutes",
+    "résume", "résumer", "résumé", "récapitule", "récapitulatif",
+    "toutes les", "tous les", "l'ensemble",
+    "quelles sont", "quels sont",
+)
+
+def is_exhaustive_query(question: str) -> bool:
+    """Return True when the question asks for a complete list, summary, or extraction."""
+    q = question.lower()
+    return any(kw in q for kw in _EXHAUSTIVE_KEYWORDS)
+
+
 async def retrieve_per_file(
     standalone: str,
     question_files: list[str],
@@ -1556,6 +1739,7 @@ async def ask(q: Question,
             #    • Standard:   unified hybrid (BM25 + vector) with cross-encoder rerank
             comparison_mode = is_comparison_query(question, len(question_files))
 
+            exhaustive = is_exhaustive_query(question)
             if comparison_mode:
                 chunks_per_file = max(2, SIMILARITY_TOP_K // len(question_files))
                 print(f"[compare] {len(question_files)} files × {chunks_per_file} chunks each")
@@ -1563,7 +1747,14 @@ async def ask(q: Question,
                     standalone, question_files, chunks_per_file
                 )
             else:
-                candidates_k = SIMILARITY_TOP_K * 2 if reranker else SIMILARITY_TOP_K
+                exhaustive = is_exhaustive_query(question)
+                if exhaustive:
+                    # For list/summary/extract queries, retrieve ALL chunks so nothing is missed.
+                    # Cap at 200 to avoid overwhelming the LLM context window.
+                    candidates_k = 200
+                    print(f"[exhaustive] listing query detected — fetching up to {candidates_k} chunks")
+                else:
+                    candidates_k = SIMILARITY_TOP_K * 2 if reranker else SIMILARITY_TOP_K
 
                 filters = MetadataFilters(
                     filters=[
@@ -1651,6 +1842,9 @@ async def ask(q: Question,
                 # any "--- Slide" block). The overview is split across several child
                 # chunks due to token limits, so we need all of them to guarantee
                 # team names, slide count, etc. are always in the context.
+                # For MLD files: always pin the overview chunk (schema_chunk == 'overview')
+                # so exhaustive "list all entities" queries always get the full index,
+                # even when top-K retrieval would otherwise omit it.
                 retrieved_ids = {n.node_id for n in nodes}
                 pinned = []
                 for fname in question_files:
@@ -1663,6 +1857,14 @@ async def ask(q: Question,
                                 pinned.append(n)
                                 retrieved_ids.add(n.node_id)
                         print(f"[pin] injected {len(pinned)} overview chunks for {fname}")
+                    else:
+                        # Pin MLD overview nodes (any file that has schema_chunk='overview')
+                        all_file_nodes = get_nodes_for_files([fname])
+                        for n in all_file_nodes:
+                            if n.metadata.get("schema_chunk") == "overview" and n.node_id not in retrieved_ids:
+                                pinned.append(n)
+                                retrieved_ids.add(n.node_id)
+                                print(f"[pin] injected MLD overview chunk for {fname}")
                 all_nodes_final = pinned + list(nodes)
                 context = "\n\n".join(n.get_content() for n in all_nodes_final)
                 sources = list({n.metadata.get("file_name", "unknown") for n in all_nodes_final})
@@ -1691,16 +1893,26 @@ async def ask(q: Question,
                     "- Image files have already been analysed by a vision model. Their full description is in the context. "
                     "Do NOT ask the user to provide an image — all visual content is already available to you as text.\n"
                     "- Tables and row data are in the context as pipe-separated lines. Count or sum them directly from the text.\n"
+                    "- When asked to list, enumerate, summarize, extract, or resume content, you MUST include "
+                    "EVERY item that appears in the context. Do not stop early, do not skip entries, "
+                    "do not use 'etc.', '...', or 'and more'. If you started listing, finish the list completely.\n"
                     "- If the answer cannot be found in the context, say exactly: "
                     "'I don't have enough information in the provided documents to answer this.'\n"
                     "- Do NOT add disclaimers, caveats, or meta-commentary about context limitations at the end of your answer. "
                     "Just answer directly.\n\n"
                 )
 
+            exhaustive_reminder = (
+                "IMPORTANT: This question asks for a complete list or summary. "
+                "You MUST include every single item from the context above. "
+                "Do not stop early. Do not use 'etc.' or '...'. List everything.\n\n"
+            ) if exhaustive else ""
+
             final_prompt = (
                 f"{system_instruction}"
                 f"{history_section}"
                 f"Context:\n---------------------\n{context}\n---------------------\n\n"
+                f"{exhaustive_reminder}"
                 f"Question: {question}\n\nAnswer:"
             )
 
