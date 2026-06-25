@@ -1,6 +1,8 @@
 # RAG Multimodal Assistant
 
-A fully local Retrieval-Augmented Generation (RAG) assistant that answers questions about your documents. Supports PDFs, Word files, PowerPoint presentations, spreadsheets, PlantUML diagrams, plain text, images, and web URLs. Everything runs on your machine via [Ollama](https://ollama.com) — no cloud APIs, no data leaving your computer.
+A multimodal Retrieval-Augmented Generation (RAG) assistant that answers questions about your documents. Supports PDFs, Word files, PowerPoint presentations, spreadsheets, PlantUML diagrams, plain text, images, and web URLs.
+
+Runs fully locally via [Ollama](https://ollama.com) by default — no data leaves your machine. Optionally switch to **Groq** (free, Llama 3.3 70B) or **OpenAI** (GPT-4o) per session using the in-app toggle.
 
 Built as a 5-week internship project to explore the full RAG engineering stack: ingestion, retrieval, re-ranking, evaluation, and production packaging.
 
@@ -330,6 +332,10 @@ All variables are optional — sensible defaults are set for local development. 
 | `ENABLE_HYDE` | `true` | Enable HyDE hypothetical passage expansion |
 | `ENABLE_MULTI_QUERY` | `true` | Enable multi-query retrieval (3 rephrased questions via RRF) |
 | `MULTI_QUERY_N` | `3` | Number of alternative query phrasings |
+| `OPENAI_API_KEY` | _(empty)_ | OpenAI API key — leave blank to disable the Cloud option |
+| `OPENAI_MODEL` | `gpt-4o` | OpenAI model name |
+| `GROQ_API_KEY` | _(empty)_ | Groq API key — leave blank to disable the Groq option |
+| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq model name |
 | `SECRET_KEY` | `change-me-in-production` | HS256 signing key for JWT — **change before deploying** |
 | `ACCESS_TOKEN_EXPIRE_DAYS` | `7` | JWT token lifetime in days |
 | `DATABASE_URL` | `sqlite:///./rag_users.db` | SQLAlchemy connection string |
@@ -427,11 +433,17 @@ rag-assistant/
 
 ---
 
-## Evaluation — v1.0 benchmark
+## Benchmarks
 
-Evaluated on a 116-question dataset covering all uploaded file types (DOCX, PDF, XLSX, PPTX, PUML, PNG) using `answer_eval.py`. Questions have ground-truth `expected_answer` fields; correctness is scored by a local LLM-as-judge (qwen2.5:7b).
+Evaluated on a 116-question dataset covering all uploaded file types (DOCX, PDF, XLSX, PPTX, PUML, PNG) using `answer_eval.py`. Questions have ground-truth `expected_answer` fields; correctness is scored by an LLM-as-judge.
 
-**Retrieval quality** (Hit@6 / MRR — measured via `eval.py`):
+Pipeline config for all runs: `CHILD_CHUNK_SIZE=128`, `SIMILARITY_TOP_K=6`, `ENABLE_HYDE=true`, `ENABLE_MULTI_QUERY=true`, `ENABLE_RERANK=true`.
+
+---
+
+### Retrieval quality (Hit@6 / MRR)
+
+Retrieval is model-independent — embeddings always use `nomic-embed-text` locally.
 
 | Configuration | Hit@6 | MRR |
 |---|---|---|
@@ -439,18 +451,26 @@ Evaluated on a 116-question dataset covering all uploaded file types (DOCX, PDF,
 | Hybrid (vector + BM25) | 83% | 0.68 |
 | **Hybrid + Reranker** | **85%** | **0.81** |
 
-**Answer quality** (110 scoreable questions):
+---
+
+### Answer quality (110 scoreable questions)
+
+| LLM | Provider | Pass rate (≥ 0.75) | Avg correctness | Avg faithfulness | Avg relevance |
+|---|---|---|---|---|---|
+| qwen2.5:7b | Local (Ollama) | **82.7%** | **0.707** | **0.923** | **0.797** |
+| llama-3.3-70b-versatile | Groq (cloud) | — | — | — | — |
+| gpt-4o | OpenAI (cloud) | — | — | — | — |
+
+> **Note on local scores:** the judge and the answerer are the same model (qwen2.5:7b), which inflates scores by roughly 5–15%. Cloud rows will use an independent judge, making scores more reliable comparisons.
+
+**Thresholds (local baseline):**
 
 | Metric | Score | Threshold |
 |---|---|---|
-| Pass rate (correctness ≥ 0.75) | **82.7%** | ≥ 80% ✓ |
-| Avg correctness | **0.707** | ≥ 0.70 ✓ |
-| Avg faithfulness | **0.923** | ≥ 0.85 ✓ |
-| Avg relevance | **0.797** | ≥ 0.80 ~ |
-
-Configuration: `CHILD_CHUNK_SIZE=128`, `SIMILARITY_TOP_K=6`, `ENABLE_HYDE=true`, `ENABLE_MULTI_QUERY=true`, `ENABLE_RERANK=true`.
-
-> Note: the judge and the answerer are the same model (qwen2.5:7b), which inflates scores by roughly 5–15%. Treat these numbers as a relative baseline for tracking regression, not as absolute accuracy.
+| Pass rate | 82.7% | ≥ 80% ✓ |
+| Avg correctness | 0.707 | ≥ 0.70 ✓ |
+| Avg faithfulness | 0.923 | ≥ 0.85 ✓ |
+| Avg relevance | 0.797 | ≥ 0.80 ~ |
 
 ---
 

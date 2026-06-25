@@ -165,6 +165,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [previewFile, setPreviewFile]     = useState(null)
   const [previewBlobUrl, setPreviewBlobUrl] = useState(null)
   const [previewText, setPreviewText]     = useState(null)
+  const [provider, setProvider]           = useState(() => localStorage.getItem('rag-provider') || 'local')
 
   const fileInputRef        = useRef(null)
   const chatEndRef          = useRef(null)
@@ -197,6 +198,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     localStorage.setItem('rag-theme', darkMode ? 'dark' : 'light')
   }, [darkMode])
 
+  useEffect(() => { localStorage.setItem('rag-provider', provider) }, [provider])
   useEffect(() => { localStorage.setItem(sessionsKey, JSON.stringify(sessions)) }, [sessions])
   useEffect(() => {
     if (activeSession?.id) localStorage.setItem(activeKey, activeSession.id)
@@ -557,6 +559,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
             .filter(e => e.answer !== null && !e.answer.startsWith('Error:'))
             .map(e => ({ question: e.question, answer: e.answer })),
           files: sessionFileNames,
+          provider,
         }),
         signal: abortControllerRef.current.signal
       })
@@ -701,6 +704,11 @@ function MainApp({ authFetch, currentUser, onLogout }) {
         <div className="navbar-logo">RAG Assistant</div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
           {anyIndexing && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Indexing documents...</span>}
+          <div className="provider-toggle">
+            <button className={`provider-btn ${provider === 'local'  ? 'active' : ''}`} onClick={() => setProvider('local')}  title="Local Ollama model">⚙ Local</button>
+            <button className={`provider-btn ${provider === 'groq'   ? 'active' : ''}`} onClick={() => setProvider('groq')}   title="Groq cloud (free)">⚡ Groq</button>
+            <button className={`provider-btn ${provider === 'openai' ? 'active' : ''}`} onClick={() => setProvider('openai')} title="OpenAI GPT-4o">☁ OpenAI</button>
+          </div>
           <button className="clear-history-btn" onClick={() => setDarkMode(d => !d)} title="Toggle dark mode">
             {darkMode ? '☀' : '☾'}
           </button>

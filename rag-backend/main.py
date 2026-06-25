@@ -45,6 +45,10 @@ load_dotenv()
 LLM_MODEL        = os.getenv("LLM_MODEL",           "qwen2.5:7b")
 EMBED_MODEL      = os.getenv("EMBED_MODEL",          "nomic-embed-text")
 VISION_MODEL     = os.getenv("VISION_MODEL",         "qwen2.5vl:7b")
+OPENAI_API_KEY   = os.getenv("OPENAI_API_KEY",       "")
+OPENAI_MODEL     = os.getenv("OPENAI_MODEL",         "gpt-4o")
+GROQ_API_KEY     = os.getenv("GROQ_API_KEY",         "")
+GROQ_MODEL       = os.getenv("GROQ_MODEL",           "llama-3.3-70b-versatile")
 UPLOAD_DIR       = os.getenv("UPLOAD_DIR",           "./uploads")
 CHROMA_DIR       = os.getenv("CHROMA_DIR",           "./chroma_db")
 SLIDES_CACHE_DIR = os.getenv("SLIDES_CACHE_DIR",     "./slides_cache")
@@ -165,15 +169,44 @@ class HistoryEntry(BaseModel):
 class Question(BaseModel):
     question: str
     history: list[HistoryEntry] = []
-    files: list[str] = []   # session's file names; empty = no documents in chat
+    files: list[str] = []
+    provider: str = "local"   # "local" (Ollama) or "openai"
 
 cancelled_files = set()   # filenames that should stop indexing
 
 _llm_extra = {"num_gpu": 99}
 if LLM_MODEL.lower().startswith("qwen3"):
-    _llm_extra["think"] = False   # suppress <think> tokens in Qwen3
+    _llm_extra["think"] = False
 Settings.llm = Ollama(model=LLM_MODEL, base_url=OLLAMA_BASE_URL, request_timeout=120.0, additional_kwargs=_llm_extra)
 Settings.embed_model = OllamaEmbedding(model_name=EMBED_MODEL, base_url=OLLAMA_BASE_URL, ollama_additional_kwargs={"num_gpu": 99})
+
+try:
+    from llama_index.llms.openai import OpenAI as OpenAILLM
+    _OPENAI_AVAILABLE = True
+except ImportError:
+    _OPENAI_AVAILABLE = False
+
+try:
+    from llama_index.llms.groq import Groq as GroqLLM
+    _GROQ_AVAILABLE = True
+except ImportError:
+    _GROQ_AVAILABLE = False
+
+def _get_llm(provider: str = "local"):
+    """Return the LLM for the given provider. Embeddings always stay local."""
+    if provider == "openai":
+        if not _OPENAI_AVAILABLE:
+            raise HTTPException(status_code=500, detail="llama-index-llms-openai not installed. Run: pip install llama-index-llms-openai")
+        if not OPENAI_API_KEY:
+            raise HTTPException(status_code=400, detail="OPENAI_API_KEY not set in .env")
+        return OpenAILLM(model=OPENAI_MODEL, api_key=OPENAI_API_KEY)
+    if provider == "groq":
+        if not _GROQ_AVAILABLE:
+            raise HTTPException(status_code=500, detail="llama-index-llms-groq not installed. Run: pip install llama-index-llms-groq")
+        if not GROQ_API_KEY:
+            raise HTTPException(status_code=400, detail="GROQ_API_KEY not set in .env")
+        return GroqLLM(model=GROQ_MODEL, api_key=GROQ_API_KEY)
+    return Settings.llm
 
 app = FastAPI(title="RAG Assistant API")
 app.add_middleware(CORSMiddleware,
@@ -1687,8 +1720,9 @@ async def retrieve_per_file(
     return all_nodes, labeled_context, sources
 
 
-async def condense_question(question: str, history: list[HistoryEntry]) -> str:
+async def condense_question(question: str, history: list[HistoryEntry], llm=None) -> str:
     """Normalise typos/abbreviations and, when there is history, rewrite as a standalone question."""
+    llm = llm or Settings.llm
     if not history:
         prompt = (
             "Fix any spelling mistakes, typos, or grammatical errors in the following question "
@@ -1711,19 +1745,16 @@ async def condense_question(question: str, history: list[HistoryEntry]) -> str:
             f"Follow-up: {question}\n\n"
             "Standalone question:"
         )
-    result = await Settings.llm.acomplete(prompt)
+    result = await llm.acomplete(prompt)
     record_tokens(result)
     condensed = str(result).strip()
     print(f"[condense] '{question}' → '{condensed}'")
     return condensed
 
 
-async def hyde_expand(question: str) -> str:
-    """HyDE: generate a short hypothetical document passage that would answer
-    the question, then use *that* text for vector similarity search.
-    The hypothetical passage lives in the same semantic space as real document
-    chunks, so cosine similarity works much better than querying with a short
-    question string — especially for vague or short queries."""
+async def hyde_expand(question: str, llm=None) -> str:
+    """HyDE: generate a short hypothetical document passage for vector similarity search."""
+    llm = llm or Settings.llm
     prompt = (
         "Write a concise passage (3-5 sentences) that would directly answer "
         "the following question if it appeared in a document. "
@@ -1731,7 +1762,7 @@ async def hyde_expand(question: str) -> str:
         f"Question: {question}\n\nPassage:"
     )
     try:
-        result = await Settings.llm.acomplete(prompt)
+        result = await llm.acomplete(prompt)
         record_tokens(result)
         hypothesis = str(result).strip()
         print(f"[hyde] hypothesis: {hypothesis[:120]}…")
@@ -1741,10 +1772,9 @@ async def hyde_expand(question: str) -> str:
         return question
 
 
-async def multi_query_expand(question: str, n: int = 3) -> list[str]:
-    """Generate n alternative phrasings of the question for multi-query retrieval.
-    Each phrasing approaches the same information need from a different angle,
-    increasing the chance that relevant chunks are surfaced."""
+async def multi_query_expand(question: str, n: int = 3, llm=None) -> list[str]:
+    """Generate n alternative phrasings of the question for multi-query retrieval."""
+    llm = llm or Settings.llm
     prompt = (
         f"Generate {n} different phrasings of the following question to improve document retrieval. "
         "Each should approach the same information need from a different angle "
@@ -1753,7 +1783,7 @@ async def multi_query_expand(question: str, n: int = 3) -> list[str]:
         f"Question: {question}\n\nAlternative phrasings:"
     )
     try:
-        result = await Settings.llm.acomplete(prompt)
+        result = await llm.acomplete(prompt)
         record_tokens(result)
         lines = [l.strip().lstrip("•-–1234567890.) ") for l in str(result).strip().splitlines() if l.strip()]
         rewrites = [l for l in lines if l and l != question][:n]
@@ -1785,6 +1815,7 @@ async def ask(q: Question,
     question       = q.question
     history        = q.history
     question_files = q.files
+    active_llm     = _get_llm(q.provider)
 
     def build_citations(nodes: list) -> list[dict]:
         """
@@ -1822,7 +1853,7 @@ async def ask(q: Question,
                         return
                 print("[/ask] Indexing done — proceeding to answer.")
 
-            standalone = await condense_question(question, history)
+            standalone = await condense_question(question, history, llm=active_llm)
 
             comparison_mode = is_comparison_query(question, len(question_files))
 
@@ -1885,9 +1916,9 @@ async def ask(q: Question,
                 # • BM25        → keyword search on original standalone query
                 expand_tasks = []
                 if ENABLE_HYDE:
-                    expand_tasks.append(hyde_expand(standalone))
+                    expand_tasks.append(hyde_expand(standalone, llm=active_llm))
                 if ENABLE_MULTI_QUERY:
-                    expand_tasks.append(multi_query_expand(standalone, MULTI_QUERY_N))
+                    expand_tasks.append(multi_query_expand(standalone, MULTI_QUERY_N, llm=active_llm))
 
                 expand_results = await asyncio.gather(*expand_tasks) if expand_tasks else []
 
@@ -2050,7 +2081,7 @@ async def ask(q: Question,
             STREAM_DELAY = float(os.getenv("STREAM_DELAY_MS", "20")) / 1000
             full_response = ""
             _t0 = asyncio.get_event_loop().time()
-            async for chunk in await Settings.llm.astream_complete(final_prompt):
+            async for chunk in await active_llm.astream_complete(final_prompt):
                 if chunk.delta:
                     full_response += chunk.delta
                     for char in chunk.delta:
@@ -2098,11 +2129,11 @@ async def ask(q: Question,
                         "Reply with ONLY a decimal number from 0.0 (irrelevant) to 1.0 (perfectly relevant)."
                     )
 
-                    faith_result = await Settings.llm.acomplete(faith_prompt)
+                    faith_result = await active_llm.acomplete(faith_prompt)
                     print(f"[eval] faith_raw: {str(faith_result)[:80]}")
                     faith_score  = parse_eval_score(str(faith_result))
 
-                    rel_result   = await Settings.llm.acomplete(rel_prompt)
+                    rel_result   = await active_llm.acomplete(rel_prompt)
                     print(f"[eval] rel_raw: {str(rel_result)[:80]}")
                     rel_score    = parse_eval_score(str(rel_result))
 

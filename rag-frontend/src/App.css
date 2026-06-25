@@ -780,6 +780,30 @@ body {
   border-color: var(--text-muted);
 }
 
+.provider-toggle {
+  display: flex;
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
+  overflow: hidden;
+}
+.provider-btn {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 4px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: background 0.15s, color 0.15s;
+}
+.provider-btn:hover {
+  color: var(--text-primary);
+}
+.provider-btn.active {
+  background: var(--accent, #6c63ff);
+  color: #fff;
+}
+
 .new-chat-btn {
   width: 100%;
   font-family: inherit;
