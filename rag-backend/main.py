@@ -186,26 +186,54 @@ try:
 except ImportError:
     _OPENAI_AVAILABLE = False
 
-try:
-    from llama_index.llms.groq import Groq as GroqLLM
-    _GROQ_AVAILABLE = True
-except ImportError:
-    _GROQ_AVAILABLE = False
+class _CompatLLM:
+    """Thin async wrapper around any OpenAI-compatible API.
+    Bypasses LlamaIndex model-name validation and returns objects
+    compatible with our acomplete/astream_complete call sites."""
+
+    def __init__(self, api_key: str, model: str, base_url: str = "https://api.openai.com/v1"):
+        from openai import AsyncOpenAI
+        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self._model  = model
+
+    async def acomplete(self, prompt: str):
+        resp = await self._client.chat.completions.create(
+            model=self._model,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = resp.choices[0].message.content or ""
+        usage = resp.usage
+        raw = {
+            "prompt_eval_count":   getattr(usage, "prompt_tokens",     0),
+            "eval_count":          getattr(usage, "completion_tokens",  0),
+        }
+        return type("CR", (), {"text": text, "raw": raw, "__str__": lambda s: text})()
+
+    async def astream_complete(self, prompt: str):
+        stream = await self._client.chat.completions.create(
+            model=self._model,
+            messages=[{"role": "user", "content": prompt}],
+            stream=True,
+        )
+
+        async def _gen():
+            async for chunk in stream:
+                delta = chunk.choices[0].delta.content or ""
+                yield type("Chunk", (), {"delta": delta})()
+
+        return _gen()
+
 
 def _get_llm(provider: str = "local"):
     """Return the LLM for the given provider. Embeddings always stay local."""
     if provider == "openai":
-        if not _OPENAI_AVAILABLE:
-            raise HTTPException(status_code=500, detail="llama-index-llms-openai not installed. Run: pip install llama-index-llms-openai")
         if not OPENAI_API_KEY:
             raise HTTPException(status_code=400, detail="OPENAI_API_KEY not set in .env")
-        return OpenAILLM(model=OPENAI_MODEL, api_key=OPENAI_API_KEY)
+        return _CompatLLM(api_key=OPENAI_API_KEY, model=OPENAI_MODEL)
     if provider == "groq":
-        if not _GROQ_AVAILABLE:
-            raise HTTPException(status_code=500, detail="llama-index-llms-groq not installed. Run: pip install llama-index-llms-groq")
         if not GROQ_API_KEY:
             raise HTTPException(status_code=400, detail="GROQ_API_KEY not set in .env")
-        return GroqLLM(model=GROQ_MODEL, api_key=GROQ_API_KEY)
+        return _CompatLLM(api_key=GROQ_API_KEY, model=GROQ_MODEL, base_url="https://api.groq.com/openai/v1")
     return Settings.llm
 
 app = FastAPI(title="RAG Assistant API")
