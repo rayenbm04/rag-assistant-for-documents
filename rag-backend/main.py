@@ -45,10 +45,12 @@ load_dotenv()
 LLM_MODEL        = os.getenv("LLM_MODEL",           "qwen2.5:7b")
 EMBED_MODEL      = os.getenv("EMBED_MODEL",          "nomic-embed-text")
 VISION_MODEL     = os.getenv("VISION_MODEL",         "qwen2.5vl:7b")
-OPENAI_API_KEY   = os.getenv("OPENAI_API_KEY",       "")
-OPENAI_MODEL     = os.getenv("OPENAI_MODEL",         "gpt-4o")
-GROQ_API_KEY     = os.getenv("GROQ_API_KEY",         "")
-GROQ_MODEL       = os.getenv("GROQ_MODEL",           "llama-3.3-70b-versatile")
+OPENAI_API_KEY      = os.getenv("OPENAI_API_KEY",        "")
+OPENAI_MODEL        = os.getenv("OPENAI_MODEL",          "gpt-4o")
+GROQ_API_KEY        = os.getenv("GROQ_API_KEY",          "")
+GROQ_MODEL          = os.getenv("GROQ_MODEL",            "llama-3.3-70b-versatile")
+GEMINI_API_KEY      = os.getenv("GEMINI_API_KEY",        "")
+GEMINI_VISION_MODEL = os.getenv("GEMINI_VISION_MODEL",   "gemini-1.5-flash")
 UPLOAD_DIR       = os.getenv("UPLOAD_DIR",           "./uploads")
 CHROMA_DIR       = os.getenv("CHROMA_DIR",           "./chroma_db")
 SLIDES_CACHE_DIR = os.getenv("SLIDES_CACHE_DIR",     "./slides_cache")
@@ -186,6 +188,23 @@ try:
 except ImportError:
     _OPENAI_AVAILABLE = False
 
+_PROVIDER_FILE = os.path.join(os.getenv("UPLOAD_DIR", "./uploads"), ".provider")
+
+def _load_provider() -> str:
+    try:
+        return open(_PROVIDER_FILE).read().strip()
+    except Exception:
+        return "local"
+
+def _save_provider(p: str):
+    try:
+        os.makedirs(os.path.dirname(_PROVIDER_FILE) or ".", exist_ok=True)
+        open(_PROVIDER_FILE, "w").write(p)
+    except Exception:
+        pass
+
+_active_provider: str = _load_provider()
+
 class _CompatLLM:
     """Thin async wrapper around any OpenAI-compatible API.
     Bypasses LlamaIndex model-name validation and returns objects
@@ -226,14 +245,14 @@ class _CompatLLM:
 
 def _get_llm(provider: str = "local"):
     """Return the LLM for the given provider. Embeddings always stay local."""
+    if provider in ("cloud", "groq"):
+        if not GROQ_API_KEY:
+            raise HTTPException(status_code=400, detail="GROQ_API_KEY not set in .env")
+        return _CompatLLM(api_key=GROQ_API_KEY, model=GROQ_MODEL, base_url="https://api.groq.com/openai/v1")
     if provider == "openai":
         if not OPENAI_API_KEY:
             raise HTTPException(status_code=400, detail="OPENAI_API_KEY not set in .env")
         return _CompatLLM(api_key=OPENAI_API_KEY, model=OPENAI_MODEL)
-    if provider == "groq":
-        if not GROQ_API_KEY:
-            raise HTTPException(status_code=400, detail="GROQ_API_KEY not set in .env")
-        return _CompatLLM(api_key=GROQ_API_KEY, model=GROQ_MODEL, base_url="https://api.groq.com/openai/v1")
     return Settings.llm
 
 app = FastAPI(title="RAG Assistant API")
@@ -418,7 +437,36 @@ def _is_uml_image(filename: str) -> bool:
     return bool(tokens & _UML_KEYWORDS)
 
 
-def analyze_image_with_llava(image_b64, context_hint="", doc_mode=False, uml_mode=False, fast=False):
+def _analyze_image_cloud(image_b64: str, prompt: str, max_tokens: int = 3500) -> str:
+    """Send image to Llama 4 Scout via Groq with automatic rate-limit retry."""
+    if not GROQ_API_KEY:
+        raise RuntimeError("GROQ_API_KEY not set in .env")
+    import time as _time
+    from openai import OpenAI, RateLimitError
+    client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
+    for attempt in range(5):
+        try:
+            response = client.chat.completions.create(
+                model="meta-llama/llama-4-scout-17b-16e-instruct",
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text",      "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_b64}"}},
+                    ],
+                }],
+                max_tokens=max_tokens,
+                temperature=0.1,
+            )
+            return response.choices[0].message.content
+        except RateLimitError:
+            wait = 20 * (attempt + 1)   # 20s, 40s, 60s, 80s, 100s
+            print(f"  [vision] Groq rate limit — waiting {wait}s (attempt {attempt+1}/5)")
+            _time.sleep(wait)
+    raise RuntimeError("Groq vision rate limit exceeded after 5 retries")
+
+
+def analyze_image_with_llava(image_b64, context_hint="", doc_mode=False, uml_mode=False, fast=False, provider: str | None = None):
     """Send image to LLaVA and extract ALL content useful for Q&A.
 
     doc_mode=True  → optimised for scanned documents / invoices / tables:
@@ -516,6 +564,11 @@ Be exhaustive — your description will be the ONLY source of information about 
     else:
         num_predict = 1500
 
+    effective_provider = provider if provider is not None else _active_provider
+    if effective_provider == "cloud":
+        print(f"  [vision] using Groq Llama 4 Scout")
+        return _analyze_image_cloud(image_b64, prompt, max_tokens=num_predict)
+
     response = ollama.chat(
         model=VISION_MODEL,
         messages=[{
@@ -580,7 +633,7 @@ def _fix_pdf_text(text: str) -> str:
     return text
 
 
-def extract_pdf_content(file_path, filename, on_progress=None):
+def extract_pdf_content(file_path, filename, on_progress=None, provider: str = "local"):
     full_content = f"Document: {filename}\n\n"
 
     with pdfplumber.open(file_path) as pdf:
@@ -613,12 +666,16 @@ def extract_pdf_content(file_path, filename, on_progress=None):
                 if filename in cancelled_files:
                     raise InterruptedError(f"Cancelled by user")
                 try:
-                    page_image = page.to_image(resolution=300).original
+                    # Local LLaVA has a 4096-token context window — low resolution keeps image tokens under the limit.
+                    # Cloud vision has no such restriction.
+                    resolution = 200 if provider == "cloud" else 96
+                    page_image = page.to_image(resolution=resolution).original
                     image_b64 = pil_image_to_base64(page_image)
                     visual = analyze_image_with_llava(
                         image_b64,
                         context_hint=f"Page {page_num}/{total_pages} of PDF '{filename}'",
                         doc_mode=True,
+                        provider=provider,
                     )
                     full_content += f"\n[Visual content — page {page_num}]\n{visual}\n"
                 except InterruptedError:
@@ -634,7 +691,7 @@ def extract_pdf_content(file_path, filename, on_progress=None):
     return full_content
 
 
-def extract_image_content(file_path, filename):
+def extract_image_content(file_path, filename, provider: str = "local"):
     """Extract content from standalone image using LLaVA"""
     print(f"Analyzing image with LLaVA: {filename}")
     image_b64 = image_to_base64(file_path)
@@ -645,6 +702,7 @@ def extract_image_content(file_path, filename):
         image_b64,
         context_hint=f"Image file '{filename}'",
         uml_mode=is_uml,
+        provider=provider,
     )
     return f"Image file: {filename}\n\n{description}"
 
@@ -657,8 +715,8 @@ def extract_txt_content(file_path, filename):
     return f"Text file: {filename}\n\n{text}"
 
 
-def extract_pptx_content(file_path, filename):
-    """Extract text from PowerPoint slides — each slide becomes its own labelled block."""
+def extract_pptx_content(file_path, filename, provider: str = "local"):
+    """Extract text and images from PowerPoint slides — each slide becomes its own labelled block."""
     print(f"Reading PPTX file: {filename}")
     prs = PptxPresentation(file_path)
     total = len(prs.slides)
@@ -765,6 +823,28 @@ def extract_pptx_content(file_path, filename):
         except Exception:
             pass
 
+        # Extract images from slide shapes and analyze with vision
+        image_descriptions = []
+        try:
+            from pptx.util import Pt
+            from pptx.enum.shapes import MSO_SHAPE_TYPE
+            for shape in slide.shapes:
+                if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+                    try:
+                        img_bytes = shape.image.blob
+                        img_b64 = base64.b64encode(img_bytes).decode("utf-8")
+                        desc = analyze_image_with_llava(
+                            img_b64,
+                            context_hint=f"Image on slide {i} of '{filename}'",
+                            provider=provider,
+                        )
+                        if desc:
+                            image_descriptions.append(desc)
+                    except Exception as e:
+                        print(f"  [pptx] slide {i} image error: {e}")
+        except Exception as e:
+            print(f"  [pptx] slide {i} image extraction error: {e}")
+
         ordinal = _ORDINALS[i-1] if i <= len(_ORDINALS) else f"{i}th"
         block = f"\n--- Slide {i} ({ordinal} slide)"
         if title_text:
@@ -774,6 +854,8 @@ def extract_pptx_content(file_path, filename):
             block += f"Title: {title_text}\n"
         if body_lines:
             block += "\n".join(body_lines) + "\n"
+        if image_descriptions:
+            block += "\n".join(f"[Image]: {d}" for d in image_descriptions) + "\n"
         if notes_text:
             block += f"Speaker notes: {notes_text}\n"
 
@@ -1079,8 +1161,10 @@ def _split_schema_by_semicolons(text: str, filename: str, doc_type: str) -> list
 
     return entity_nodes
 
-def add_document_to_index(file_path, filename):
+def add_document_to_index(file_path, filename, provider: str | None = None):
     global index
+    if provider is None:
+        provider = _active_provider  # snapshot at submission time
     try:
         indexing_status[filename] = "indexing"
         indexing_progress[filename] = {"current": 0, "total": 0}
@@ -1089,12 +1173,12 @@ def add_document_to_index(file_path, filename):
         if extension == 'pdf':
             def _on_progress(current, total):
                 indexing_progress[filename] = {"current": current, "total": total}
-            text = extract_pdf_content(file_path, filename, on_progress=_on_progress)
+            text = extract_pdf_content(file_path, filename, on_progress=_on_progress, provider=provider)
             doc_type = "pdf"
         elif extension in ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']:
             if filename in cancelled_files:
                 raise InterruptedError("Cancelled by user")
-            text = extract_image_content(file_path, filename)
+            text = extract_image_content(file_path, filename, provider=provider)
             doc_type = "image"
         elif extension == 'txt':
             text = extract_txt_content(file_path, filename)
@@ -1106,7 +1190,7 @@ def add_document_to_index(file_path, filename):
             text = extract_excel_content(file_path, filename)
             doc_type = "excel"
         elif extension == 'pptx':
-            text = extract_pptx_content(file_path, filename)
+            text = extract_pptx_content(file_path, filename, provider=provider)
             doc_type = "pptx"
         elif extension in ['puml', 'plantuml', 'uml']:
             text = extract_uml_content(file_path, filename)
@@ -1284,7 +1368,7 @@ async def upload_url(req: UrlIngestRequest,
     indexing_progress[filename] = {"current": 0, "total": 0}
     cancelled_files.discard(filename)
     loop = asyncio.get_event_loop()
-    loop.run_in_executor(executor, add_document_to_index, dest, filename)
+    loop.run_in_executor(executor, add_document_to_index, dest, filename, _active_provider)
 
     return {"name": filename, "status": "indexing", "title": title}
 
@@ -1335,7 +1419,7 @@ async def upload(file: UploadFile = File(...),
     file_hashes[file.filename] = incoming_hash
     indexing_status[file.filename] = "indexing"
     loop = asyncio.get_event_loop()
-    loop.run_in_executor(executor, add_document_to_index, path, file.filename)
+    loop.run_in_executor(executor, add_document_to_index, path, file.filename, _active_provider)
 
     # Pre-convert PPTX → PDF in the background so the preview is ready immediately
     if file.filename.lower().endswith(".pptx"):
@@ -1402,9 +1486,10 @@ def dashboard(current_user: UserModel = Depends(get_current_user)):
 
     return {
         "models": {
-            "llm": LLM_MODEL,
-            "embed": EMBED_MODEL,
-            "vision": VISION_MODEL,
+            "llm":    GROQ_MODEL if _active_provider == "cloud" else LLM_MODEL,
+            "embed":  EMBED_MODEL,
+            "vision": "llama-4-scout-17b (Groq)" if _active_provider == "cloud" else VISION_MODEL,
+            "provider": _active_provider,
         },
         "documents": {
             "total": len(files),
@@ -1615,6 +1700,20 @@ def doc_pdf(filename: str,
 class TitleRequest(BaseModel):
     question: str
     files: list[str] = []
+
+class ProviderRequest(BaseModel):
+    provider: str  # "local" or "cloud"
+
+@app.post("/provider")
+async def set_provider(req: ProviderRequest, current_user: UserModel = Depends(get_current_user)):
+    global _active_provider
+    if req.provider not in ("local", "cloud"):
+        raise HTTPException(status_code=400, detail="provider must be 'local' or 'cloud'")
+    _active_provider = req.provider
+    _save_provider(_active_provider)
+    print(f"[provider] switched to {_active_provider}")
+    return {"provider": _active_provider}
+
 
 @app.post("/title")
 async def generate_title(req: TitleRequest):
@@ -2298,7 +2397,7 @@ async def reindex_document(filename: str,
     indexing_status[filename] = "indexing"
 
     loop = asyncio.get_event_loop()
-    loop.run_in_executor(executor, add_document_to_index, path, filename)
+    loop.run_in_executor(executor, add_document_to_index, path, filename, _active_provider)
 
     return {"status": "reindexing", "filename": filename}
 
@@ -2392,15 +2491,6 @@ async def run_eval(top_k: int = SIMILARITY_TOP_K):
                                              num_queries=1, mode="reciprocal_rerank", use_async=False)
         else:
             retriever = vec_ret
-        if PARENT_CHILD_AVAILABLE:
-            try:
-                retriever = AutoMergingRetriever(
-                retriever,
-                storage_context,
-                verbose=False
-                )
-            except Exception as e:
-                print(f"AutoMerging disabled: {e}")
         nodes = await retriever.aretrieve(question)
         if reranker and len(nodes) > 1:
             loop = asyncio.get_event_loop()

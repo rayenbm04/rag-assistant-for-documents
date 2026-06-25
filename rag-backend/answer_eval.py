@@ -99,13 +99,13 @@ def get_indexed_files(url: str, token: str) -> list[str]:
 
 # ── Call /ask and collect SSE answer ─────────────────────────────────────────
 
-def call_ask(url: str, token: str, question: str, files: list[str]) -> tuple[str, float, float]:
+def call_ask(url: str, token: str, question: str, files: list[str], provider: str = "local") -> tuple[str, float, float]:
     """
     POST /ask and collect the streamed answer.
     Returns (answer_text, faithfulness_0_to_1, relevance_0_to_1).
     F/R come from the `eval` SSE event if ENABLE_EVAL=true; otherwise -1.
     """
-    payload = {"question": question, "files": files, "history": []}
+    payload = {"question": question, "files": files, "history": [], "provider": provider}
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "text/event-stream",
@@ -177,29 +177,42 @@ Important:
   {{"score": <float 0.0-1.0>, "reason": "<one short sentence>"}}
 """
 
-def judge_correctness(question: str, expected: str, actual: str) -> tuple[float, str]:
-    """Call Ollama directly to score correctness. Returns (score, reason)."""
-    import ollama as _ollama
-
-    prompt = JUDGE_PROMPT.format(
-        question=question,
-        expected=expected,
-        actual=actual,
-    )
+def judge_correctness(question: str, expected: str, actual: str, provider: str = "local") -> tuple[float, str]:
+    """Score correctness using Groq (cloud) or Ollama (local). Returns (score, reason)."""
+    prompt = JUDGE_PROMPT.format(question=question, expected=expected, actual=actual)
 
     for attempt in range(JUDGE_RETRIES + 1):
         try:
-            resp = _ollama.chat(
-                model=LLM_MODEL,
-                messages=[{"role": "user", "content": prompt}],
-                options={"temperature": 0.0, "num_predict": 120},
-            )
-            text = resp["message"]["content"].strip()
+            if provider in ("cloud", "groq"):
+                import requests as _req
+                groq_key = os.getenv("GROQ_API_KEY", "")
+                groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+                if not groq_key:
+                    return 0.0, "judge error: GROQ_API_KEY not set"
+                r = _req.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+                    json={"model": groq_model, "messages": [{"role": "user", "content": prompt}],
+                          "temperature": 0.0, "max_tokens": 120},
+                    timeout=30,
+                )
+                if r.status_code == 429:
+                    retry_after = int(r.headers.get("retry-after", 15))
+                    print(f"  [judge] Groq rate limit — waiting {retry_after}s")
+                    time.sleep(retry_after)
+                    raise Exception("rate_limit_retry")
+                r.raise_for_status()
+                text = r.json()["choices"][0]["message"]["content"].strip()
+            else:
+                import ollama as _ollama
+                resp = _ollama.chat(
+                    model=LLM_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    options={"temperature": 0.0, "num_predict": 120},
+                )
+                text = resp["message"]["content"].strip()
 
-            # Strip <think>…</think> if Qwen3-style
             text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-
-            # Extract first JSON object in the reply
             m = re.search(r'\{[^}]+\}', text, re.DOTALL)
             if m:
                 obj = json.loads(m.group())
@@ -241,6 +254,8 @@ def main():
                         help="Comma-separated file names to restrict questions to")
     parser.add_argument("--dataset",    default=str(DATASET_PATH))
     parser.add_argument("--no-color",   action="store_true")
+    parser.add_argument("--provider",   default="local", choices=["local", "cloud", "openai"],
+                        help="LLM provider to use for /ask calls (default: local)")
     args = parser.parse_args()
 
     if args.no_color:
@@ -310,10 +325,10 @@ def main():
             ask_files = session_files   # fallback: all session files
 
         # Call /ask
-        actual, faith, relev = call_ask(args.url, token, question, ask_files)
+        actual, faith, relev = call_ask(args.url, token, question, ask_files, args.provider)
 
         # Judge correctness
-        correctness, reason = judge_correctness(question, expected, actual)
+        correctness, reason = judge_correctness(question, expected, actual, provider=args.provider)
 
         results.append({
             "id":          q["id"],

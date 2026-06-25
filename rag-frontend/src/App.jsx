@@ -198,7 +198,16 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     localStorage.setItem('rag-theme', darkMode ? 'dark' : 'light')
   }, [darkMode])
 
-  useEffect(() => { localStorage.setItem('rag-provider', provider) }, [provider])
+  useEffect(() => {
+    localStorage.setItem('rag-provider', provider)
+    const token = localStorage.getItem('rag_token')
+    if (!token) return
+    fetch(`${API}/provider`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ provider }),
+    }).catch(() => {})
+  }, [provider])
   useEffect(() => { localStorage.setItem(sessionsKey, JSON.stringify(sessions)) }, [sessions])
   useEffect(() => {
     if (activeSession?.id) localStorage.setItem(activeKey, activeSession.id)
@@ -705,9 +714,8 @@ function MainApp({ authFetch, currentUser, onLogout }) {
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
           {anyIndexing && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Indexing documents...</span>}
           <div className="provider-toggle">
-            <button className={`provider-btn ${provider === 'local'  ? 'active' : ''}`} onClick={() => setProvider('local')}  title="Local Ollama model">⚙ Local</button>
-            <button className={`provider-btn ${provider === 'groq'   ? 'active' : ''}`} onClick={() => setProvider('groq')}   title="Groq cloud (free)">⚡ Groq</button>
-            <button className={`provider-btn ${provider === 'openai' ? 'active' : ''}`} onClick={() => setProvider('openai')} title="OpenAI GPT-4o">☁ OpenAI</button>
+            <button className={`provider-btn ${provider === 'local' ? 'active' : ''}`} onClick={() => setProvider('local')} title="Local: qwen2.5:7b + qwen2.5vl:7b">⚙ Local</button>
+            <button className={`provider-btn ${provider === 'cloud' ? 'active' : ''}`} onClick={() => setProvider('cloud')} title="Cloud: Llama 3.3 70B (Groq) + Gemini Flash">☁ Cloud</button>
           </div>
           <button className="clear-history-btn" onClick={() => setDarkMode(d => !d)} title="Toggle dark mode">
             {darkMode ? '☀' : '☾'}

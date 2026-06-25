@@ -437,7 +437,7 @@ rag-assistant/
 
 Evaluated on a 116-question dataset covering all uploaded file types (DOCX, PDF, XLSX, PPTX, PUML, PNG) using `answer_eval.py`. Questions have ground-truth `expected_answer` fields; correctness is scored by an LLM-as-judge.
 
-Pipeline config for all runs: `CHILD_CHUNK_SIZE=128`, `SIMILARITY_TOP_K=6`, `ENABLE_HYDE=true`, `ENABLE_MULTI_QUERY=true`, `ENABLE_RERANK=true`.
+Pipeline config for all runs: `CHILD_CHUNK_SIZE=256`, `SIMILARITY_TOP_K=8`, `ENABLE_HYDE=true`, `ENABLE_MULTI_QUERY=true`, `ENABLE_RERANK=true`.
 
 ---
 
@@ -445,11 +445,11 @@ Pipeline config for all runs: `CHILD_CHUNK_SIZE=128`, `SIMILARITY_TOP_K=6`, `ENA
 
 Retrieval is model-independent — embeddings always use `nomic-embed-text` locally.
 
-| Configuration | Hit@6 | MRR |
+| Configuration | Hit@8 | MRR |
 |---|---|---|
-| Vector only | 84% | 0.69 |
-| Hybrid (vector + BM25) | 83% | 0.68 |
-| **Hybrid + Reranker** | **85%** | **0.81** |
+| Vector only | 88% | 0.69 |
+| Hybrid (vector + BM25) | 88% | 0.69 |
+| **Hybrid + Reranker** | **88%** | **0.82** |
 
 ---
 
