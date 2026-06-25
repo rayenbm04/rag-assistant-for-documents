@@ -172,7 +172,9 @@ class Question(BaseModel):
     question: str
     history: list[HistoryEntry] = []
     files: list[str] = []
-    provider: str = "local"   # "local" (Ollama) or "openai"
+    provider: str = "local"       # "local" (Ollama) or "cloud"
+    groq_model: str | None = None # override Groq model for this request only
+    fast: bool = False            # skip HyDE/multi-query/condense/eval for batch evals
 
 cancelled_files = set()   # filenames that should stop indexing
 
@@ -216,39 +218,58 @@ class _CompatLLM:
         self._model  = model
 
     async def acomplete(self, prompt: str):
-        resp = await self._client.chat.completions.create(
-            model=self._model,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        text = resp.choices[0].message.content or ""
-        usage = resp.usage
-        raw = {
-            "prompt_eval_count":   getattr(usage, "prompt_tokens",     0),
-            "eval_count":          getattr(usage, "completion_tokens",  0),
-        }
-        return type("CR", (), {"text": text, "raw": raw, "__str__": lambda s: text})()
+        from openai import RateLimitError as _RLE
+        for attempt in range(6):
+            try:
+                resp = await self._client.chat.completions.create(
+                    model=self._model,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                text = resp.choices[0].message.content or ""
+                usage = resp.usage
+                raw = {
+                    "prompt_eval_count":  getattr(usage, "prompt_tokens",    0),
+                    "eval_count":         getattr(usage, "completion_tokens", 0),
+                }
+                return type("CR", (), {"text": text, "raw": raw, "__str__": lambda s: text})()
+            except _RLE as e:
+                wait = 20 * (attempt + 1)
+                print(f"  [llm] rate limit — waiting {wait}s (attempt {attempt+1}/6): {e}")
+                await asyncio.sleep(wait)
+        raise RuntimeError("Groq rate limit exceeded after 6 retries")
 
     async def astream_complete(self, prompt: str):
-        stream = await self._client.chat.completions.create(
-            model=self._model,
-            messages=[{"role": "user", "content": prompt}],
-            stream=True,
-        )
+        from openai import RateLimitError as _RLE
+        for attempt in range(6):
+            try:
+                # Collect the full response (avoids mid-stream rate-limit errors
+                # that can't be caught inside an async generator)
+                resp = await self._client.chat.completions.create(
+                    model=self._model,
+                    messages=[{"role": "user", "content": prompt}],
+                    stream=False,
+                )
+                text = resp.choices[0].message.content or ""
 
-        async def _gen():
-            async for chunk in stream:
-                delta = chunk.choices[0].delta.content or ""
-                yield type("Chunk", (), {"delta": delta})()
+                async def _gen(t=text):
+                    for ch in t:
+                        yield type("Chunk", (), {"delta": ch})()
 
-        return _gen()
+                return _gen()
+            except _RLE as e:
+                wait = 20 * (attempt + 1)
+                print(f"  [llm] rate limit — waiting {wait}s (attempt {attempt+1}/6): {e}")
+                await asyncio.sleep(wait)
+        raise RuntimeError("Groq rate limit exceeded after 6 retries")
 
 
-def _get_llm(provider: str = "local"):
+def _get_llm(provider: str = "local", groq_model: str | None = None):
     """Return the LLM for the given provider. Embeddings always stay local."""
     if provider in ("cloud", "groq"):
         if not GROQ_API_KEY:
             raise HTTPException(status_code=400, detail="GROQ_API_KEY not set in .env")
-        return _CompatLLM(api_key=GROQ_API_KEY, model=GROQ_MODEL, base_url="https://api.groq.com/openai/v1")
+        model = groq_model or GROQ_MODEL
+        return _CompatLLM(api_key=GROQ_API_KEY, model=model, base_url="https://api.groq.com/openai/v1")
     if provider == "openai":
         if not OPENAI_API_KEY:
             raise HTTPException(status_code=400, detail="OPENAI_API_KEY not set in .env")
@@ -1942,7 +1963,7 @@ async def ask(q: Question,
     question       = q.question
     history        = q.history
     question_files = q.files
-    active_llm     = _get_llm(q.provider)
+    active_llm     = _get_llm(q.provider, groq_model=q.groq_model)
 
     def build_citations(nodes: list) -> list[dict]:
         """
@@ -1980,7 +2001,7 @@ async def ask(q: Question,
                         return
                 print("[/ask] Indexing done — proceeding to answer.")
 
-            standalone = await condense_question(question, history, llm=active_llm)
+            standalone = question if (q.fast or not history) else await condense_question(question, history, llm=active_llm)
 
             comparison_mode = is_comparison_query(question, len(question_files))
 
@@ -2042,21 +2063,21 @@ async def ask(q: Question,
                 # • Multi-query → additional vector searches (phrasing diversity)
                 # • BM25        → keyword search on original standalone query
                 expand_tasks = []
-                if ENABLE_HYDE:
+                if ENABLE_HYDE and not q.fast:
                     expand_tasks.append(hyde_expand(standalone, llm=active_llm))
-                if ENABLE_MULTI_QUERY:
+                if ENABLE_MULTI_QUERY and not q.fast:
                     expand_tasks.append(multi_query_expand(standalone, MULTI_QUERY_N, llm=active_llm))
 
                 expand_results = await asyncio.gather(*expand_tasks) if expand_tasks else []
 
                 idx = 0
-                if ENABLE_HYDE:
+                if ENABLE_HYDE and not q.fast:
                     hyde_query = expand_results[idx]; idx += 1
                     yield f"data: {json.dumps({'type': 'hypothesis', 'text': hyde_query})}\n\n"
                 else:
                     hyde_query = standalone
 
-                mq_queries = expand_results[idx] if ENABLE_MULTI_QUERY and idx < len(expand_results) else []
+                mq_queries = expand_results[idx] if (ENABLE_MULTI_QUERY and not q.fast and idx < len(expand_results)) else []
 
                 if session_nodes:
                     bm25_retriever = BM25Retriever.from_defaults(
@@ -2231,7 +2252,7 @@ async def ask(q: Question,
             citations = build_citations(nodes)
             yield f"data: {json.dumps({'type': 'done', 'sources': sources, 'citations': citations, 'warning': warning, 'mode': 'comparison' if comparison_mode else 'standard'})}\n\n"
 
-            if ENABLE_EVAL and full_response.strip():
+            if ENABLE_EVAL and not q.fast and full_response.strip():
                 try:
                     eval_ctx = context[:3000]
                     eval_ans = full_response[:800]

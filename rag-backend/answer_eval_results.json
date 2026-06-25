@@ -1,0 +1,1112 @@
+{
+  "summary": {
+    "n": 110,
+    "pass_count": 41,
+    "pass_pct": 37.3,
+    "avg_correctness": 0.357,
+    "avg_faithfulness": -1.0,
+    "avg_relevance": -1.0
+  },
+  "results": [
+    {
+      "id": "q_devis_01",
+      "question": "dans ce document, donner le Total TTC",
+      "expected": "Le total TTC est 374,500 DT.",
+      "actual": "Le Total TTC est de 374 500 DT.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_devis_02",
+      "question": "dans ce document, donner la quantité du jus",
+      "expected": "La quantité du jus est 100.",
+      "actual": "La quantité du jus est de 100.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_devis_03",
+      "question": "dans ce document, donner le prix unitaire du jus",
+      "expected": "Le prix unitaire du jus est 2,000 DT.",
+      "actual": "2 000 DT.",
+      "correctness": 0.5,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "low overlap (25% of expected keywords found)"
+    },
+    {
+      "id": "q_devis_04",
+      "question": "dans ce document, donner le Total HTVA",
+      "expected": "Le total HTVA est 350,000 DT.",
+      "actual": "350 000 DT",
+      "correctness": 0.75,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "partial overlap (50% of expected keywords found)"
+    },
+    {
+      "id": "q_devis_05",
+      "question": "dans ce document, donner le nom du client et son adresse",
+      "expected": "Le client est NAWAARNI, situé Route de Raouede KM 3,5, Ghazela 2089 El Ghazela.",
+      "actual": "Le nom du client est : Association Sportive, Scolaire et Universitaire de SUP'COM(NAWAARNI).\n\nL'adresse du client est : Route de Raouede KM 3,5 Ghazela 2089 El Ghazela.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (86% of expected keywords found)"
+    },
+    {
+      "id": "q_devis_06",
+      "question": "dans ce document, donner le nom de la société fournisseur",
+      "expected": "La société fournisseur s'appelle Rimess.",
+      "actual": "Societe Rimess.",
+      "correctness": 0.5,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "low overlap (25% of expected keywords found)"
+    },
+    {
+      "id": "q_devis_07",
+      "question": "dans ce document, donner l'email de la société fournisseur",
+      "expected": "L'email de la société fournisseur est mariemmariembitounsi@gmail.com.",
+      "actual": "L'email de la société fournisseur est : \nmariemmariembitounsi@gmail.com",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_devis_08",
+      "question": "dans ce document, donner le téléphone de la société fournisseur",
+      "expected": "Le téléphone de la société fournisseur est 22 0120219.",
+      "actual": "Le téléphone de la société fournisseur est : 22 0120219.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_devis_09",
+      "question": "dans ce document, donner le prix total du croissant",
+      "expected": "Le prix total du croissant est 150,000 DT.",
+      "actual": "Selon la table 3 du document, le prix total du croissant est de 150,000 DT. Ce montant est disponible dans la ligne suivante : \n1 | Croissant | 100 | 1,500 DT | 150,000 DT",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_devis_10",
+      "question": "dans ce document, donner la quantité du croissant",
+      "expected": "La quantité du croissant est 100.",
+      "actual": "La quantité du croissant est de 100.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_devis_11",
+      "question": "dans ce document, donner le prix unitaire du croissant",
+      "expected": "Le prix unitaire du croissant est 1,500 DT.",
+      "actual": "Le prix unitaire du croissant est de 1,500 DT.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_devis_12",
+      "question": "dans ce document, quel est le taux de TVA appliqué ?",
+      "expected": "Le taux de TVA appliqué est 7%.",
+      "actual": "Le taux de TVA appliqué est de 7 %.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_devis_13",
+      "question": "dans ce document, quel est le montant de la TVA ?",
+      "expected": "Le montant de la TVA est 24,500 DT.",
+      "actual": "Le montant de la TVA est de 24 500 DT.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_devis_14",
+      "question": "dans ce document, combien de désignations sont listées dans le devis ?",
+      "expected": "Il y a 2 désignations : Croissant et Jus.",
+      "actual": "Il y a 2 désignations listées dans le devis : \n1. Croissant\n2. Jus",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_devis_15",
+      "question": "dans ce document, donner le matricule fiscal du client",
+      "expected": "Le matricule fiscal du client est 1362892R.",
+      "actual": "MF: 1362892R",
+      "correctness": 0.5,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "low overlap (25% of expected keywords found)"
+    },
+    {
+      "id": "q_ccf_01",
+      "question": "dans ce document, donner le nom de la société compositeur du document",
+      "expected": "La société compositrice est SYNO-TEC Corporation.",
+      "actual": "SYNO-TEC",
+      "correctness": 0.75,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "partial overlap (40% of expected keywords found)"
+    },
+    {
+      "id": "q_ccf_02",
+      "question": "dans ce document, donner l'adresse de SYNO-TEC",
+      "expected": "L'adresse de SYNO-TEC est 6401 Wilton Rd., Houston, TX 77089-2356.",
+      "actual": "5 AV HABIB BOURGUIBA, 2083 ARIANA",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "almost no overlap (0% of expected keywords found)"
+    },
+    {
+      "id": "q_ccf_03",
+      "question": "dans ce document, qui sont les destinataires du document ?",
+      "expected": "Les destinataires sont JIM HENRY, KEVIN BARRERAS et LYNN PARKER.",
+      "actual": "ASSOCIATION SUP'COM est le destinataire du document.",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "almost no overlap (0% of expected keywords found)"
+    },
+    {
+      "id": "q_ccf_04",
+      "question": "dans ce document, qui est l'auteur (From) du document ?",
+      "expected": "L'auteur du document est DAVID WILSON.",
+      "actual": "Je n'ai trouvé aucune mention de l'auteur (From) du document. Par conséquent, je ne peux pas fournir de réponse claire à cette question.",
+      "correctness": 0.75,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "partial overlap (50% of expected keywords found)"
+    },
+    {
+      "id": "q_ccf_05",
+      "question": "dans ce document, quel est le titre du reviewer ?",
+      "expected": "Le titre du reviewer est QA TECHNICIAN.",
+      "actual": "Je n'ai pas trouvé le titre du reviewer dans le document fourni. Les informations fournies concernent uniquement le document de facture CCF04162026.pdf et ne contiennent pas de mention sur un reviewer.",
+      "correctness": 0.75,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "partial overlap (67% of expected keywords found)"
+    },
+    {
+      "id": "q_ccf_06",
+      "question": "dans ce document, quelle est la devise utilisée dans le tableau de paiement ?",
+      "expected": "La devise utilisée est USD (dollar américain).",
+      "actual": "La devise utilisée dans le tableau de paiement est le Tunisian Dinar (TND), comme mentionné dans le texte sous le titre \"Currency\" pour le document : 15/04/2026 DC_26000122.",
+      "correctness": 0.75,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "partial overlap (40% of expected keywords found)"
+    },
+    {
+      "id": "q_ccf_07",
+      "question": "dans ce document, quel est le taux de taxe dans le tableau de paiement ?",
+      "expected": "Le taux de taxe est 8%.",
+      "actual": "Je n'ai trouvé aucune information précisant le taux de taxe dans le tableau de paiement. Cependant, dans la section \"Additional Financial Information\", on voit que le taux de TVA est de 19,00%.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_ccf_08",
+      "question": "dans ce document, quel est le nom du fournisseur dans la première ligne du tableau ?",
+      "expected": "Le fournisseur dans la première ligne est WOTAN INC.",
+      "actual": "Le nom du fournisseur dans la première ligne du tableau est 0102473 | PORTE BADGE SOUPLE 12,8*7,9 ATT CX004.",
+      "correctness": 0.75,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "partial overlap (60% of expected keywords found)"
+    },
+    {
+      "id": "q_ccf_09",
+      "question": "dans ce document, quel est le nom du client/acheteur dans la première ligne du tableau ?",
+      "expected": "Le client/acheteur dans la première ligne est SACSYRAS LLC.",
+      "actual": "0102473 | PORTE BADGE SOUPLE 12,8*7,9 ATT CX004 | 6900000039366 | 8 | 0,630 | 20 | 4,032 | 19",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "almost no overlap (0% of expected keywords found)"
+    },
+    {
+      "id": "q_ccf_10",
+      "question": "dans ce document, quel est le prix unitaire de la transaction WOTAN–SACSYRAS ?",
+      "expected": "Le prix unitaire de la transaction WOTAN–SACSYRAS est $9.75.",
+      "actual": "Je n'ai pas trouvé dans le contexte le code de la transaction WOTAN–SACSYRAS, ni le prix unitaire associé. \n\nCependant je peux trouver dans ce contexte le code de transaction qui est WOTAN–SACSYRAS associé à la référence 0102473, mais il est possible que ce ne soit pas le code demandé.\n\nLa référence 0102473 correspond à PORTE BADGE SOUPLE 12,8*7,9 ATT CX004. \nLe prix unitaire de la transaction correspondant à la référence 0102473 est de 0.630 TND.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_ccf_11",
+      "question": "dans ce document, quel est le montant total de la transaction WOTAN–SACSYRAS ?",
+      "expected": "Le montant total de la transaction WOTAN–SACSYRAS est $19.50.",
+      "actual": "Je n'ai pas trouvé de mention du montant total de la transaction WOTAN–SACSYRAS dans le document fourni. Il semblerait qu'il ne contienne aucune référence à cette transaction. La valeur WOTAN–SACSYRAS n’est pas une entrée dans le tableau de données fourni.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_ccf_12",
+      "question": "dans ce document, quel est le nom du deuxième fournisseur dans le tableau ?",
+      "expected": "Le deuxième fournisseur dans le tableau est KELKA-TECH INC.",
+      "actual": "Je ne vois qu'un seul tableau présent dans le texte fourni, il y a 11 livraisons avec un fournisseur (ou un fournisseur pour chacune) et aucun deuxième fournisseur dans un tableau.",
+      "correctness": 0.75,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "partial overlap (50% of expected keywords found)"
+    },
+    {
+      "id": "q_ccf_13",
+      "question": "dans ce document, quel est le nom du troisième fournisseur dans le tableau ?",
+      "expected": "Le troisième fournisseur dans le tableau est PRAXIS LABORATOIRES SASU.",
+      "actual": "Je n'ai pas trouvé la partie du tableau qui mentionne l'ordre numérique spécifique des fournisseurs. J'ai cependant trouvé le tableau de fournisseurs et je peux essayer de numéroter les fournisseurs, mais cela nécessite de connaître exactement l'ordre du document. \n\nJe vais essayer de reconstruire le tableau de fournisseurs à partir du contexte. Voici le résultat :\n\n1. PORTE BADGE SOUPLE 12,8*7,9 ATT CX004\n2. CORDON POUR BADGE A CLIP BR/JV FOSKA SD232\n3. ENVELOPPE BLANC 12*17\n4. SPEAKER BT ZQS-4269\n5. MI JEU BULLES DE SAVON 2088\n6. THAALEB WAL AAJOUZ\n7. AYYA IKHTAFA AL OCHOU\n8. HAMAMETOU SALEM\n9. OSRATOU EL ARANEB\n10. HILATOU DHIFDAA\n11. DAJEJA AL MAHDHOUDHA\n12. MECHMECH W BECHBECH\n13. FYMADINET EL MALERI\n14. KITA W BABAGHA\n15. AL KHOUTAF YABNI MANZIL\n16. SOLAHFET RAHALA\n17. AYYA DHAHABA AL ARNEB AL ABYEDH\n18. SIBEK\n19. AL GHOURAB DHAKIY\n20. JEU DECHEC AMIRA\n21. MI DOMINO MC21\n22. AL OM AL HANoun\n23. DHABIY YABHATHOU AAN SADIK\n24. DIK AL AANID\n25. AL BATA AL MAKIRA\n26. FOUFOU YABHATH AAN AAMAL\n27. FI KABDHET AL OKHTOUBOUT\n28. HIKEYATOU THAWER WT THAALEB\n29. AL KIRDOU ZAYDOUN W SINJEB ZAYDEN\n30. DIK W THAALEB\n31. AAWDATOU OSFOUR\n\nSi je numérotais correctement les fournisseurs, je peux voir que le troisième fournisseur dans le tableau serait :\n\n Le troisième fournisseur est ENVELOPPE BLANC 12*17.\n\nMais si le contexte ne correspondait pas à la reconstruction précédente, je n'ai pas de deuxième option pour répondre à la question.\n \nLe fournisseur numéroté 3 pourrait cependant être le suivant : ENVELOPPE BLANC 12*17",
+      "correctness": 0.75,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "partial overlap (50% of expected keywords found)"
+    },
+    {
+      "id": "q_lettre_01",
+      "question": "dans ce document, quel est l'email de l'expéditeur ?",
+      "expected": "L'email de l'expéditeur est rayen.benmimoun@supcom.tn.",
+      "actual": "rayen.benmimoun@supcom.tn",
+      "correctness": 0.75,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "partial overlap (60% of expected keywords found)"
+    },
+    {
+      "id": "q_lettre_02",
+      "question": "dans ce document, quel est le numéro de téléphone de l'expéditeur ?",
+      "expected": "Le numéro de téléphone de l'expéditeur est +216 25 069 123.",
+      "actual": "Le numéro de téléphone de l'expéditeur est +216 25 069 123.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_lettre_03",
+      "question": "dans ce document, combien de montures de lunettes sont demandées ?",
+      "expected": "30 montures de lunettes sont demandées.",
+      "actual": "30 montures de lunettes.",
+      "correctness": 0.75,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "partial overlap (50% of expected keywords found)"
+    },
+    {
+      "id": "q_lettre_04",
+      "question": "dans ce document, quelle est l'école primaire bénéficiaire de la caravane ?",
+      "expected": "L'école primaire bénéficiaire est l'École Primaire Cité Essaha, à Ariana.",
+      "actual": "L'école primaire bénéficiaire de la caravane est l'École Primaire Cité Essaha (Ariana).",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_lettre_05",
+      "question": "dans ce document, à quelle société est adressée la demande de partenariat ?",
+      "expected": "La demande est adressée à Slim Optique.",
+      "actual": "L'adresse de la demande de partenariat est adressée à \"Slim Optique\" et est enregistrée à \"Les Berges du Lac 2, Tunis\".",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_lettre_06",
+      "question": "dans ce document, quel est le nom de l'équipe expéditrice ?",
+      "expected": "L'équipe expéditrice est l'équipe PACTE n°26 du projet NAWWARNI.",
+      "actual": "L'équipe expéditrice s'appelle l'Équipe PACTE n°26 (Projet NAWWARNI).",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_lettre_07",
+      "question": "dans ce document, quelle est l'école de l'équipe expéditrice ?",
+      "expected": "L'école de l'équipe est SUP'COM (École Supérieure des Communications de Tunis).",
+      "actual": "L'école de l'équipe expéditrice est l'Ecole Supérieure des Communications de Tunis (SUP’COM).",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_lettre_08",
+      "question": "dans ce document, quelle est l'adresse du destinataire ?",
+      "expected": "L'adresse du destinataire est Les Berges du Lac 2, Tunis.",
+      "actual": "Les Berges du Lac 2, Tunis.",
+      "correctness": 0.75,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "partial overlap (60% of expected keywords found)"
+    },
+    {
+      "id": "q_lettre_09",
+      "question": "dans ce document, quelle est la date de la caravane de santé visuelle ?",
+      "expected": "La date de la caravane de santé visuelle est le 18 avril 2026.",
+      "actual": "La date de la caravane de santé visuelle est le 18 avril 2026.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (100% of expected keywords found)"
+    },
+    {
+      "id": "q_lettre_10",
+      "question": "dans ce document, quel est l'objet de la lettre ?",
+      "expected": "L'objet de la lettre est une demande de mise à disposition de montures pour une caravane de santé sociale.",
+      "actual": "Demande de mise à disposition de montures pour une caravane de santé sociale.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (78% of expected keywords found)"
+    },
+    {
+      "id": "q_lettre_11",
+      "question": "dans ce document, quel type de montures est demandé ?",
+      "expected": "Les montures demandées sont des modèles pour enfants/juniors.",
+      "actual": "Les montures demandées sont des lunettes pour enfants ou juniors, dans un total de 30 cadres.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (83% of expected keywords found)"
+    },
+    {
+      "id": "q_lettre_12",
+      "question": "dans ce document, dans quel cadre s'inscrit ce projet ?",
+      "expected": "Le projet s'inscrit dans le cadre du module PACTE de SUP'COM.",
+      "actual": "Le projet « NAWWARNI » est une initiative citoyenne portée par des élèves-ingénieurs de l'École Supérieure des Communications de Tunis (SUP'COM) dans le cadre du module PACTE.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (86% of expected keywords found)"
+    },
+    {
+      "id": "q_lettre_13",
+      "question": "dans ce document, quelle est la mission principale du projet NAWWARNI décrite dans la lettre ?",
+      "expected": "La mission principale est de lutter contre l'échec scolaire lié aux troubles visuels non diagnostiqués.",
+      "actual": "La mission principale du projet NAWWARNI décrite dans la lettre est de lutter contre l'échec scolaire lié aux troubles visuels non détectés chez les enfants.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (91% of expected keywords found)"
+    },
+    {
+      "id": "q_lettre_14",
+      "question": "dans ce document, quel est le numéro du projet PACTE ?",
+      "expected": "Le numéro du projet PACTE est le n°26.",
+      "actual": "n°26.",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "almost no overlap (0% of expected keywords found)"
+    },
+    {
+      "id": "q_takalif_01",
+      "question": "dans ce document, quel est le total général des dépenses ?",
+      "expected": "Le total général des dépenses est 180 660.",
+      "actual": "Le total général des dépenses est de : 180660",
+      "correctness": 0.75,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "partial overlap (60% of expected keywords found)"
+    },
+    {
+      "id": "q_takalif_02",
+      "question": "dans ce document, quel est le coût du cyclocol ?",
+      "expected": "Le coût du cyclocol est 8 550.",
+      "actual": "Le coût du cyclocol est de 8550.",
+      "correctness": 0.75,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "partial overlap (67% of expected keywords found)"
+    },
+    {
+      "id": "q_takalif_03",
+      "question": "dans ce document, quel est le coût de la pause café ?",
+      "expected": "Le coût de la pause café est 32 000.",
+      "actual": "32000",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "almost no overlap (0% of expected keywords found)"
+    },
+    {
+      "id": "q_takalif_04",
+      "question": "dans ce document, quel est le coût des compresses ?",
+      "expected": "Le coût des compresses est 51 000.",
+      "actual": "Le coût des compresses est de 51000.",
+      "correctness": 0.75,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "partial overlap (67% of expected keywords found)"
+    },
+    {
+      "id": "q_takalif_05",
+      "question": "dans ce document, quel est le coût du cebesine ?",
+      "expected": "Le coût du cebesine est 31 000.",
+      "actual": "Le coût du cebesine est 31000.",
+      "correctness": 0.75,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "partial overlap (67% of expected keywords found)"
+    },
+    {
+      "id": "q_takalif_06",
+      "question": "dans ce document, quel est le coût du gel larmes ?",
+      "expected": "Le coût du gel larmes est 58 110.",
+      "actual": "Le coût du gel_larmes est de 58110.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (75% of expected keywords found)"
+    },
+    {
+      "id": "q_takalif_07",
+      "question": "dans ce document, combien de postes de dépenses sont listés ?",
+      "expected": "Il y a 5 postes de dépenses : cyclocol, pause café, compresses, cebesine, et gel larmes.",
+      "actual": "Il y a 6 postes de dépenses listés dans le document.",
+      "correctness": 0.5,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "low overlap (22% of expected keywords found)"
+    },
+    {
+      "id": "q_takalif_08",
+      "question": "dans ce document, quelle est la dépense la plus élevée ?",
+      "expected": "La dépense la plus élevée est le gel larmes avec 58 110.",
+      "actual": "La dépense la plus élevée est gel_larmes, qui est de 58110 francs.",
+      "correctness": 1.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "good overlap (83% of expected keywords found)"
+    },
+    {
+      "id": "q_gym_01",
+      "question": "dans ce document, combien d'entités le diagramme UML contient-il ?",
+      "expected": "Le diagramme UML contient 17 entités.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6329, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_02",
+      "question": "dans ce document, quelle est la clé primaire de l'entité Membre ?",
+      "expected": "La clé primaire de l'entité Membre est id_membre.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6135, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_03",
+      "question": "dans ce document, quels attributs possède l'entité Employe ?",
+      "expected": "L'entité Employe possède les attributs : id_employe, matricule, nom, prenom, telephone, salaire, et id_employe_superviseur.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6134, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_04",
+      "question": "dans ce document, quelle entité contient l'attribut salaire ?",
+      "expected": "L'attribut salaire appartient à l'entité Employe.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6220, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_05",
+      "question": "dans ce document, quelle est la clé primaire de l'entité Equipement ?",
+      "expected": "La clé primaire de l'entité Equipement est num_serie.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6681, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_06",
+      "question": "dans ce document, quelle entité contient des casiers (Casier) ?",
+      "expected": "L'entité Vestiaire contient des casiers (relation Vestiaire–Casier).",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6679, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_07",
+      "question": "dans ce document, quelle est la relation entre Employe et Employe ?",
+      "expected": "La relation entre Employe et Employe est une relation de supervision : un employé supervise d'autres employés.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6677, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_08",
+      "question": "dans ce document, quels attributs possède l'entité TypeAbonnement ?",
+      "expected": "L'entité TypeAbonnement possède les attributs : id_type, libelle, prix, duree, acces_cours.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6681, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_09",
+      "question": "dans ce document, quelle est la cardinalité de la relation Membre–Souscription ?",
+      "expected": "La cardinalité de la relation Membre–Souscription est 1 à 0..* (un membre peut avoir zéro ou plusieurs souscriptions).",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6135, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_10",
+      "question": "dans ce document, quelles entités sont liées à l'entité Maintenance ?",
+      "expected": "L'entité Maintenance est liée à Employe et à Equipement.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6680, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_11",
+      "question": "dans ce document, quelle entité possède l'attribut notes_coach ?",
+      "expected": "L'attribut notes_coach appartient à l'entité Programme.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6573, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_12",
+      "question": "dans ce document, quelle entité possède l'attribut capacite_max ?",
+      "expected": "L'attribut capacite_max est présent dans les entités Salle et Evenement.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6134, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_13",
+      "question": "dans ce document, quelle est la relation entre Session et Salle ?",
+      "expected": "La relation entre Session et Salle est que la Session se déroule dans une Salle.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6130, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_14",
+      "question": "dans ce document, quels attributs possède l'entité Casier ?",
+      "expected": "L'entité Casier possède les attributs : id_casier, numero, statut, taille, id_membre et id_vestiaire.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6134, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_15",
+      "question": "dans ce document, quelle entité possède l'attribut prix_participation ?",
+      "expected": "L'attribut prix_participation appartient à l'entité Evenement.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6680, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_16",
+      "question": "dans ce document, quelle est la relation entre Cours et Reservation ?",
+      "expected": "La relation entre Cours et Reservation est que Cours concerne Reservation.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6023, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_17",
+      "question": "dans ce document, quels attributs possède l'entité Passage ?",
+      "expected": "L'entité Passage possède les attributs : id_passage, date_passage, heure_passage et id_membre.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6679, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_18",
+      "question": "dans ce document, quelle entité possède l'attribut certif_medical ?",
+      "expected": "L'attribut certif_medical appartient à l'entité Membre.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6027, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_19",
+      "question": "dans ce document, quelle est la relation entre Membre et Produit ?",
+      "expected": "La relation entre Membre et Produit est que le Membre achète des Produits.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6219, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_gym_20",
+      "question": "dans ce document, quels attributs possède l'entité Reservation ?",
+      "expected": "L'entité Reservation possède les attributs : id_reservation, date_reservation, statut_resa, id_membre et id_session.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6221, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_01",
+      "question": "dans ce document, combien de slides contient la présentation ?",
+      "expected": "La présentation contient 15 slides.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 14830, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_02",
+      "question": "dans ce document, quels sont les noms des membres de l'équipe ?",
+      "expected": "Les membres de l'équipe sont : ABIDA Hamza Habib, ALBOUCHI Samar, ATTIA Iheb, BEAOUI Mouhamed Ali, BEN MIMOUN Rayen et BEN TAMARZIZT Mahdi.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 17469, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_03",
+      "question": "dans ce document, quel est le nom de la tutrice du projet ?",
+      "expected": "La tutrice du projet est Mme BELHAJ Rim.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15432, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_04",
+      "question": "dans ce document, quel est le numéro du projet PACTE ?",
+      "expected": "Le numéro du projet PACTE est le n°26.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15453, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_05",
+      "question": "dans ce document, quelle est l'année académique du projet ?",
+      "expected": "L'année académique du projet est 2025-2026.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15085, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_06",
+      "question": "dans ce document, quelle est l'école partenaire institutionnelle ?",
+      "expected": "L'école partenaire institutionnelle est l'École Primaire Cité Essaha.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15594, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_07",
+      "question": "dans ce document, quel est l'âge ciblé des enfants ?",
+      "expected": "L'âge ciblé des enfants est de 6 à 12 ans.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 14734, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_08",
+      "question": "dans ce document, combien d'élèves sont ciblés par la campagne ?",
+      "expected": "Entre 50 et 75 élèves sont ciblés par la campagne.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15363, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_09",
+      "question": "dans ce document, quels sont les partenaires techniques et médicaux ?",
+      "expected": "Les partenaires techniques sont Optique Distribution et Slim Optique.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 17501, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_10",
+      "question": "dans ce document, quel est le montant de la subvention de Vermeg ?",
+      "expected": "La subvention de Vermeg est de 1000 DT.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15397, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_11",
+      "question": "dans ce document, quelle est la date de déploiement de la caravane ?",
+      "expected": "La date de déploiement de la caravane est le samedi 4 avril.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15395, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_12",
+      "question": "dans ce document, quels sont les trois objectifs du projet ?",
+      "expected": "Les trois objectifs du projet sont : Dépister, Orienter et Sensibiliser.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 17395, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_13",
+      "question": "dans ce document, à quel slide correspond l'état d'avancement financier ?",
+      "expected": "L'état d'avancement financier est présenté au slide 11.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15399, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_14",
+      "question": "dans ce document, quelle action reste à faire pour la clôture financière ?",
+      "expected": "L'action restante pour la clôture financière est l'encaissement des fonds de sponsoring.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15635, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_15",
+      "question": "dans ce document, quel est le titre du slide 9 ?",
+      "expected": "Le titre du slide 9 est Échéancier Prévisionnel.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15055, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_16",
+      "question": "dans ce document, quel constat est fait sur l'échec scolaire ?",
+      "expected": "Le constat est que les troubles de la vision non diagnostiqués contribuent à l'échec scolaire.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15006, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_17",
+      "question": "dans ce document, quand est prévu le bilan de l'action ?",
+      "expected": "Le bilan est prévu fin avril.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15506, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_18",
+      "question": "dans ce document, quel est le titre du dernier slide ?",
+      "expected": "Le dernier slide (slide 15) est un slide de remerciement : Merci pour votre attention.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 14719, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_19",
+      "question": "dans ce document, quelle est l'institution d'accueil de l'équipe ?",
+      "expected": "L'institution d'accueil de l'équipe est SUP'COM.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15684, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_mip_20",
+      "question": "dans ce document, quelle période est consacrée à la préparation administrative ?",
+      "expected": "La période de préparation administrative correspond aux mois de janvier et février.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 14859, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_01",
+      "question": "dans ce document, combien de slides contient la présentation ?",
+      "expected": "La présentation contient 34 slides.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18406, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_02",
+      "question": "dans ce document, quelle édition du programme PACTE est-ce ?",
+      "expected": "C'est la 14ème édition du programme PACTE.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 19400, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_03",
+      "question": "dans ce document, quels sont les noms des membres de l'équipe ?",
+      "expected": "Les membres de l'équipe sont : ABIDA Hamza Habib, ALBOUCHI Samar, ATTIA Iheb, BEAOUI Mouhamed Ali, BEN MIMOUN Rayen et BEN TAMARZIZT Mahdi.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 21048, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_04",
+      "question": "dans ce document, quel est le nom de la tutrice du projet ?",
+      "expected": "La tutrice du projet est Mme BELHAJ Rim.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 19672, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_05",
+      "question": "dans ce document, comment est défini le projet NAWWARNI dans la slide d'identité ?",
+      "expected": "Le projet NAWWARNI est défini comme une caravane de santé visuelle solidaire.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18594, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_06",
+      "question": "dans ce document, quel est le titre de la slide d'introduction ?",
+      "expected": "Le titre de la slide d'introduction est Introduction (slide 3).",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18423, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_07",
+      "question": "dans ce document, quel est le titre du slide 10 ?",
+      "expected": "Le titre du slide 10 est Objectifs du projet.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 19043, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_08",
+      "question": "dans ce document, quel est le titre du slide 15 ?",
+      "expected": "Le titre du slide 15 est Échéancier réalisé.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 19265, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_09",
+      "question": "dans ce document, à quel slide correspond Le Jour J ?",
+      "expected": "Le Jour J correspond au slide 18.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18643, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_10",
+      "question": "dans ce document, quel est le titre du slide sur les résultats quantitatifs ?",
+      "expected": "Le titre du slide sur les résultats quantitatifs est Résultats quantitatifs (slide 24).",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18519, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_11",
+      "question": "dans ce document, à quel slide sont présentées les difficultés rencontrées ?",
+      "expected": "Les difficultés rencontrées sont présentées au slide 28.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18426, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_12",
+      "question": "dans ce document, quel est le titre du slide sur les coûts et financement ?",
+      "expected": "Le titre du slide sur les coûts et financement est Coûts et plan de financement (slide 27).",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18326, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_13",
+      "question": "dans ce document, à quel slide se trouve la conclusion ?",
+      "expected": "La conclusion se trouve au slide 31.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18514, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_14",
+      "question": "dans ce document, quel facteur est présenté comme déterminant pour la réussite scolaire dans l'introduction ?",
+      "expected": "La santé visuelle est présentée comme le facteur déterminant pour la réussite scolaire.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18768, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_15",
+      "question": "dans ce document, quel est le numéro du projet PACTE ?",
+      "expected": "Le numéro du projet PACTE est le n°26.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 19060, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_16",
+      "question": "dans ce document, quel est le titre du slide sur les partenaires ?",
+      "expected": "Le titre du slide sur les partenaires est Nos partenaires (slide 11).",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18499, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_17",
+      "question": "dans ce document, quel est le titre du slide sur les voies d'approfondissement ?",
+      "expected": "Le titre du slide sur les voies d'approfondissement est Voies d'approfondissement (slide 30).",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18597, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_18",
+      "question": "dans ce document, quel est le titre du slide sur la population cible ?",
+      "expected": "Le titre du slide sur la population cible est Population cible (slide 9).",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18402, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_19",
+      "question": "dans ce document, quel est le titre du slide sur l'organisme d'accueil ?",
+      "expected": "Le titre du slide sur l'organisme d'accueil est Organisme d'accueil (slide 8).",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18394, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    },
+    {
+      "id": "q_finale_20",
+      "question": "dans ce document, quelle année académique est mentionnée ?",
+      "expected": "L'année académique mentionnée est 2025-2026.",
+      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18739, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "correctness": 0.0,
+      "faithfulness": -1.0,
+      "relevance": -1.0,
+      "reason": "system returned error or empty answer"
+    }
+  ]
+}

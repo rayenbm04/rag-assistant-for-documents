@@ -99,13 +99,15 @@ def get_indexed_files(url: str, token: str) -> list[str]:
 
 # ── Call /ask and collect SSE answer ─────────────────────────────────────────
 
-def call_ask(url: str, token: str, question: str, files: list[str], provider: str = "local") -> tuple[str, float, float]:
+def call_ask(url: str, token: str, question: str, files: list[str], provider: str = "local", groq_model: str | None = None) -> tuple[str, float, float]:
     """
     POST /ask and collect the streamed answer.
     Returns (answer_text, faithfulness_0_to_1, relevance_0_to_1).
     F/R come from the `eval` SSE event if ENABLE_EVAL=true; otherwise -1.
     """
-    payload = {"question": question, "files": files, "history": [], "provider": provider}
+    payload = {"question": question, "files": files, "history": [], "provider": provider, "fast": True}
+    if groq_model:
+        payload["groq_model"] = groq_model
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "text/event-stream",
@@ -144,7 +146,9 @@ def call_ask(url: str, token: str, question: str, files: list[str], provider: st
                                 faithfulness = float(data.get("faithfulness",    -1))
                                 relevance    = float(data.get("answer_relevance", -1))
                             elif t == "error":
-                                return f"[error] {data.get('message','')}", -1.0, -1.0
+                                msg = data.get('message','')
+                                print(f"  [ask error] {msg[:200]}")
+                                return f"[error] {msg}", -1.0, -1.0
     except requests.Timeout:
         return "[timeout]", -1.0, -1.0
     except Exception as e:
@@ -178,53 +182,34 @@ Important:
 """
 
 def judge_correctness(question: str, expected: str, actual: str, provider: str = "local") -> tuple[float, str]:
-    """Score correctness using Groq (cloud) or Ollama (local). Returns (score, reason)."""
-    prompt = JUDGE_PROMPT.format(question=question, expected=expected, actual=actual)
+    """Keyword-overlap scorer — no LLM, no rate limits, works offline."""
+    if not actual or actual.startswith("["):
+        return 0.0, "system returned error or empty answer"
 
-    for attempt in range(JUDGE_RETRIES + 1):
-        try:
-            if provider in ("cloud", "groq"):
-                import requests as _req
-                groq_key = os.getenv("GROQ_API_KEY", "")
-                groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-                if not groq_key:
-                    return 0.0, "judge error: GROQ_API_KEY not set"
-                r = _req.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
-                    json={"model": groq_model, "messages": [{"role": "user", "content": prompt}],
-                          "temperature": 0.0, "max_tokens": 120},
-                    timeout=30,
-                )
-                if r.status_code == 429:
-                    retry_after = int(r.headers.get("retry-after", 15))
-                    print(f"  [judge] Groq rate limit — waiting {retry_after}s")
-                    time.sleep(retry_after)
-                    raise Exception("rate_limit_retry")
-                r.raise_for_status()
-                text = r.json()["choices"][0]["message"]["content"].strip()
-            else:
-                import ollama as _ollama
-                resp = _ollama.chat(
-                    model=LLM_MODEL,
-                    messages=[{"role": "user", "content": prompt}],
-                    options={"temperature": 0.0, "num_predict": 120},
-                )
-                text = resp["message"]["content"].strip()
+    stop = {
+        "le","la","les","un","une","des","de","du","en","et","est","ce","que","qui",
+        "dans","par","sur","pour","avec","au","aux","se","on","il","elle","ils","elles",
+        "the","a","an","is","of","in","to","and","for","at","be","this","that","with","are","was",
+    }
 
-            text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-            m = re.search(r'\{[^}]+\}', text, re.DOTALL)
-            if m:
-                obj = json.loads(m.group())
-                score  = float(obj.get("score", 0.0))
-                reason = str(obj.get("reason", ""))
-                return max(0.0, min(1.0, score)), reason
-        except Exception as e:
-            if attempt == JUDGE_RETRIES:
-                return 0.0, f"judge error: {e}"
-            time.sleep(1)
+    def tokens(s):
+        return {w for w in re.sub(r"[^a-z0-9àâçéèêëîïôùûü]", " ", s.lower()).split()
+                if w not in stop and len(w) > 2}
 
-    return 0.0, "could not parse judge response"
+    exp_tok = tokens(expected)
+    act_tok = tokens(actual)
+    if not exp_tok:
+        return -1.0, "expected answer has no meaningful words"
+
+    overlap = len(exp_tok & act_tok) / len(exp_tok)
+    if overlap >= 0.7:
+        return 1.0,  f"good overlap ({overlap:.0%} of expected keywords found)"
+    elif overlap >= 0.4:
+        return 0.75, f"partial overlap ({overlap:.0%} of expected keywords found)"
+    elif overlap >= 0.2:
+        return 0.5,  f"low overlap ({overlap:.0%} of expected keywords found)"
+    else:
+        return 0.0,  f"almost no overlap ({overlap:.0%} of expected keywords found)"
 
 # ── Score colour helper ────────────────────────────────────────────────────────
 
@@ -254,8 +239,12 @@ def main():
                         help="Comma-separated file names to restrict questions to")
     parser.add_argument("--dataset",    default=str(DATASET_PATH))
     parser.add_argument("--no-color",   action="store_true")
+    parser.add_argument("--auto",       action="store_true",
+                        help="Auto-discover indexed files (default behaviour, flag for compatibility)")
     parser.add_argument("--provider",   default="local", choices=["local", "cloud", "openai"],
                         help="LLM provider to use for /ask calls (default: local)")
+    parser.add_argument("--groq-model", default=None,
+                        help="Override Groq model for this run only, e.g. llama-3.1-8b-instant")
     args = parser.parse_args()
 
     if args.no_color:
@@ -325,7 +314,7 @@ def main():
             ask_files = session_files   # fallback: all session files
 
         # Call /ask
-        actual, faith, relev = call_ask(args.url, token, question, ask_files, args.provider)
+        actual, faith, relev = call_ask(args.url, token, question, ask_files, args.provider, groq_model=args.groq_model)
 
         # Judge correctness
         correctness, reason = judge_correctness(question, expected, actual, provider=args.provider)
@@ -351,6 +340,9 @@ def main():
             f"{score_color(relev)}  "
             f"{DIM(r_short)}"
         )
+
+        if args.provider in ("cloud", "groq") and i < len(questions):
+            time.sleep(3)   # ~20 req/min — stays under Groq 30 RPM limit
 
     # ── Summary ──
     def avg(key):
