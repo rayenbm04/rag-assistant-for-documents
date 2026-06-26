@@ -166,6 +166,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [previewBlobUrl, setPreviewBlobUrl] = useState(null)
   const [previewText, setPreviewText]     = useState(null)
   const [provider, setProvider]           = useState(() => localStorage.getItem('rag-provider') || 'local')
+  const [groqTokens, setGroqTokens]       = useState(null)
 
   const fileInputRef        = useRef(null)
   const chatEndRef          = useRef(null)
@@ -371,7 +372,10 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   }, [previewFile, authFetch])
 
   useEffect(() => {
-    authFetch(`${API}/dashboard`).then(r => r.json()).then(d => setTokenStats(d.tokens)).catch(() => {})
+    authFetch(`${API}/dashboard`).then(r => r.json()).then(d => {
+      setTokenStats(d.tokens)
+      if (d.groq_tokens) setGroqTokens(d.groq_tokens)
+    }).catch(() => {})
   }, [authFetch])
 
   useEffect(() => {
@@ -611,7 +615,10 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                 : entry
             ))
             scrollTimerRef.current = setTimeout(scrollToBottom, 100)
-            authFetch(`${API}/dashboard`).then(r => r.json()).then(d => setTokenStats(d.tokens)).catch(() => {})
+            authFetch(`${API}/dashboard`).then(r => r.json()).then(d => {
+              setTokenStats(d.tokens)
+              if (d.groq_tokens) setGroqTokens(d.groq_tokens)
+            }).catch(() => {})
             if (isFirstMessage) {
               authFetch(`${API}/title`, {
                 method: 'POST',
@@ -650,9 +657,21 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     } catch (err) {
       if (!pendingIdRef.current) return
       setQuestion(currentQuestionRef.current)
+      const msg = err.message || ''
+      const isRateLimit = msg.toLowerCase().includes('rate limit')
+      const isDailyLimit = isRateLimit && (msg.toLowerCase().includes('per day') || msg.toLowerCase().includes('tpd') || msg.toLowerCase().includes('tomorrow'))
       updateHistory(prev => prev.map(entry =>
-        entry.id === tempId ? { ...entry, answer: `Error: ${err.message}` } : entry
+        entry.id === tempId
+          ? { ...entry,
+              answer: isRateLimit ? '' : `Error: ${msg}`,
+              rateLimitError: isRateLimit,
+              rateLimitDaily: isDailyLimit }
+          : entry
       ))
+      authFetch(`${API}/dashboard`).then(r => r.json()).then(d => {
+        setTokenStats(d.tokens)
+        if (d.groq_tokens) setGroqTokens(d.groq_tokens)
+      }).catch(() => {})
     } finally {
       if (pendingIdRef.current === tempId) {
         pendingIdRef.current = null
@@ -713,6 +732,33 @@ function MainApp({ authFetch, currentUser, onLogout }) {
         <div className="navbar-logo">RAG Assistant</div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
           {anyIndexing && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Indexing documents...</span>}
+          {provider === 'cloud' && groqTokens && Object.keys(groqTokens.models || {}).length > 0 && (
+            <div className="groq-token-panel">
+              {Object.entries(groqTokens.models).map(([model, data]) => {
+                const pct  = Math.min(data.pct, 100)
+                const tpmPct = (data.tpm_limit != null && data.tpm_remaining != null)
+                  ? Math.min(100, Math.round((1 - data.tpm_remaining / data.tpm_limit) * 100))
+                  : null
+                const tpmLow = tpmPct != null && tpmPct >= 80
+                const fill = tpmLow ? '#e53e3e' : pct >= 90 ? '#e53e3e' : pct >= 60 ? '#e07b00' : '#3B6D11'
+                const tpmInfo = tpmPct != null
+                  ? `\nPer-minute: ${data.tpm_remaining?.toLocaleString()}/${data.tpm_limit?.toLocaleString()} remaining${data.tpm_reset ? ` (resets in ${data.tpm_reset})` : ''}`
+                  : ''
+                const tip  = `${model}\nDaily: ${data.total.toLocaleString()} / ${data.daily_limit.toLocaleString()} tokens${data.from_headers ? ' (live)' : ' (estimated)'}${tpmInfo}\nRate limits apply both daily AND per-minute — bar shows daily usage.`
+                return (
+                  <div key={model} className="groq-token-bar" title={tip}>
+                    <span className="groq-token-bar-label">
+                      {model} · {pct.toFixed(1)}%{tpmLow ? ' ⚠ TPM' : ''}
+                    </span>
+                    <div className="groq-token-bar-track">
+                      <div className="groq-token-bar-fill" style={{ width: `${pct}%`, background: fill }} />
+                    </div>
+                    <span className="groq-token-bar-count">{data.total.toLocaleString()}/{(data.daily_limit/1000).toFixed(0)}k</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
           <div className="provider-toggle">
             <button className={`provider-btn ${provider === 'local' ? 'active' : ''}`} onClick={() => setProvider('local')} title="Local: qwen2.5:7b + qwen2.5vl:7b">⚙ Local</button>
             <button className={`provider-btn ${provider === 'cloud' ? 'active' : ''}`} onClick={() => setProvider('cloud')} title="Cloud: Llama 3.3 70B (Groq) + Gemini Flash">☁ Cloud</button>
@@ -863,6 +909,14 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                         <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                           {entry.indexingWait ? 'Waiting for indexing to finish…' : 'Generating a response…'}
                         </span>
+                      </div>
+                    ) : entry.rateLimitError ? (
+                      <div className="rate-limit-banner">
+                        <span className="rate-limit-icon">⚠</span>
+                        <div>
+                          <div className="rate-limit-title">Rate limit reached</div>
+                          <div className="rate-limit-desc">{entry.rateLimitDaily ? "Groq's daily token quota is exhausted. Try again tomorrow or switch to a different model." : "Groq's per-minute token limit was hit — your request (question + retrieved context) was too large for the current minute window. Wait 1–2 minutes and try again, or reduce context by removing documents."}</div>
+                        </div>
                       </div>
                     ) : (
                       <div className="message-content markdown-body">

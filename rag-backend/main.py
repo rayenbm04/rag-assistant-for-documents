@@ -190,7 +190,8 @@ try:
 except ImportError:
     _OPENAI_AVAILABLE = False
 
-_PROVIDER_FILE = os.path.join(os.getenv("UPLOAD_DIR", "./uploads"), ".provider")
+_PROVIDER_FILE    = os.path.join(os.getenv("UPLOAD_DIR", "./uploads"), ".provider")
+_GROQ_USAGE_FILE  = os.path.join(os.getenv("UPLOAD_DIR", "./uploads"), ".groq_usage.json")
 
 def _load_provider() -> str:
     try:
@@ -214,42 +215,110 @@ class _CompatLLM:
 
     def __init__(self, api_key: str, model: str, base_url: str = "https://api.openai.com/v1"):
         from openai import AsyncOpenAI
-        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
-        self._model  = model
+        self._client   = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self._model    = model
+        self._is_groq  = "groq.com" in base_url
+
+    def _track_groq(self, usage, headers=None):
+        """Update per-model groq_token_usage from response headers (authoritative)
+        with our own cumulative count as fallback. Persists to disk."""
+        if not self._is_groq:
+            return
+        import datetime
+        today = datetime.date.today().isoformat()
+        if groq_token_usage.get("date") != today:
+            groq_token_usage["date"]   = today
+            groq_token_usage["models"] = {}
+        m = groq_token_usage["models"].setdefault(
+            self._model, {"prompt": 0, "completion": 0, "used_actual": None, "limit_actual": None}
+        )
+        # Our own cumulative count (fallback)
+        if usage:
+            m["prompt"]     += getattr(usage, "prompt_tokens",     0)
+            m["completion"] += getattr(usage, "completion_tokens", 0)
+        # Authoritative values from Groq response headers
+        if headers:
+            try:
+                limit     = headers.get("x-ratelimit-limit-tokens-day")
+                remaining = headers.get("x-ratelimit-remaining-tokens-day")
+                used      = headers.get("x-ratelimit-used-tokens-day")
+                if limit:
+                    m["limit_actual"] = int(limit)
+                if used:
+                    m["used_actual"] = int(used)
+                elif limit and remaining:
+                    m["used_actual"] = int(limit) - int(remaining)
+                # Per-minute (TPM) stats — track separately so UI can warn about TPM limits
+                tpm_limit     = headers.get("x-ratelimit-limit-tokens")
+                tpm_remaining = headers.get("x-ratelimit-remaining-tokens")
+                tpm_reset     = headers.get("x-ratelimit-reset-tokens")
+                if tpm_limit is not None:
+                    m["tpm_limit"]     = int(tpm_limit)
+                if tpm_remaining is not None:
+                    m["tpm_remaining"] = int(tpm_remaining)
+                if tpm_reset is not None:
+                    m["tpm_reset"]     = tpm_reset  # e.g. "1.234s"
+            except (ValueError, TypeError):
+                pass
+        _save_groq_usage()
+        # Reset the daily-limit flag if the date changed (new day = new quota)
+        global _groq_daily_limit_hit
+        _groq_daily_limit_hit = False
+
+    def _handle_rate_limit(self, e) -> bool:
+        """Update token bar from 429 error response headers (works even on failed calls),
+        then return True if it's a daily (TPD) limit that won't recover by retrying."""
+        # Always try to capture usage from error response headers
+        try:
+            resp_headers = getattr(getattr(e, "response", None), "headers", None)
+            if resp_headers:
+                self._track_groq(None, resp_headers)
+        except Exception:
+            pass
+        msg = str(getattr(e, "message", "") or e).lower()
+        return "per day" in msg or "tpd" in msg or "tokens per day" in msg
 
     async def acomplete(self, prompt: str):
         from openai import RateLimitError as _RLE
         for attempt in range(6):
             try:
-                resp = await self._client.chat.completions.create(
+                raw_resp = await self._client.chat.completions.with_raw_response.create(
                     model=self._model,
                     messages=[{"role": "user", "content": prompt}],
                 )
-                text = resp.choices[0].message.content or ""
+                resp  = raw_resp.parse()
+                text  = resp.choices[0].message.content or ""
                 usage = resp.usage
+                self._track_groq(usage, raw_resp.headers)
                 raw = {
                     "prompt_eval_count":  getattr(usage, "prompt_tokens",    0),
                     "eval_count":         getattr(usage, "completion_tokens", 0),
                 }
                 return type("CR", (), {"text": text, "raw": raw, "__str__": lambda s: text})()
             except _RLE as e:
+                is_daily = self._handle_rate_limit(e)
+                if is_daily:
+                    global _groq_daily_limit_hit
+                    _groq_daily_limit_hit = True
+                    print(f"  [llm] daily token limit hit — failing immediately")
+                    raise RuntimeError("Rate limit reached — Groq daily token quota exhausted. Please try again tomorrow or switch to a different model.")
                 wait = 20 * (attempt + 1)
-                print(f"  [llm] rate limit — waiting {wait}s (attempt {attempt+1}/6): {e}")
+                print(f"  [llm] rate limit (TPM/RPM) — waiting {wait}s (attempt {attempt+1}/6)")
                 await asyncio.sleep(wait)
-        raise RuntimeError("Groq rate limit exceeded after 6 retries")
+        raise RuntimeError("Rate limit reached — too many requests to Groq. Please wait 1–2 minutes and try again.")
 
     async def astream_complete(self, prompt: str):
         from openai import RateLimitError as _RLE
         for attempt in range(6):
             try:
-                # Collect the full response (avoids mid-stream rate-limit errors
-                # that can't be caught inside an async generator)
-                resp = await self._client.chat.completions.create(
+                raw_resp = await self._client.chat.completions.with_raw_response.create(
                     model=self._model,
                     messages=[{"role": "user", "content": prompt}],
                     stream=False,
                 )
-                text = resp.choices[0].message.content or ""
+                resp  = raw_resp.parse()
+                text  = resp.choices[0].message.content or ""
+                self._track_groq(resp.usage, raw_resp.headers)
 
                 async def _gen(t=text):
                     for ch in t:
@@ -257,10 +326,16 @@ class _CompatLLM:
 
                 return _gen()
             except _RLE as e:
+                is_daily = self._handle_rate_limit(e)
+                if is_daily:
+                    global _groq_daily_limit_hit
+                    _groq_daily_limit_hit = True
+                    print(f"  [llm] daily token limit hit — failing immediately")
+                    raise RuntimeError("Rate limit reached — Groq daily token quota exhausted. Please try again tomorrow or switch to a different model.")
                 wait = 20 * (attempt + 1)
-                print(f"  [llm] rate limit — waiting {wait}s (attempt {attempt+1}/6): {e}")
+                print(f"  [llm] rate limit (TPM/RPM) — waiting {wait}s (attempt {attempt+1}/6)")
                 await asyncio.sleep(wait)
-        raise RuntimeError("Groq rate limit exceeded after 6 retries")
+        raise RuntimeError("Rate limit reached — too many requests to Groq. Please wait 1–2 minutes and try again.")
 
 
 def _get_llm(provider: str = "local", groq_model: str | None = None):
@@ -393,6 +468,42 @@ file_hashes = {}            # {"filename": md5_hex} — used to skip re-indexing
 executor = ThreadPoolExecutor(max_workers=2)
 token_usage = {"prompt": 0, "completion": 0, "requests": 0}
 query_stats = {"total": 0, "total_ms": 0}   # questions asked + cumulative response time
+
+# Groq daily token limits per model (tokens-per-day on the free tier)
+GROQ_TPD_LIMITS: dict[str, int] = {
+    "llama-3.3-70b-versatile": 100_000,
+    "llama-3.1-70b-versatile": 100_000,
+    "llama-3.1-8b-instant":    500_000,
+    "gemma2-9b-it":            500_000,
+    "mixtral-8x7b-32768":      500_000,
+    "qwen-qwq-32b":            100_000,
+}
+
+# Auxiliary (cheap) model used for condense / HyDE / multi-query / eval scoring
+# when the main provider is cloud — preserves 70B quota for the actual answer.
+GROQ_AUX_MODEL = "llama-3.1-8b-instant"
+
+def _load_groq_usage() -> dict:
+    """Load today's per-model Groq usage from disk; reset if the date changed."""
+    import datetime
+    today = datetime.date.today().isoformat()
+    try:
+        data = json.load(open(_GROQ_USAGE_FILE, encoding="utf-8"))
+        if data.get("date") == today:
+            return data
+    except Exception:
+        pass
+    return {"date": today, "models": {}}
+
+def _save_groq_usage() -> None:
+    try:
+        os.makedirs(os.path.dirname(_GROQ_USAGE_FILE) or ".", exist_ok=True)
+        json.dump(groq_token_usage, open(_GROQ_USAGE_FILE, "w", encoding="utf-8"))
+    except Exception:
+        pass
+
+groq_token_usage: dict = _load_groq_usage()   # {"date": "YYYY-MM-DD", "models": {model: {"prompt": n, "completion": n}}}
+_groq_daily_limit_hit: bool = False           # Set True when TPD exceeded — skip aux calls to avoid wasting tokens
 
 reranker = None
 if ENABLE_RERANK:
@@ -1531,6 +1642,27 @@ def dashboard(current_user: UserModel = Depends(get_current_user)):
             "total": token_usage["prompt"] + token_usage["completion"],
             "requests": token_usage["requests"],
         },
+        "groq_tokens": {
+            "date": groq_token_usage.get("date"),
+            "models": {
+                model: (lambda d=data, m=model: {
+                    "prompt":      d["prompt"],
+                    "completion":  d["completion"],
+                    # Prefer authoritative values from Groq response headers
+                    "total":       d.get("used_actual") if d.get("used_actual") is not None else d["prompt"] + d["completion"],
+                    "daily_limit": d.get("limit_actual") or GROQ_TPD_LIMITS.get(m, 100_000),
+                    "pct": round(
+                        (d.get("used_actual") if d.get("used_actual") is not None else d["prompt"] + d["completion"])
+                        / max(d.get("limit_actual") or GROQ_TPD_LIMITS.get(m, 100_000), 1) * 100, 1
+                    ),
+                    "from_headers": d.get("used_actual") is not None,
+                    "tpm_limit":     d.get("tpm_limit"),
+                    "tpm_remaining": d.get("tpm_remaining"),
+                    "tpm_reset":     d.get("tpm_reset"),
+                })()
+                for model, data in groq_token_usage.get("models", {}).items()
+            },
+        },
         "queries": {
             "total": query_stats["total"],
             "avg_response_ms": (
@@ -1964,6 +2096,10 @@ async def ask(q: Question,
     history        = q.history
     question_files = q.files
     active_llm     = _get_llm(q.provider, groq_model=q.groq_model)
+    # For cloud, route cheap auxiliary calls (condense/HyDE/multi-query/eval) to the
+    # 8B model (500K TPD) so the 70B quota is reserved for the actual answer.
+    aux_llm        = (_get_llm(q.provider, groq_model=GROQ_AUX_MODEL)
+                      if q.provider in ("cloud", "groq") else active_llm)
 
     def build_citations(nodes: list) -> list[dict]:
         """
@@ -2001,7 +2137,18 @@ async def ask(q: Question,
                         return
                 print("[/ask] Indexing done — proceeding to answer.")
 
-            standalone = question if (q.fast or not history) else await condense_question(question, history, llm=active_llm)
+            # Early-exit if we already know the daily quota is exhausted —
+            # avoids wasting aux-model tokens on condense/HyDE/multi-query
+            # before hitting the same wall on the main answer call.
+            if _groq_daily_limit_hit and q.provider in ("cloud", "groq"):
+                yield f"data: {json.dumps({'type': 'error', 'message': 'Rate limit reached — Groq daily token quota exhausted. Please try again tomorrow or switch to a different model.'})}\n\n"
+                return
+
+            standalone = question if (q.fast or not history) else await condense_question(question, history, llm=aux_llm)
+
+            if _groq_daily_limit_hit and q.provider in ("cloud", "groq"):
+                yield f"data: {json.dumps({'type': 'error', 'message': 'Rate limit reached — Groq daily token quota exhausted. Please try again tomorrow or switch to a different model.'})}\n\n"
+                return
 
             comparison_mode = is_comparison_query(question, len(question_files))
 
@@ -2064,11 +2211,15 @@ async def ask(q: Question,
                 # • BM25        → keyword search on original standalone query
                 expand_tasks = []
                 if ENABLE_HYDE and not q.fast:
-                    expand_tasks.append(hyde_expand(standalone, llm=active_llm))
+                    expand_tasks.append(hyde_expand(standalone, llm=aux_llm))
                 if ENABLE_MULTI_QUERY and not q.fast:
-                    expand_tasks.append(multi_query_expand(standalone, MULTI_QUERY_N, llm=active_llm))
+                    expand_tasks.append(multi_query_expand(standalone, MULTI_QUERY_N, llm=aux_llm))
 
                 expand_results = await asyncio.gather(*expand_tasks) if expand_tasks else []
+
+                if _groq_daily_limit_hit and q.provider in ("cloud", "groq"):
+                    yield f"data: {json.dumps({'type': 'error', 'message': 'Rate limit reached — Groq daily token quota exhausted. Please try again tomorrow or switch to a different model.'})}\n\n"
+                    return
 
                 idx = 0
                 if ENABLE_HYDE and not q.fast:
@@ -2282,11 +2433,11 @@ async def ask(q: Question,
                         "Reply with ONLY a decimal number from 0.0 (irrelevant) to 1.0 (perfectly relevant)."
                     )
 
-                    faith_result = await active_llm.acomplete(faith_prompt)
+                    faith_result = await aux_llm.acomplete(faith_prompt)
                     print(f"[eval] faith_raw: {str(faith_result)[:80]}")
                     faith_score  = parse_eval_score(str(faith_result))
 
-                    rel_result   = await active_llm.acomplete(rel_prompt)
+                    rel_result   = await aux_llm.acomplete(rel_prompt)
                     print(f"[eval] rel_raw: {str(rel_result)[:80]}")
                     rel_score    = parse_eval_score(str(rel_result))
 
