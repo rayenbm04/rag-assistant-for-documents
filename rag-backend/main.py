@@ -2139,13 +2139,18 @@ async def ask(q: Question,
                 for fname in question_files:
                     if fname.lower().endswith(".pptx"):
                         all_file_nodes = get_nodes_for_files([fname])
+                        pptx_pin_limit = 5 if q.fast else len(all_file_nodes)
+                        pptx_pinned = 0
                         for n in all_file_nodes:
                             content = n.get_content()
                             is_overview = not content.lstrip().startswith("--- Slide")
                             if is_overview and n.node_id not in retrieved_ids:
+                                if pptx_pinned >= pptx_pin_limit:
+                                    break
                                 pinned.append(n)
                                 retrieved_ids.add(n.node_id)
-                        print(f"[pin] injected {len(pinned)} overview chunks for {fname}")
+                                pptx_pinned += 1
+                        print(f"[pin] injected {pptx_pinned} overview chunks for {fname}")
                     elif (fname.lower().split('.')[-1] in ('puml', 'plantuml', 'uml')
                           or _is_uml_image(fname)):
                         # UML/diagram files: pin ALL chunks — structured data,

@@ -1,11 +1,9 @@
 {
   "summary": {
     "n": 110,
-    "pass_count": 41,
-    "pass_pct": 37.3,
-    "avg_correctness": 0.357,
-    "avg_faithfulness": -1.0,
-    "avg_relevance": -1.0
+    "pass_count": 73,
+    "pass_pct": 66.4,
+    "avg_correctness": 0.62
   },
   "results": [
     {
@@ -712,401 +710,401 @@
       "id": "q_mip_01",
       "question": "dans ce document, combien de slides contient la présentation ?",
       "expected": "La présentation contient 15 slides.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 14830, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "La présentation contient 15 slides.",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (100% of expected keywords found)"
     },
     {
       "id": "q_mip_02",
       "question": "dans ce document, quels sont les noms des membres de l'équipe ?",
       "expected": "Les membres de l'équipe sont : ABIDA Hamza Habib, ALBOUCHI Samar, ATTIA Iheb, BEAOUI Mouhamed Ali, BEN MIMOUN Rayen et BEN TAMARZIZT Mahdi.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 17469, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "ABIDA Hamza Habib, ALBOUCHI Samar, ATTIA Iheb, BEAOUI Mouhamed Ali, BEN MIMOUN Rayen, BEN TAMARZIZT Mahdi.",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (83% of expected keywords found)"
     },
     {
       "id": "q_mip_03",
       "question": "dans ce document, quel est le nom de la tutrice du projet ?",
       "expected": "La tutrice du projet est Mme BELHAJ Rim.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15432, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Mme BELHAJ Rim",
+      "correctness": 0.75,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "partial overlap (60% of expected keywords found)"
     },
     {
       "id": "q_mip_04",
       "question": "dans ce document, quel est le numéro du projet PACTE ?",
       "expected": "Le numéro du projet PACTE est le n°26.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15453, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Le numéro du projet PACTE est 26.",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (100% of expected keywords found)"
     },
     {
       "id": "q_mip_05",
       "question": "dans ce document, quelle est l'année académique du projet ?",
       "expected": "L'année académique du projet est 2025-2026.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15085, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "L'année académique du projet est 2025-2026.",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (100% of expected keywords found)"
     },
     {
       "id": "q_mip_06",
       "question": "dans ce document, quelle est l'école partenaire institutionnelle ?",
       "expected": "L'école partenaire institutionnelle est l'École Primaire Cité Essaha.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15594, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "L'école partenaire institutionnelle est l'École Primaire \"Cité Essaha\".",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (100% of expected keywords found)"
     },
     {
       "id": "q_mip_07",
       "question": "dans ce document, quel est l'âge ciblé des enfants ?",
       "expected": "L'âge ciblé des enfants est de 6 à 12 ans.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 14734, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "L'âge visé est celui des enfants scolarisés âgés de 6 à 12 ans.",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (75% of expected keywords found)"
     },
     {
       "id": "q_mip_08",
       "question": "dans ce document, combien d'élèves sont ciblés par la campagne ?",
       "expected": "Entre 50 et 75 élèves sont ciblés par la campagne.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15363, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Entre 50 et 75 élèves ciblés pour cette campagne.",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (80% of expected keywords found)"
     },
     {
       "id": "q_mip_09",
       "question": "dans ce document, quels sont les partenaires techniques et médicaux ?",
       "expected": "Les partenaires techniques sont Optique Distribution et Slim Optique.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 17501, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Dans ce document, les partenaires techniques et médicaux sont :\n- Optique Distribution \n- Slim Optique",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (100% of expected keywords found)"
     },
     {
       "id": "q_mip_10",
       "question": "dans ce document, quel est le montant de la subvention de Vermeg ?",
       "expected": "La subvention de Vermeg est de 1000 DT.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15397, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Le montant de la subvention de Vermeg est de 1000 DT.",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (100% of expected keywords found)"
     },
     {
       "id": "q_mip_11",
       "question": "dans ce document, quelle est la date de déploiement de la caravane ?",
       "expected": "La date de déploiement de la caravane est le samedi 4 avril.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15395, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Samedi 4 Avril.",
+      "correctness": 0.75,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "partial overlap (40% of expected keywords found)"
     },
     {
       "id": "q_mip_12",
       "question": "dans ce document, quels sont les trois objectifs du projet ?",
       "expected": "Les trois objectifs du projet sont : Dépister, Orienter et Sensibiliser.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 17395, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Dans ce document, les trois objectifs du projet sont : \n1. Dépister : Réaliser des tests de vision et équiper les élèves avec des lunettes.\n2. Orienter : Identifier les cas médicaux plus critiques et les orienter vers des spécialistes.\n3. Sensibiliser : Éduquer de manière ludique les enfants sur les dangers des écrans et l'importance d'un bon éclairage.",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (100% of expected keywords found)"
     },
     {
       "id": "q_mip_13",
       "question": "dans ce document, à quel slide correspond l'état d'avancement financier ?",
       "expected": "L'état d'avancement financier est présenté au slide 11.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15399, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "L'état d'avancement financier correspond au slide 11.",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (80% of expected keywords found)"
     },
     {
       "id": "q_mip_14",
       "question": "dans ce document, quelle action reste à faire pour la clôture financière ?",
       "expected": "L'action restante pour la clôture financière est l'encaissement des fonds de sponsoring.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15635, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Suivre et finaliser l'encaissement effectif des fonds de sponsoring sur le compte bancaire dédié.",
+      "correctness": 0.75,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "partial overlap (43% of expected keywords found)"
     },
     {
       "id": "q_mip_15",
       "question": "dans ce document, quel est le titre du slide 9 ?",
       "expected": "Le titre du slide 9 est Échéancier Prévisionnel.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15055, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Échéancier Prévisionnel",
+      "correctness": 0.75,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "partial overlap (50% of expected keywords found)"
     },
     {
       "id": "q_mip_16",
       "question": "dans ce document, quel constat est fait sur l'échec scolaire ?",
       "expected": "Le constat est que les troubles de la vision non diagnostiqués contribuent à l'échec scolaire.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15006, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Le constat est fait que l'échec scolaire chez les jeunes enfants est très souvent lié à des troubles de la vision.",
+      "correctness": 0.75,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "partial overlap (62% of expected keywords found)"
     },
     {
       "id": "q_mip_17",
       "question": "dans ce document, quand est prévu le bilan de l'action ?",
       "expected": "Le bilan est prévu fin avril.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15506, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Fin Avril, le bilan de l'action, la distribution finale des lunettes et la remise du rapport sont prévus.",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (75% of expected keywords found)"
     },
     {
       "id": "q_mip_18",
       "question": "dans ce document, quel est le titre du dernier slide ?",
       "expected": "Le dernier slide (slide 15) est un slide de remerciement : Merci pour votre attention.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 14719, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Le titre du dernier slide est \"Merci pour votre attention\" qui est le slide 15.",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (83% of expected keywords found)"
     },
     {
       "id": "q_mip_19",
       "question": "dans ce document, quelle est l'institution d'accueil de l'équipe ?",
       "expected": "L'institution d'accueil de l'équipe est SUP'COM.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 15684, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "L'institution d'accueil de l'équipe est l'École Primaire \"Cité Essaha\", comme mentionné dans le Slide 7 (seventh slide) : Partenaire Institutionnel.",
+      "correctness": 0.75,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "partial overlap (60% of expected keywords found)"
     },
     {
       "id": "q_mip_20",
       "question": "dans ce document, quelle période est consacrée à la préparation administrative ?",
       "expected": "La période de préparation administrative correspond aux mois de janvier et février.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 14859, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Janvier - Février est consacrée à la préparation administrative et démarches intensives de collecte de fonds.",
+      "correctness": 0.75,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "partial overlap (57% of expected keywords found)"
     },
     {
       "id": "q_finale_01",
       "question": "dans ce document, combien de slides contient la présentation ?",
       "expected": "La présentation contient 34 slides.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18406, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "La présentation contient 15 slides.",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (100% of expected keywords found)"
     },
     {
       "id": "q_finale_02",
       "question": "dans ce document, quelle édition du programme PACTE est-ce ?",
       "expected": "C'est la 14ème édition du programme PACTE.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 19400, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "La 14ème édition du programme PACTE.",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (100% of expected keywords found)"
     },
     {
       "id": "q_finale_03",
       "question": "dans ce document, quels sont les noms des membres de l'équipe ?",
       "expected": "Les membres de l'équipe sont : ABIDA Hamza Habib, ALBOUCHI Samar, ATTIA Iheb, BEAOUI Mouhamed Ali, BEN MIMOUN Rayen et BEN TAMARZIZT Mahdi.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 21048, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Les noms des membres de l'équipe sont : \n1. ABIDA Hamza Habib\n2. ALBOUCHI Samar\n3. ATTIA Iheb\n4. BEAOUI Mouhamed Ali\n5. BEN MIMOUN Rayen\n6. BEN TAMARZIZT Mahdi.",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (100% of expected keywords found)"
     },
     {
       "id": "q_finale_04",
       "question": "dans ce document, quel est le nom de la tutrice du projet ?",
       "expected": "La tutrice du projet est Mme BELHAJ Rim.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 19672, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Mme BELHAJ Rim.",
+      "correctness": 0.75,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "partial overlap (60% of expected keywords found)"
     },
     {
       "id": "q_finale_05",
       "question": "dans ce document, comment est défini le projet NAWWARNI dans la slide d'identité ?",
       "expected": "Le projet NAWWARNI est défini comme une caravane de santé visuelle solidaire.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18594, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Le projet NAWWARNI est défini dans la slide d'identité comme suit : « Notre projet vise à illuminer l'avenir des enfants en leur offrant une meilleure vue, car une bonne vision est la première étape vers la réussite scolaire et l'égalité des chances. »",
+      "correctness": 0.75,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "partial overlap (50% of expected keywords found)"
     },
     {
       "id": "q_finale_06",
       "question": "dans ce document, quel est le titre de la slide d'introduction ?",
       "expected": "Le titre de la slide d'introduction est Introduction (slide 3).",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18423, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "actual": "I don't have enough information in the provided documents to answer this.",
       "correctness": 0.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "almost no overlap (0% of expected keywords found)"
     },
     {
       "id": "q_finale_07",
       "question": "dans ce document, quel est le titre du slide 10 ?",
       "expected": "Le titre du slide 10 est Objectifs du projet.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 19043, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "actual": "État d'Avancement (1/2) : Terrain",
       "correctness": 0.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "almost no overlap (0% of expected keywords found)"
     },
     {
       "id": "q_finale_08",
       "question": "dans ce document, quel est le titre du slide 15 ?",
       "expected": "Le titre du slide 15 est Échéancier réalisé.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 19265, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "actual": "Merci pour votre attention",
       "correctness": 0.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "almost no overlap (0% of expected keywords found)"
     },
     {
       "id": "q_finale_09",
       "question": "dans ce document, à quel slide correspond Le Jour J ?",
       "expected": "Le Jour J correspond au slide 18.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18643, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Slide 13 corresponds to 'Actions Restantes (Avant le Jour J)' and Slide 14 corresponds to 'Actions Restantes (Le Jour J & Après)'.",
+      "correctness": 0.75,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "partial overlap (67% of expected keywords found)"
     },
     {
       "id": "q_finale_10",
       "question": "dans ce document, quel est le titre du slide sur les résultats quantitatifs ?",
       "expected": "Le titre du slide sur les résultats quantitatifs est Résultats quantitatifs (slide 24).",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18519, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Il n'y a pas de slide sur les résultats quantitatifs dans le contexte fourni.",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (75% of expected keywords found)"
     },
     {
       "id": "q_finale_11",
       "question": "dans ce document, à quel slide sont présentées les difficultés rencontrées ?",
       "expected": "Les difficultés rencontrées sont présentées au slide 28.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18426, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "actual": "I don't have enough information in the provided documents to answer this.",
       "correctness": 0.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "almost no overlap (0% of expected keywords found)"
     },
     {
       "id": "q_finale_12",
       "question": "dans ce document, quel est le titre du slide sur les coûts et financement ?",
       "expected": "Le titre du slide sur les coûts et financement est Coûts et plan de financement (slide 27).",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18326, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "actual": "État d'Avancement (2/2) : Finances",
       "correctness": 0.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "almost no overlap (0% of expected keywords found)"
     },
     {
       "id": "q_finale_13",
       "question": "dans ce document, à quel slide se trouve la conclusion ?",
       "expected": "La conclusion se trouve au slide 31.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18514, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Le titre du dernier slide, Slide 15, est : Merci pour votre attention\nQuestion?\nLa question finale appelle une réflexion sur les points saillants présentés dans le reste de la présentation, mais il n'y a pas de slide distinctement étiqueté comme conclusion.",
+      "correctness": 0.75,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "partial overlap (67% of expected keywords found)"
     },
     {
       "id": "q_finale_14",
       "question": "dans ce document, quel facteur est présenté comme déterminant pour la réussite scolaire dans l'introduction ?",
       "expected": "La santé visuelle est présentée comme le facteur déterminant pour la réussite scolaire.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18768, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "actual": "Une bonne vue.",
       "correctness": 0.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "almost no overlap (0% of expected keywords found)"
     },
     {
       "id": "q_finale_15",
       "question": "dans ce document, quel est le numéro du projet PACTE ?",
       "expected": "Le numéro du projet PACTE est le n°26.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 19060, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "actual": "I don't have enough information in the provided documents to answer this.",
       "correctness": 0.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "almost no overlap (0% of expected keywords found)"
     },
     {
       "id": "q_finale_16",
       "question": "dans ce document, quel est le titre du slide sur les partenaires ?",
       "expected": "Le titre du slide sur les partenaires est Nos partenaires (slide 11).",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18499, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Slide 13 (thirteenth slide) : Actions Restantes (Avant le Jour J).",
+      "correctness": 0.5,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "low overlap (25% of expected keywords found)"
     },
     {
       "id": "q_finale_17",
       "question": "dans ce document, quel est le titre du slide sur les voies d'approfondissement ?",
       "expected": "Le titre du slide sur les voies d'approfondissement est Voies d'approfondissement (slide 30).",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18597, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Voies d'approfondissement",
+      "correctness": 0.75,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "partial overlap (50% of expected keywords found)"
     },
     {
       "id": "q_finale_18",
       "question": "dans ce document, quel est le titre du slide sur la population cible ?",
       "expected": "Le titre du slide sur la population cible est Population cible (slide 9).",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18402, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "Population Cible",
+      "correctness": 0.75,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "partial overlap (50% of expected keywords found)"
     },
     {
       "id": "q_finale_19",
       "question": "dans ce document, quel est le titre du slide sur l'organisme d'accueil ?",
       "expected": "Le titre du slide sur l'organisme d'accueil est Organisme d'accueil (slide 8).",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18394, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "La question ne demande pas à lister ou à extraire contenu mais spécifie directement un élément du document, on peut donc répondre directement sans enlever aucune mention des slides.\n\nDans ce document, le titre du slide sur l'organisme d'accueil est le slide 7 (seventh slide): Partenaire Institutionnel.",
+      "correctness": 1.0,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "good overlap (100% of expected keywords found)"
     },
     {
       "id": "q_finale_20",
       "question": "dans ce document, quelle année académique est mentionnée ?",
       "expected": "L'année académique mentionnée est 2025-2026.",
-      "actual": "[error] Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kvyxewm4fwhsft71qc804yz9` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 18739, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-      "correctness": 0.0,
+      "actual": "2025-2026",
+      "correctness": 0.75,
       "faithfulness": -1.0,
       "relevance": -1.0,
-      "reason": "system returned error or empty answer"
+      "reason": "partial overlap (40% of expected keywords found)"
     }
   ]
 }

@@ -241,6 +241,8 @@ def main():
     parser.add_argument("--no-color",   action="store_true")
     parser.add_argument("--auto",       action="store_true",
                         help="Auto-discover indexed files (default behaviour, flag for compatibility)")
+    parser.add_argument("--start-from", type=int, default=1,
+                        help="Start from question N (1-based). Merges with existing results file.")
     parser.add_argument("--provider",   default="local", choices=["local", "cloud", "openai"],
                         help="LLM provider to use for /ask calls (default: local)")
     parser.add_argument("--groq-model", default=None,
@@ -288,8 +290,21 @@ def main():
         sys.exit("No indexed files found. Upload and index files in the UI first.")
     print(DIM(f"Found {len(session_files)} indexed file(s): {', '.join(session_files[:5])}{'…' if len(session_files) > 5 else ''}\n"))
 
+    # ── Load prior results if resuming ──
+    out_path = Path(args.dataset).parent / "answer_eval_results.json"
+    prior_results = []
+    if args.start_from > 1 and out_path.exists():
+        try:
+            prior_results = json.load(open(out_path, encoding="utf-8")).get("results", [])
+            print(DIM(f"Loaded {len(prior_results)} prior result(s) from {out_path.name}"))
+        except Exception as e:
+            print(DIM(f"Could not load prior results: {e}"))
+
+    # Skip already-done questions
+    questions = questions[args.start_from - 1:]
+
     # ── Run eval ──
-    results = []
+    results = list(prior_results)
     col_w   = 46   # question column width
 
     header = (
@@ -303,7 +318,7 @@ def main():
     print(BOLD(header))
     print("─" * (len(header) + 20))
 
-    for i, q in enumerate(questions, 1):
+    for i, q in enumerate(questions, args.start_from):
         question = q["question"]
         expected = q["expected_answer"]
         files    = q["source_files"]
@@ -341,7 +356,11 @@ def main():
             f"{DIM(r_short)}"
         )
 
-        if args.provider in ("cloud", "groq") and i < len(questions):
+        # Incremental save after every question — safe to Ctrl+C and resume
+        with open(out_path, "w", encoding="utf-8") as _f:
+            json.dump({"results": results}, _f, ensure_ascii=False, indent=2)
+
+        if args.provider in ("cloud", "groq") and i < args.start_from + len(questions) - 1:
             time.sleep(3)   # ~20 req/min — stays under Groq 30 RPM limit
 
     # ── Summary ──
@@ -377,8 +396,7 @@ def main():
             print(f"       reason   : {r['reason']}")
             print()
 
-    # ── Save results ──
-    out_path = Path(args.dataset).parent / "answer_eval_results.json"
+    # ── Save final results with summary ──
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({
             "summary": {
