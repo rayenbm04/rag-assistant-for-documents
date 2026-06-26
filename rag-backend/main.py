@@ -471,12 +471,13 @@ query_stats = {"total": 0, "total_ms": 0}   # questions asked + cumulative respo
 
 # Groq daily token limits per model (tokens-per-day on the free tier)
 GROQ_TPD_LIMITS: dict[str, int] = {
-    "llama-3.3-70b-versatile": 100_000,
-    "llama-3.1-70b-versatile": 100_000,
-    "llama-3.1-8b-instant":    500_000,
-    "gemma2-9b-it":            500_000,
-    "mixtral-8x7b-32768":      500_000,
-    "qwen-qwq-32b":            100_000,
+    # Active free-tier models (as of 2026-06)
+    "llama-3.3-70b-versatile":  100_000,
+    "llama-3.1-70b-versatile":  100_000,
+    "llama-3.1-8b-instant":     500_000,
+    "mixtral-8x7b-32768":       500_000,
+    "qwen-qwq-32b":             100_000,
+    # gemma2-9b-it — decommissioned by Groq, removed
 }
 
 # Auxiliary (cheap) model used for condense / HyDE / multi-query / eval scoring

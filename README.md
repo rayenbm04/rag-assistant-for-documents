@@ -457,11 +457,14 @@ Retrieval is model-independent — embeddings always use `nomic-embed-text` loca
 
 Correctness scored by keyword-overlap between expected and actual answers. Faithfulness and relevance scored by an LLM-as-judge inline after each answer.
 
-| LLM | Provider | Pass rate (≥ 0.75) | Avg correctness |
-|---|---|---|---|
-| qwen2.5:7b | Local (Ollama) | **82.7%** | **0.707** |
-| llama-3.3-70b-versatile + llama-3.1-8b-instant | Groq (cloud) | **66.4%** | **0.620** |
-| gpt-4o | OpenAI (cloud) | — | — |
+| LLM | Provider | Questions | Pass rate (≥ 0.75) | Avg correctness |
+|---|---|---|---|---|
+| qwen2.5:7b | Local (Ollama) | 110 / 110 | **82.7%** | **0.707** |
+| llama-3.3-70b-versatile (answer) + llama-3.1-8b-instant (aux) | Groq (cloud) | 110 / 110 | **66.4%** | **0.620** |
+| llama-3.1-8b-instant (all calls) | Groq (cloud) | 99 / 110 ¹ | **81.8%** | **0.801** |
+| gpt-4o | OpenAI (cloud) | — | — | — |
+
+> ¹ 11 questions skipped — 8B model hit Groq's per-request token limit (413) on large PPTX context. Scores computed over the 99 valid responses.
 
 > **Note on scoring method:** local scores use an LLM-as-judge (same model as the answerer, which inflates scores ~5–15%). Cloud scores use keyword-overlap (no LLM judge), which tends to undercount paraphrased correct answers. The two methods are not directly comparable — local scores are likely closer to true quality than the gap suggests.
 
