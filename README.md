@@ -441,29 +441,31 @@ Pipeline config for all runs: `CHILD_CHUNK_SIZE=256`, `SIMILARITY_TOP_K=8`, `ENA
 
 ---
 
-### Retrieval quality (Hit@6 / MRR)
+### Retrieval quality (Hit@8 / MRR)
 
 Retrieval is model-independent — embeddings always use `nomic-embed-text` locally.
 
 | Configuration | Hit@8 | MRR |
 |---|---|---|
-| Vector only | 88% | 0.69 |
-| Hybrid (vector + BM25) | 88% | 0.69 |
-| **Hybrid + Reranker** | **88%** | **0.82** |
+| Vector only | 86% | 0.65 |
+| Hybrid (vector + BM25) | 87% | 0.65 |
+| **Hybrid + Reranker** | **86%** | **0.80** |
 
 ---
 
 ### Answer quality (110 scoreable questions)
 
-| LLM | Provider | Pass rate (≥ 0.75) | Avg correctness | Avg faithfulness | Avg relevance |
-|---|---|---|---|---|---|
-| qwen2.5:7b | Local (Ollama) | **82.7%** | **0.707** | **0.923** | **0.797** |
-| llama-3.3-70b-versatile | Groq (cloud) | — | — | — | — |
-| gpt-4o | OpenAI (cloud) | — | — | — | — |
+Correctness scored by keyword-overlap between expected and actual answers. Faithfulness and relevance scored by an LLM-as-judge inline after each answer.
 
-> **Note on local scores:** the judge and the answerer are the same model (qwen2.5:7b), which inflates scores by roughly 5–15%. Cloud rows will use an independent judge, making scores more reliable comparisons.
+| LLM | Provider | Pass rate (≥ 0.75) | Avg correctness |
+|---|---|---|---|
+| qwen2.5:7b | Local (Ollama) | **82.7%** | **0.707** |
+| llama-3.3-70b-versatile + llama-3.1-8b-instant | Groq (cloud) | **66.4%** | **0.620** |
+| gpt-4o | OpenAI (cloud) | — | — |
 
-**Thresholds (local baseline):**
+> **Note on scoring method:** local scores use an LLM-as-judge (same model as the answerer, which inflates scores ~5–15%). Cloud scores use keyword-overlap (no LLM judge), which tends to undercount paraphrased correct answers. The two methods are not directly comparable — local scores are likely closer to true quality than the gap suggests.
+
+**Local baseline thresholds:**
 
 | Metric | Score | Threshold |
 |---|---|---|
