@@ -13,7 +13,7 @@ import {
   Plus, Search, Trash2, Upload, FileText, X, Send, Square,
   Sun, Moon, BarChart2, LogOut, RefreshCw, Link2, ChevronDown,
   ChevronUp, MessageSquare, Cpu, Cloud, AlertTriangle, Copy,
-  Loader2, ExternalLink, RotateCcw, BookOpen
+  Loader2, ExternalLink, RotateCcw, BookOpen, Paperclip, Menu
 } from 'lucide-react'
 import './App.css'
 
@@ -197,6 +197,8 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [previewText, setPreviewText]         = useState(null)
   const [provider, setProvider]               = useState(() => localStorage.getItem('rag-provider') || 'local')
   const [groqTokens, setGroqTokens]           = useState(null)
+  const [showLeftSidebar, setShowLeftSidebar]   = useState(false)
+  const [showRightSidebar, setShowRightSidebar] = useState(false)
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const fileInputRef       = useRef(null)
@@ -692,30 +694,72 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     <TooltipProvider>
       <div className="flex flex-col h-screen bg-background overflow-hidden">
 
-        {/* ── Navbar ── */}
-        <nav className="border-b bg-background flex-shrink-0 z-10">
-          <div className="flex items-center gap-3 px-4 h-14">
-            {/* Logo */}
-            <div className="flex items-center gap-2.5 mr-2">
-              <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
-                <MessageSquare className="w-3.5 h-3.5 text-primary-foreground" />
+        {/* ── Body ── */}
+        <div className="flex flex-1 overflow-hidden">
+
+          {/* ── Left panel (nav + sessions) ── */}
+          {showLeftSidebar && (
+          <aside className="w-64 flex-shrink-0 border-r flex flex-col bg-background z-10">
+
+            {/* Panel header */}
+            <div className="flex items-center justify-between px-3 h-11 border-b flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 bg-primary rounded-md flex items-center justify-center flex-shrink-0">
+                  <MessageSquare className="w-3 h-3 text-primary-foreground" />
+                </div>
+                <span className="font-bold text-sm uppercase tracking-wide">RAG Assistant</span>
               </div>
-              <span className="font-bold text-base tracking-tight uppercase">RAG Assistant</span>
+              <Button variant="ghost" size="icon" className="h-7 w-7 -mr-1" onClick={() => setShowLeftSidebar(false)}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
             </div>
 
-            <div className="flex-1" />
-
-            {/* Indexing indicator */}
-            {anyIndexing && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                <span className="hidden sm:inline">Indexing…</span>
+            {/* Nav controls */}
+            <div className="flex items-center gap-1 px-2 py-2 border-b flex-shrink-0">
+              <div className="flex items-center rounded-md border bg-muted p-0.5 gap-0.5">
+                <button onClick={() => setProvider('local')} title="Local: qwen2.5:7b + qwen2.5vl:7b"
+                  className={cn('flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-all',
+                    provider === 'local' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground')}>
+                  <Cpu className="w-2.5 h-2.5" /> Local
+                </button>
+                <button onClick={() => setProvider('cloud')} title="Cloud: Llama 3.3 70B (Groq)"
+                  className={cn('flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-all',
+                    provider === 'cloud' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground')}>
+                  <Cloud className="w-2.5 h-2.5" /> Cloud
+                </button>
               </div>
-            )}
+              <div className="flex-1" />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setDarkMode(d => !d)}>
+                    {darkMode ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Toggle theme</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={openDashboard}>
+                    <BarChart2 className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Usage stats</TooltipContent>
+              </Tooltip>
+              {history.filter(e => e.answer !== null).length > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.print()}>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Export PDF</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
 
             {/* Groq token bars */}
             {provider === 'cloud' && groqTokens && Object.keys(groqTokens.models || {}).length > 0 && (
-              <div className="flex flex-col gap-1.5 justify-center">
+              <div className="px-3 py-2 border-b flex-shrink-0">
                 {Object.entries(groqTokens.models).map(([model, data]) => {
                   const pct  = Math.min(data.pct, 100)
                   const tpmPct = (data.tpm_limit != null && data.tpm_remaining != null)
@@ -725,9 +769,9 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                   const shortName = model.includes('70b') ? '70B' : model.includes('8b') ? '8B' : model.split('-')[2] || model
                   const tip = `${model}\nDaily: ${data.total.toLocaleString()} / ${data.daily_limit.toLocaleString()} tokens${data.from_headers ? ' (live)' : ' (est.)'}`
                   return (
-                    <div key={model} className="flex items-center gap-1.5" title={tip}>
+                    <div key={model} className="flex items-center gap-1.5 mb-1 last:mb-0" title={tip}>
                       <span className="text-[10px] text-muted-foreground w-6 text-right">{shortName}</span>
-                      <div className="w-14 h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                         <div className="h-full rounded-full transition-all duration-500"
                           style={{ width: `${pct}%`, backgroundColor: fillColor }} />
                       </div>
@@ -740,90 +784,8 @@ function MainApp({ authFetch, currentUser, onLogout }) {
               </div>
             )}
 
-            {/* Provider toggle */}
-            <div className="flex items-center rounded-lg border bg-muted p-0.5 gap-0.5">
-              <button
-                onClick={() => setProvider('local')}
-                title="Local: qwen2.5:7b + qwen2.5vl:7b"
-                className={cn(
-                  'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all',
-                  provider === 'local' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <Cpu className="w-3 h-3" /> Local
-              </button>
-              <button
-                onClick={() => setProvider('cloud')}
-                title="Cloud: Llama 3.3 70B (Groq)"
-                className={cn(
-                  'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all',
-                  provider === 'cloud' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <Cloud className="w-3 h-3" /> Cloud
-              </button>
-            </div>
-
-            {/* Theme toggle */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDarkMode(d => !d)}>
-                  {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Toggle theme</TooltipContent>
-            </Tooltip>
-
-            {/* Stats */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={openDashboard}>
-                  <BarChart2 className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Usage stats</TooltipContent>
-            </Tooltip>
-
-            {/* Export PDF */}
-            {history.filter(e => e.answer !== null).length > 0 && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.print()}>
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Export PDF</TooltipContent>
-              </Tooltip>
-            )}
-
-            <Separator orientation="vertical" className="h-6 mx-1" />
-
-            {/* User avatar */}
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-[10px] font-semibold text-primary-foreground flex-shrink-0 select-none">
-                {currentUser.firstname?.[0]}{currentUser.lastname?.[0]}
-              </div>
-              <span className="text-xs font-medium hidden md:block text-muted-foreground">
-                {currentUser.firstname} {currentUser.lastname}
-              </span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onLogout}>
-                    <LogOut className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Sign out</TooltipContent>
-              </Tooltip>
-            </div>
-          </div>
-        </nav>
-
-        {/* ── Body ── */}
-        <div className="flex flex-1 overflow-hidden">
-
-          {/* ── Session sidebar ── */}
-          <aside className="w-60 flex-shrink-0 border-r flex flex-col bg-muted/20">
-            <div className="p-3 space-y-2 flex-shrink-0">
+            {/* New chat + search */}
+            <div className="p-2 space-y-2 flex-shrink-0">
               <Button className="w-full justify-start gap-2 h-8 text-xs" variant="outline" onClick={createSession}>
                 <Plus className="h-3.5 w-3.5" /> New chat
               </Button>
@@ -843,36 +805,146 @@ function MainApp({ authFetch, currentUser, onLogout }) {
               </div>
             </div>
 
+            {/* Session list */}
             <div className="flex-1 overflow-y-auto px-2 pb-2">
               {filteredSessions}
             </div>
-          </aside>
 
+            {/* User footer */}
+            <div className="flex items-center gap-2 px-3 py-2.5 border-t flex-shrink-0">
+              <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-[9px] font-semibold text-primary-foreground flex-shrink-0 select-none">
+                {currentUser.firstname?.[0]}{currentUser.lastname?.[0]}
+              </div>
+              <span className="text-xs text-muted-foreground flex-1 truncate">{currentUser.firstname} {currentUser.lastname}</span>
+              {anyIndexing && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground flex-shrink-0" />}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onLogout}>
+                    <LogOut className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Sign out</TooltipContent>
+              </Tooltip>
+            </div>
+          </aside>
+          )}
           {/* ── Chat area ── */}
-          <main className="flex-1 flex flex-col overflow-hidden min-w-0 relative">
+          <main
+            className="flex-1 flex flex-col overflow-hidden min-w-0 relative"
+            onDragOver={ev => { ev.preventDefault(); setIsDragOver(true) }}
+            onDragEnter={ev => { ev.preventDefault(); setIsDragOver(true) }}
+            onDragLeave={ev => { if (!ev.currentTarget.contains(ev.relatedTarget)) setIsDragOver(false) }}
+            onDrop={ev => { ev.preventDefault(); setIsDragOver(false); handleFileSelect(ev.dataTransfer.files) }}
+          >
+{/* Always-mounted file input */}
+            <input
+              ref={fileInputRef} type="file"
+              accept=".pdf,.txt,.docx,.xlsx,.xls,.pptx,.puml,.plantuml,.uml,.md,.csv,image/*"
+              multiple style={{ display: 'none' }}
+              onChange={ev => { handleFileSelect(ev.target.files); ev.target.value = '' }}
+            />
+
+            {/* Drag overlay */}
+            {isDragOver && (
+              <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 border-2 border-dashed border-primary pointer-events-none">
+                <div className="flex flex-col items-center gap-3">
+                  <Paperclip className="w-10 h-10 text-primary" />
+                  <p className="text-sm font-medium text-primary">Drop files to upload</p>
+                </div>
+              </div>
+            )}
+
+            {/* ── Persistent top bar ── */}
+            <div className="h-10 border-b flex items-center px-2 gap-1.5 flex-shrink-0 bg-background">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowLeftSidebar(p => !p)} title="Toggle panel">
+                <Menu className="h-4 w-4" />
+              </Button>
+              {anyIndexing && (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span className="hidden sm:inline">Indexing…</span>
+                </span>
+              )}
+              <div className="flex-1" />
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowRightSidebar(p => !p)} title="Toggle files">
+                <Paperclip className="h-4 w-4" />
+              </Button>
+            </div>
+
             {/* Print header */}
             <div className="print-header hidden print:block px-6 py-4 border-b">
               <div className="font-semibold">RAG Assistant — Chat Export</div>
               <div className="text-sm text-muted-foreground">{new Date().toLocaleString()}</div>
             </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6" ref={chatScrollRef}>
+            {history.length === 0 && !isLoading ? (
+              /* ── Empty state: centered input ── */
+              <div className="flex-1 flex items-center justify-center px-6 pb-10">
+                <div className="w-full max-w-2xl space-y-5">
 
-              {/* Empty state */}
-              {history.length === 0 && !isLoading && (
-                <div className="flex flex-col items-center justify-center h-full text-center gap-4">
-                  <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-                    <MessageSquare className="w-8 h-8 text-primary/60" />
+                  {/* Greeting */}
+                  <div className="text-center select-none">
+                    <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+                      How can I help you today{currentUser.firstname ? `, ${currentUser.firstname}` : ''}?
+                    </h1>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-base mb-1">Start a conversation</h3>
-                    <p className="text-sm text-muted-foreground max-w-xs">Upload documents and ask questions to get answers with source citations.</p>
-                  </div>
+
+                  {/* Uploaded file chips */}
+                  {sessionFiles.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 justify-center">
+                      {sessionFiles.map(file => (
+                        <div
+                          key={file.name}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-muted/50 text-xs text-muted-foreground max-w-[180px]"
+                          title={file.name}
+                        >
+                          {(file.status === 'indexing' || file.status === 'uploading') ? (
+                            <Loader2 className="w-3 h-3 flex-shrink-0 text-amber-500 animate-spin" />
+                          ) : (
+                            <FileText className="w-3 h-3 flex-shrink-0 text-primary/70" />
+                          )}
+                          <span className="truncate">{file.name}</span>
+                          {(file.status === 'indexing' || file.status === 'uploading') && (
+                            <span className="text-[9px] text-amber-500 flex-shrink-0">indexing</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSubmit}>
+                    <div className="flex gap-2 items-center">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button type="button" variant="ghost" size="icon"
+                            className="h-10 w-10 flex-shrink-0 text-muted-foreground hover:text-foreground"
+                            onClick={() => fileInputRef.current?.click()}>
+                            <Paperclip className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Attach file</TooltipContent>
+                      </Tooltip>
+                      <Input
+                        className="flex-1 text-sm h-10"
+                        placeholder="Ask a question about your documents…"
+                        value={question}
+                        onChange={e => setQuestion(e.target.value)}
+                        onKeyDown={handleInputKeyDown}
+                        autoComplete="off"
+                      />
+                      <Button type="submit" size="icon" className="h-10 w-10 flex-shrink-0" disabled={!question.trim()}>
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </form>
                 </div>
-              )}
-
-              {/* Message pairs */}
+              </div>
+            ) : (
+              /* ── Active state: messages + input ── */
+              <>
+                <div className="flex-1 overflow-y-auto px-4 py-6" ref={chatScrollRef}>
+                  <div className="max-w-3xl mx-auto space-y-6">
+                                {/* Message pairs */}
               {history.map(entry => (
                 <div key={entry.id} id={`msg-${entry.id}`} className="space-y-3">
                   {/* User bubble */}
@@ -999,66 +1071,100 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                 </div>
               ))}
               <div ref={chatEndRef} />
-            </div>
-
-            {/* Scroll to bottom */}
-            {showScrollDown && (
-              <button
-                className="absolute bottom-28 left-1/2 -translate-x-1/2 bg-background border shadow-md rounded-full p-2 hover:bg-muted transition-colors z-10"
-                onClick={scrollToBottom}
-                title="Scroll to latest"
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-            )}
-
-            {/* Input bar */}
-            <div className="border-t bg-background px-4 pt-3 pb-4 flex-shrink-0">
-              <form onSubmit={handleSubmit}>
-                <div className="flex gap-2 items-center">
-                  <Input
-                    className="flex-1 text-sm h-10"
-                    placeholder="Ask a question about your documents…"
-                    value={question}
-                    onChange={e => setQuestion(e.target.value)}
-                    onKeyDown={handleInputKeyDown}
-                    disabled={isLoading}
-                    autoComplete="off"
-                  />
-                  {isLoading ? (
-                    <Button type="button" variant="destructive" size="icon" className="h-10 w-10 flex-shrink-0" onClick={handleCancel} title="Cancel">
-                      <Square className="h-4 w-4" />
-                    </Button>
-                  ) : (
-                    <Button type="submit" size="icon" className="h-10 w-10 flex-shrink-0" disabled={!question.trim()}>
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  )}
+                  </div>
                 </div>
 
-                {tokenStats && tokenStats.total > 0 && (() => {
-                  const model = COST_MODELS.find(m => m.name === selectedCostModel) || COST_MODELS[0]
-                  const cost  = (tokenStats.prompt / 1e6) * model.input + (tokenStats.completion / 1e6) * model.output
-                  return (
-                    <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
-                      <span>Est. cost on</span>
-                      <select
-                        className="bg-transparent text-xs text-muted-foreground cursor-pointer hover:text-foreground outline-none border-none"
-                        value={selectedCostModel}
-                        onChange={e => setSelectedCostModel(e.target.value)}
-                      >
-                        {COST_MODELS.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}
-                      </select>
-                      <span className="font-medium text-foreground">{cost < 0.0001 ? '<$0.0001' : `$${cost.toFixed(4)}`}</span>
-                      <span>· {tokenStats.total.toLocaleString()} tokens</span>
+                {/* Scroll to bottom */}
+                {showScrollDown && (
+                  <button
+                    className="absolute bottom-28 left-1/2 -translate-x-1/2 bg-background border shadow-md rounded-full p-2 hover:bg-muted transition-colors z-10"
+                    onClick={scrollToBottom}
+                    title="Scroll to latest"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                )}
+
+                {/* Input bar */}
+                <div className="border-t bg-background px-4 pt-3 pb-4 flex-shrink-0">
+                  {/* File chips above input */}
+                  {sessionFiles.length > 0 && (
+                    <div className="max-w-3xl mx-auto mb-2 flex flex-wrap gap-1.5">
+                      {sessionFiles.map(file => (
+                        <div key={file.name}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-muted/50 text-xs text-muted-foreground max-w-[200px]"
+                          title={file.name}>
+                          {(file.status === 'indexing' || file.status === 'uploading') ? (
+                            <Loader2 className="w-3 h-3 flex-shrink-0 text-amber-500 animate-spin" />
+                          ) : (
+                            <FileText className="w-3 h-3 flex-shrink-0 text-primary/70" />
+                          )}
+                          <span className="truncate">{file.name}</span>
+                          {(file.status === 'indexing' || file.status === 'uploading') && (
+                            <span className="text-[9px] text-amber-500 flex-shrink-0">indexing</span>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  )
-                })()}
-              </form>
-            </div>
+                  )}
+                  <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+                    <div className="flex gap-2 items-center">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button type="button" variant="ghost" size="icon"
+                            className="h-10 w-10 flex-shrink-0 text-muted-foreground hover:text-foreground"
+                            onClick={() => fileInputRef.current?.click()}>
+                            <Paperclip className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Attach file</TooltipContent>
+                      </Tooltip>
+                      <Input
+                        className="flex-1 text-sm h-10"
+                        placeholder="Ask a question about your documents…"
+                        value={question}
+                        onChange={e => setQuestion(e.target.value)}
+                        onKeyDown={handleInputKeyDown}
+                        disabled={isLoading}
+                        autoComplete="off"
+                      />
+                      {isLoading ? (
+                        <Button type="button" variant="destructive" size="icon" className="h-10 w-10 flex-shrink-0" onClick={handleCancel} title="Cancel">
+                          <Square className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button type="submit" size="icon" className="h-10 w-10 flex-shrink-0" disabled={!question.trim()}>
+                          <Send className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+
+                    {tokenStats && tokenStats.total > 0 && (() => {
+                      const model = COST_MODELS.find(m => m.name === selectedCostModel) || COST_MODELS[0]
+                      const cost  = (tokenStats.prompt / 1e6) * model.input + (tokenStats.completion / 1e6) * model.output
+                      return (
+                        <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
+                          <span>Est. cost on</span>
+                          <select
+                            className="bg-background text-foreground text-xs cursor-pointer outline-none border border-border rounded px-1 py-0.5"
+                            value={selectedCostModel}
+                            onChange={e => setSelectedCostModel(e.target.value)}
+                          >
+                            {COST_MODELS.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}
+                          </select>
+                          <span className="font-medium text-foreground">{cost < 0.0001 ? '<$0.0001' : `$${cost.toFixed(4)}`}</span>
+                          <span>· {tokenStats.total.toLocaleString()} tokens</span>
+                        </div>
+                      )
+                    })()}
+                  </form>
+                </div>
+              </>
+            )}
           </main>
 
           {/* ── File sidebar ── */}
+          {showRightSidebar && (
           <aside className="w-72 flex-shrink-0 border-l flex flex-col bg-background">
             {/* Prompt nav */}
             {history.filter(e => e.question).length > 0 && (
@@ -1091,30 +1197,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
 
             {/* Documents header */}
             <div className="px-4 pt-4 pb-2 flex-shrink-0">
-              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Documents</h2>
-
-              {/* Upload zone */}
-              <div
-                className={cn(
-                  'border-2 border-dashed rounded-lg px-3 py-4 text-center cursor-pointer transition-colors',
-                  isDragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50 hover:bg-muted/50'
-                )}
-                onClick={() => fileInputRef.current?.click()}
-                onDrop={ev => { ev.preventDefault(); setIsDragOver(false); handleFileSelect(ev.dataTransfer.files) }}
-                onDragOver={ev => { ev.preventDefault(); setIsDragOver(true) }}
-                onDragLeave={ev => { ev.preventDefault(); setIsDragOver(false) }}
-              >
-                <Upload className={cn('w-5 h-5 mx-auto mb-1.5', isDragOver ? 'text-primary' : 'text-muted-foreground')} />
-                <p className="text-xs font-medium">Click or drag to upload</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">PDF, Word, Excel, PPTX, UML, images…</p>
-                <input
-                  ref={fileInputRef} type="file"
-                  accept=".pdf,.txt,.docx,.xlsx,.xls,.pptx,.puml,.plantuml,.uml,.md,.csv,image/*"
-                  multiple style={{ display: 'none' }}
-                  onChange={ev => { handleFileSelect(ev.target.files); ev.target.value = '' }}
-                />
-              </div>
-
               {/* URL ingest */}
               <form className="flex gap-1.5 mt-2" onSubmit={handleUrlIngest}>
                 <div className="relative flex-1">
@@ -1218,6 +1300,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
               )}
             </div>
           </aside>
+          )}
         </div>
 
         {/* ── Dashboard Sheet ── */}
