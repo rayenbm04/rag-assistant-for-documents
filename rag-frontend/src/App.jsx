@@ -1,34 +1,23 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  Plus, Search, Trash2, Upload, FileText, X, Send, Square,
+  Sun, Moon, BarChart2, LogOut, RefreshCw, Link2, ChevronDown,
+  ChevronUp, MessageSquare, Cpu, Cloud, AlertTriangle, Copy,
+  Loader2, ExternalLink, RotateCcw, BookOpen
+} from 'lucide-react'
 import './App.css'
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000"
-
-const UploadIcon = () => (
-  <svg className="upload-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-  </svg>
-)
-const FileIcon = () => (
-  <svg className="file-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-  </svg>
-)
-const RemoveIcon = () => (
-  <svg className="file-remove" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-  </svg>
-)
-const ChatIcon = () => (
-  <svg className="chat-empty-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-  </svg>
-)
-const SourceIcon = () => (
-  <svg className="source-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-  </svg>
-)
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const COST_MODELS = [
   { name: 'GPT-4o',           input: 2.50,  output: 10.00 },
@@ -39,10 +28,10 @@ const COST_MODELS = [
   { name: 'Gemini 1.5 Flash', input: 0.075, output: 0.30  },
 ]
 
-function evalColor(score) {
-  if (score >= 0.8) return 'eval-badge--high'
-  if (score >= 0.5) return 'eval-badge--mid'
-  return 'eval-badge--low'
+function evalBadgeClass(score) {
+  if (score >= 0.8) return 'text-emerald-700 border-emerald-200 bg-emerald-50 dark:text-emerald-400 dark:border-emerald-800 dark:bg-emerald-950/40'
+  if (score >= 0.5) return 'text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-400 dark:border-amber-800 dark:bg-amber-950/40'
+  return 'text-red-700 border-red-200 bg-red-50 dark:text-red-400 dark:border-red-800 dark:bg-red-950/40'
 }
 
 function formatFileSize(bytes) {
@@ -58,14 +47,16 @@ function createNewSession() {
   return { id: generateId(), name: 'New chat', createdAt: new Date().toISOString(), fileNames: [], history: [] }
 }
 
+// ─── Auth Screen ────────────────────────────────────────────────────────────
+
 function AuthScreen({ onAuth }) {
-  const [view, setView]     = useState('login')
-  const [email, setEmail]   = useState('')
+  const [view, setView]         = useState('login')
+  const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
-  const [firstname, setFirstname]   = useState('')
-  const [lastname, setLastname] = useState('')
-  const [error, setError]   = useState('')
-  const [loading, setLoading] = useState(false)
+  const [firstname, setFirstname] = useState('')
+  const [lastname, setLastname]   = useState('')
+  const [error, setError]       = useState('')
+  const [loading, setLoading]   = useState(false)
 
   const submit = async (e) => {
     e.preventDefault()
@@ -74,7 +65,9 @@ function AuthScreen({ onAuth }) {
       const res = await fetch(`${API}/auth/${view}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(view === 'register' ? { email, password, firstname, lastname } : { email, password }),
+        body: JSON.stringify(view === 'register'
+          ? { email, password, firstname, lastname }
+          : { email, password }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.detail || 'Error'); return }
@@ -86,46 +79,82 @@ function AuthScreen({ onAuth }) {
   }
 
   return (
-    <div className="auth-screen">
-      <div className="auth-card">
-        <h1 className="auth-title">RAG Assistant</h1>
-        <div className="auth-tabs">
-          <button className={`auth-tab ${view === 'login' ? 'active' : ''}`} onClick={() => { setView('login'); setError('') }}>Sign in</button>
-          <button className={`auth-tab ${view === 'register' ? 'active' : ''}`} onClick={() => { setView('register'); setError('') }}>Register</button>
-        </div>
-        <form className="auth-form" onSubmit={submit}>
-          <input className="auth-input" type="email" placeholder="Email" value={email}
-            onChange={e => setEmail(e.target.value)} required />
-          <input className="auth-input" type="password" placeholder="Password (min 6 chars)" value={password}
-            onChange={e => setPassword(e.target.value)} required />
-          {view === 'register' && (
-            <>
-              <input className="auth-input" type="text" placeholder="First Name" value={firstname}
-                onChange={e => setFirstname(e.target.value)} required />
-              <input className="auth-input" type="text" placeholder="Last Name" value={lastname}
-                onChange={e => setLastname(e.target.value)} required />
-            </>
-          )}
-          {error && <p className="auth-error">{error}</p>}
-          <button className="auth-submit" type="submit" disabled={loading}>
-            {loading ? 'Please wait…' : view === 'login' ? 'Sign in' : 'Create account'}
-          </button>
-        </form>
-        <p className="auth-hint">
-          {view === 'login' ? 'First account created becomes admin.' : 'Already have an account?'}{' '}
-          <button className="auth-link" onClick={() => { setView(view === 'login' ? 'register' : 'login'); setError('') }}>
-            {view === 'login' ? 'Register' : 'Sign in'}
-          </button>
-        </p>
-      </div>
+    <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
+      <Card className="w-full max-w-sm shadow-lg">
+        <CardHeader className="text-center pb-4">
+          <div className="mx-auto mb-3 w-11 h-11 bg-primary rounded-xl flex items-center justify-center shadow-sm">
+            <MessageSquare className="w-5 h-5 text-primary-foreground" />
+          </div>
+          <CardTitle className="text-xl">RAG Assistant</CardTitle>
+          <CardDescription>
+            {view === 'login' ? 'Sign in to your account' : 'Create a new account'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex rounded-lg bg-muted p-1 mb-5 gap-1">
+            {['login', 'register'].map(v => (
+              <button
+                key={v}
+                onClick={() => { setView(v); setError('') }}
+                className={cn(
+                  'flex-1 py-1.5 text-sm rounded-md transition-all font-medium',
+                  view === v
+                    ? 'bg-background shadow-sm text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {v === 'login' ? 'Sign in' : 'Register'}
+              </button>
+            ))}
+          </div>
+
+          <form onSubmit={submit} className="space-y-3">
+            <Input type="email" placeholder="Email" value={email}
+              onChange={e => setEmail(e.target.value)} required autoComplete="email" />
+            <Input type="password" placeholder="Password (min 6 chars)" value={password}
+              onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
+            {view === 'register' && (
+              <>
+                <Input type="text" placeholder="First Name" value={firstname}
+                  onChange={e => setFirstname(e.target.value)} required />
+                <Input type="text" placeholder="Last Name" value={lastname}
+                  onChange={e => setLastname(e.target.value)} required />
+              </>
+            )}
+            {error && (
+              <p className="text-sm text-destructive bg-destructive/10 border border-destructive/20 px-3 py-2 rounded-md">
+                {error}
+              </p>
+            )}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Please wait…</>
+                : view === 'login' ? 'Sign in' : 'Create account'}
+            </Button>
+          </form>
+
+          <p className="text-center text-xs text-muted-foreground mt-4">
+            {view === 'login' ? 'First account becomes admin. ' : 'Already have an account? '}
+            <button
+              onClick={() => { setView(view === 'login' ? 'register' : 'login'); setError('') }}
+              className="text-primary hover:underline font-medium"
+            >
+              {view === 'login' ? 'Register' : 'Sign in'}
+            </button>
+          </p>
+        </CardContent>
+      </Card>
     </div>
   )
 }
 
-function MainApp({ authFetch, currentUser, onLogout }) {
-  const sessionsKey    = `rag-sessions-${currentUser.id}`
-  const activeKey      = `rag-active-session-${currentUser.id}`
+// ─── Main App ────────────────────────────────────────────────────────────────
 
+function MainApp({ authFetch, currentUser, onLogout }) {
+  const sessionsKey = `rag-sessions-${currentUser.id}`
+  const activeKey   = `rag-active-session-${currentUser.id}`
+
+  // ── State ─────────────────────────────────────────────────────────────────
   const [sessions, setSessions] = useState(() => {
     try {
       const saved = localStorage.getItem(sessionsKey)
@@ -136,51 +165,54 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     } catch {}
     return [createNewSession()]
   })
-
   const [activeSessionId, setActiveSessionId] = useState(() => {
     try { return localStorage.getItem(activeKey) } catch { return null }
   })
-
-  const [globalFiles, setGlobalFiles] = useState({})
-
-  const [question, setQuestion]       = useState('')
-  const [isLoading, setIsLoading]     = useState(false)
-  const [isDragOver, setIsDragOver]   = useState(false)
-  const [showPromptNav, setShowPromptNav] = useState(false)
-  const [showScrollDown, setShowScrollDown] = useState(false)
-  const [showDashboard, setShowDashboard] = useState(false)
-  const [dashboardData, setDashboardData] = useState(null)
-  const [evalData, setEvalData]           = useState(null)
-  const [evalLoading, setEvalLoading]     = useState(false)
-  const [chunkView, setChunkView]         = useState({})
-  const [summaryView, setSummaryView]     = useState({})
-  const [evalSelectedQ, setEvalSelectedQ] = useState(null)
-  const [urlInput, setUrlInput]           = useState('')
-  const [urlLoading, setUrlLoading]       = useState(false)
-  const [urlError, setUrlError]           = useState('')
-  const [darkMode, setDarkMode]           = useState(() => localStorage.getItem('rag-theme') === 'dark')
-  const [sessionSearch, setSessionSearch] = useState('')
+  const [globalFiles, setGlobalFiles]         = useState({})
+  const [question, setQuestion]               = useState('')
+  const [isLoading, setIsLoading]             = useState(false)
+  const [isDragOver, setIsDragOver]           = useState(false)
+  const [showPromptNav, setShowPromptNav]     = useState(false)
+  const [showScrollDown, setShowScrollDown]   = useState(false)
+  const [showDashboard, setShowDashboard]     = useState(false)
+  const [dashboardData, setDashboardData]     = useState(null)
+  const [evalData, setEvalData]               = useState(null)
+  const [evalLoading, setEvalLoading]         = useState(false)
+  const [chunkView, setChunkView]             = useState({})
+  const [summaryView, setSummaryView]         = useState({})
+  const [evalSelectedQ, setEvalSelectedQ]     = useState(null)
+  const [urlInput, setUrlInput]               = useState('')
+  const [urlLoading, setUrlLoading]           = useState(false)
+  const [urlError, setUrlError]               = useState('')
+  const [darkMode, setDarkMode]               = useState(() => {
+    const saved = localStorage.getItem('rag-theme')
+    if (saved) return saved === 'dark'
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true
+  })
+  const [sessionSearch, setSessionSearch]     = useState('')
   const [selectedCostModel, setSelectedCostModel] = useState('GPT-4o')
-  const [tokenStats, setTokenStats]       = useState(null)
-  const [previewFile, setPreviewFile]     = useState(null)
-  const [previewBlobUrl, setPreviewBlobUrl] = useState(null)
-  const [previewText, setPreviewText]     = useState(null)
-  const [provider, setProvider]           = useState(() => localStorage.getItem('rag-provider') || 'local')
-  const [groqTokens, setGroqTokens]       = useState(null)
+  const [tokenStats, setTokenStats]           = useState(null)
+  const [previewFile, setPreviewFile]         = useState(null)
+  const [previewBlobUrl, setPreviewBlobUrl]   = useState(null)
+  const [previewText, setPreviewText]         = useState(null)
+  const [provider, setProvider]               = useState(() => localStorage.getItem('rag-provider') || 'local')
+  const [groqTokens, setGroqTokens]           = useState(null)
 
-  const fileInputRef        = useRef(null)
-  const chatEndRef          = useRef(null)
-  const chatScrollRef       = useRef(null)
-  const abortControllerRef  = useRef(null)
-  const scrollTimerRef      = useRef(null)
-  const pendingIdRef        = useRef(null)
-  const isLoadingRef        = useRef(false)
-  const currentQuestionRef  = useRef('')
-  const pollingRef          = useRef({})
-  const historyRef          = useRef([])
-  const historyIndexRef     = useRef(-1)
-  const draftQuestionRef    = useRef('')
+  // ── Refs ──────────────────────────────────────────────────────────────────
+  const fileInputRef       = useRef(null)
+  const chatEndRef         = useRef(null)
+  const chatScrollRef      = useRef(null)
+  const abortControllerRef = useRef(null)
+  const scrollTimerRef     = useRef(null)
+  const pendingIdRef       = useRef(null)
+  const isLoadingRef       = useRef(false)
+  const currentQuestionRef = useRef('')
+  const pollingRef         = useRef({})
+  const historyRef         = useRef([])
+  const historyIndexRef    = useRef(-1)
+  const draftQuestionRef   = useRef('')
 
+  // ── Derived ───────────────────────────────────────────────────────────────
   const activeSession    = sessions.find(s => s.id === activeSessionId) || sessions[0]
   const history          = activeSession?.history    || []
   const sessionFileNames = activeSession?.fileNames  || []
@@ -192,10 +224,19 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   }))
   const anyIndexing = sessionFiles.some(f => f.status === 'indexing' || f.status === 'uploading')
 
+  const evalEntries    = sessions.flatMap(s => s.history.filter(e => e.eval))
+  const avgFaithfulness = evalEntries.length
+    ? evalEntries.reduce((a, e) => a + e.eval.faithfulness, 0) / evalEntries.length : null
+  const avgRelevance   = evalEntries.length
+    ? evalEntries.reduce((a, e) => a + e.eval.answer_relevance, 0) / evalEntries.length : null
+  const totalQuestions = sessions.reduce((acc, s) => acc + s.history.filter(e => e.answer !== null).length, 0)
+
+  // ── Effects ───────────────────────────────────────────────────────────────
   useEffect(() => { historyRef.current = history }, [history])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light')
+    document.documentElement.classList.toggle('dark', darkMode)
     localStorage.setItem('rag-theme', darkMode ? 'dark' : 'light')
   }, [darkMode])
 
@@ -205,15 +246,81 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     if (!token) return
     fetch(`${API}/provider`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ provider }),
     }).catch(() => {})
   }, [provider])
+
   useEffect(() => { localStorage.setItem(sessionsKey, JSON.stringify(sessions)) }, [sessions])
   useEffect(() => {
     if (activeSession?.id) localStorage.setItem(activeKey, activeSession.id)
   }, [activeSession?.id])
 
+  useEffect(() => {
+    authFetch(`${API}/dashboard`).then(r => r.json()).then(d => {
+      setTokenStats(d.tokens)
+      if (d.groq_tokens) setGroqTokens(d.groq_tokens)
+    }).catch(() => {})
+  }, [authFetch])
+
+  useEffect(() => {
+    authFetch(`${API}/documents`)
+      .then(r => r.json())
+      .then(docs => {
+        const registry = {}
+        docs.forEach(d => { registry[d.name] = { status: d.status || 'ready', size: 0 } })
+        setGlobalFiles(registry)
+      }).catch(() => {})
+  }, [authFetch])
+
+  useEffect(() => {
+    if (!previewFile) {
+      if (previewBlobUrl) { URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null) }
+      setPreviewText(null)
+      return
+    }
+    const ext = previewFile.split('.').pop().toLowerCase()
+    const isPreviewable = ['pdf','png','jpg','jpeg','gif','bmp','webp'].includes(ext)
+    const isPptx        = ext === 'pptx'
+    const isDocPreview  = ['docx','doc','xlsx','xls'].includes(ext)
+    const isTextPreview = ['puml','plantuml','uml','txt','md','csv'].includes(ext)
+
+    if (isPreviewable) {
+      authFetch(`${API}/files/${encodeURIComponent(previewFile)}`)
+        .then(r => r.blob()).then(blob => setPreviewBlobUrl(URL.createObjectURL(blob)))
+        .catch(() => setPreviewBlobUrl(null))
+    } else if (isPptx) {
+      authFetch(`${API}/slides-pdf/${encodeURIComponent(previewFile)}`)
+        .then(r => { if (!r.ok) return r.json().then(d => Promise.reject(d.detail || 'Conversion failed')); return r.blob() })
+        .then(blob => setPreviewBlobUrl(URL.createObjectURL(blob)))
+        .catch(err => setPreviewText(typeof err === 'string' ? err : 'Could not convert to PDF'))
+    } else if (isDocPreview) {
+      authFetch(`${API}/doc-pdf/${encodeURIComponent(previewFile)}`)
+        .then(r => { if (!r.ok) return r.json().then(d => Promise.reject(d.detail || 'Conversion failed')); return r.blob() })
+        .then(blob => setPreviewBlobUrl(URL.createObjectURL(blob)))
+        .catch(err => setPreviewText(typeof err === 'string' ? err : 'Could not convert to PDF'))
+    } else if (isTextPreview) {
+      authFetch(`${API}/preview/${encodeURIComponent(previewFile)}`)
+        .then(r => r.json()).then(d => setPreviewText(d.text || ''))
+        .catch(() => setPreviewText('[Could not load preview]'))
+    }
+    return () => {
+      setPreviewBlobUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null })
+      setPreviewText(null)
+    }
+  }, [previewFile, authFetch])
+
+  useEffect(() => {
+    const el = chatScrollRef.current
+    if (!el) return
+    const onScroll = () => setShowScrollDown(el.scrollHeight - el.scrollTop - el.clientHeight > 120)
+    el.addEventListener('scroll', onScroll)
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => () => Object.values(pollingRef.current).forEach(clearInterval), [])
+
+  // ── Callbacks ─────────────────────────────────────────────────────────────
   const updateHistory = useCallback((updater) => {
     const sid = activeSession?.id
     setSessions(prev => prev.map(s =>
@@ -225,8 +332,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
 
   const createSession = useCallback(() => {
     if (activeSession && activeSession.history.length === 0 && activeSession.fileNames.length === 0) {
-      setActiveSessionId(activeSession.id)
-      return
+      setActiveSessionId(activeSession.id); return
     }
     const s = createNewSession()
     setSessions(prev => [s, ...prev])
@@ -237,25 +343,18 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const switchSession = useCallback((id) => {
     if (isLoadingRef.current) {
       const cancelledId = pendingIdRef.current
-      pendingIdRef.current = null
-      isLoadingRef.current = false
-      setIsLoading(false)
+      pendingIdRef.current = null; isLoadingRef.current = false; setIsLoading(false)
       if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null }
-      if (cancelledId) {
-        setSessions(prev => prev.map(s => ({ ...s, history: s.history.filter(e => e.id !== cancelledId) })))
-      }
+      if (cancelledId) setSessions(prev => prev.map(s => ({ ...s, history: s.history.filter(e => e.id !== cancelledId) })))
     }
-    setActiveSessionId(id)
-    setQuestion('')
-    historyIndexRef.current = -1
-    draftQuestionRef.current = ''
+    setActiveSessionId(id); setQuestion('')
+    historyIndexRef.current = -1; draftQuestionRef.current = ''
   }, [])
 
   const deleteSession = useCallback((id) => {
     setSessions(prev => {
-      const target = prev.find(s => s.id === id)
+      const target    = prev.find(s => s.id === id)
       const remaining = prev.filter(s => s.id !== id)
-
       if (target?.fileNames?.length) {
         const otherFiles = new Set(remaining.flatMap(s => s.fileNames))
         target.fileNames.forEach(filename => {
@@ -266,11 +365,8 @@ function MainApp({ authFetch, currentUser, onLogout }) {
           }
         })
       }
-
       if (remaining.length === 0) {
-        const fresh = createNewSession()
-        setActiveSessionId(fresh.id)
-        return [fresh]
+        const fresh = createNewSession(); setActiveSessionId(fresh.id); return [fresh]
       }
       if (activeSession?.id === id) setActiveSessionId(remaining[0].id)
       return remaining
@@ -281,11 +377,9 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     const sid = activeSession?.id
     setSessions(prev => prev.map(s => {
       if (s.id !== sid || s.fileNames.includes(filename)) return s
-      const shouldRename = s.name === 'New chat' && s.history.length === 0
-      const nameFromFile = filename.replace(/\.[^/.]+$/, '')
-      const name = shouldRename
-        ? (nameFromFile.length > 35 ? nameFromFile.slice(0, 35) + '…' : nameFromFile)
-        : s.name
+      const shouldRename  = s.name === 'New chat' && s.history.length === 0
+      const nameFromFile  = filename.replace(/\.[^/.]+$/, '')
+      const name = shouldRename ? (nameFromFile.length > 35 ? nameFromFile.slice(0, 35) + '…' : nameFromFile) : s.name
       return { ...s, name, fileNames: [...s.fileNames, filename] }
     }))
   }, [activeSession?.id])
@@ -314,81 +408,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
-  useEffect(() => {
-    const el = chatScrollRef.current
-    if (!el) return
-    const onScroll = () => {
-      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-      setShowScrollDown(distFromBottom > 120)
-    }
-    el.addEventListener('scroll', onScroll)
-    return () => el.removeEventListener('scroll', onScroll)
-  }, [])
-
-  useEffect(() => {
-    if (!previewFile) {
-      if (previewBlobUrl) { URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null) }
-      setPreviewText(null)
-      return
-    }
-    const ext = previewFile.split('.').pop().toLowerCase()
-    const isPreviewable = ['pdf','png','jpg','jpeg','gif','bmp','webp'].includes(ext)
-    const isPptx        = ext === 'pptx'
-    const isDocPreview  = ['docx','doc','xlsx','xls'].includes(ext)
-    const isTextPreview = ['puml','plantuml','uml','txt','md','csv'].includes(ext)
-
-    if (isPreviewable) {
-      authFetch(`${API}/files/${encodeURIComponent(previewFile)}`)
-        .then(r => r.blob())
-        .then(blob => setPreviewBlobUrl(URL.createObjectURL(blob)))
-        .catch(() => setPreviewBlobUrl(null))
-    } else if (isPptx) {
-      authFetch(`${API}/slides-pdf/${encodeURIComponent(previewFile)}`)
-        .then(r => {
-          if (!r.ok) return r.json().then(d => Promise.reject(d.detail || 'Conversion failed'))
-          return r.blob()
-        })
-        .then(blob => setPreviewBlobUrl(URL.createObjectURL(blob)))
-        .catch(err => setPreviewText(typeof err === 'string' ? err : 'Could not convert to PDF'))
-    } else if (isDocPreview) {
-      authFetch(`${API}/doc-pdf/${encodeURIComponent(previewFile)}`)
-        .then(r => {
-          if (!r.ok) return r.json().then(d => Promise.reject(d.detail || 'Conversion failed'))
-          return r.blob()
-        })
-        .then(blob => setPreviewBlobUrl(URL.createObjectURL(blob)))
-        .catch(err => setPreviewText(typeof err === 'string' ? err : 'Could not convert to PDF'))
-    } else if (isTextPreview) {
-      authFetch(`${API}/preview/${encodeURIComponent(previewFile)}`)
-        .then(r => r.json())
-        .then(d => setPreviewText(d.text || ''))
-        .catch(() => setPreviewText('[Could not load preview]'))
-    }
-
-    return () => {
-      setPreviewBlobUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null })
-      setPreviewText(null)
-    }
-  }, [previewFile, authFetch])
-
-  useEffect(() => {
-    authFetch(`${API}/dashboard`).then(r => r.json()).then(d => {
-      setTokenStats(d.tokens)
-      if (d.groq_tokens) setGroqTokens(d.groq_tokens)
-    }).catch(() => {})
-  }, [authFetch])
-
-  useEffect(() => {
-    authFetch(`${API}/documents`)
-      .then(r => r.json())
-      .then(docs => {
-        const registry = {}
-        docs.forEach(d => { registry[d.name] = { status: d.status || 'ready', size: 0 } })
-        setGlobalFiles(registry)
-      })
-      .catch(() => {})
-  }, [authFetch])
-
   const pollStatus = useCallback((filename) => {
     if (pollingRef.current[filename]) return
     pollingRef.current[filename] = setInterval(async () => {
@@ -396,25 +415,18 @@ function MainApp({ authFetch, currentUser, onLogout }) {
         const res  = await authFetch(`${API}/status/${encodeURIComponent(filename)}`)
         const data = await res.json()
         if (data.status === 'ready' || data.status === 'error') {
-          clearInterval(pollingRef.current[filename])
-          delete pollingRef.current[filename]
+          clearInterval(pollingRef.current[filename]); delete pollingRef.current[filename]
           setGlobalFiles(prev => ({ ...prev, [filename]: { ...prev[filename], status: data.status, progress: null } }))
         } else {
           setGlobalFiles(prev => ({ ...prev, [filename]: { ...prev[filename], status: data.status, progress: data.progress || null } }))
         }
-      } catch {
-        clearInterval(pollingRef.current[filename])
-        delete pollingRef.current[filename]
-      }
+      } catch { clearInterval(pollingRef.current[filename]); delete pollingRef.current[filename] }
     }, 2000)
   }, [authFetch])
 
-  useEffect(() => () => Object.values(pollingRef.current).forEach(clearInterval), [])
-
   const uploadToBackend = useCallback(async (file) => {
-    const fd = new FormData()
-    fd.append("file", file)
-    const res = await authFetch(`${API}/upload`, { method: "POST", body: fd })
+    const fd = new FormData(); fd.append('file', file)
+    const res = await authFetch(`${API}/upload`, { method: 'POST', body: fd })
     if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
     return res.json()
   }, [authFetch])
@@ -431,94 +443,72 @@ function MainApp({ authFetch, currentUser, onLogout }) {
         ext === 'puml' || ext === 'plantuml' || ext === 'uml' ||
         ext === 'md' || ext === 'csv' || ext === 'pptx'
     })
-
     for (const f of valid) {
-      // Already indexed globally → verify server still has it before skipping upload
       if (globalFiles[f.name]?.status === 'ready') {
         try {
           const check = await authFetch(`${API}/status/${encodeURIComponent(f.name)}`)
           const serverStatus = await check.json()
-          if (serverStatus.status === 'ready') {
-            addFileToSession(f.name)
-            continue
-          }
-          // Server doesn't know about it (e.g. backend restarted) — fall through to re-upload
-        } catch {
-          // Network error — fall through to re-upload
-        }
+          if (serverStatus.status === 'ready') { addFileToSession(f.name); continue }
+        } catch {}
       }
-      // Already indexing → link and let polling handle it
-      if (globalFiles[f.name]?.status === 'indexing') {
-        addFileToSession(f.name)
-        pollStatus(f.name)
-        continue
-      }
+      if (globalFiles[f.name]?.status === 'indexing') { addFileToSession(f.name); pollStatus(f.name); continue }
       setGlobalFiles(prev => ({ ...prev, [f.name]: { status: 'uploading', size: f.size } }))
       addFileToSession(f.name)
       try {
         const result = await uploadToBackend(f)
         setGlobalFiles(prev => ({ ...prev, [f.name]: { ...prev[f.name], status: result.status } }))
         if (result.status === 'indexing') pollStatus(f.name)
-      } catch {
-        setGlobalFiles(prev => ({ ...prev, [f.name]: { ...prev[f.name], status: 'error' } }))
-      }
+      } catch { setGlobalFiles(prev => ({ ...prev, [f.name]: { ...prev[f.name], status: 'error' } })) }
     }
   }, [globalFiles, addFileToSession, uploadToBackend, pollStatus, authFetch])
 
   const handleRemoveFile = useCallback(async (filename) => {
     const sid = activeSession?.id
-    setSessions(prev => prev.map(s =>
-      s.id === sid ? { ...s, fileNames: s.fileNames.filter(n => n !== filename) } : s
-    ))
+    setSessions(prev => prev.map(s => s.id === sid ? { ...s, fileNames: s.fileNames.filter(n => n !== filename) } : s))
     const otherUses = sessions.some(s => s.id !== sid && s.fileNames.includes(filename))
     if (!otherUses) {
       try {
-        await authFetch(`${API}/documents/${encodeURIComponent(filename)}`, { method: "DELETE" })
+        await authFetch(`${API}/documents/${encodeURIComponent(filename)}`, { method: 'DELETE' })
         setGlobalFiles(prev => { const n = { ...prev }; delete n[filename]; return n })
-      } catch (e) { console.error("Delete failed:", e) }
+      } catch (e) { console.error('Delete failed:', e) }
     }
   }, [activeSession?.id, sessions, authFetch])
 
   const handleReindexFile = useCallback(async (filename) => {
     setGlobalFiles(prev => ({ ...prev, [filename]: { ...prev[filename], status: 'indexing' } }))
     try {
-      await authFetch(`${API}/reindex/${encodeURIComponent(filename)}`, { method: "POST" })
+      await authFetch(`${API}/reindex/${encodeURIComponent(filename)}`, { method: 'POST' })
       pollStatus(filename)
     } catch (e) {
-      console.error("Re-index failed:", e)
+      console.error('Re-index failed:', e)
       setGlobalFiles(prev => ({ ...prev, [filename]: { ...prev[filename], status: 'error' } }))
     }
   }, [authFetch, pollStatus])
 
   const handleCancelIndexing = useCallback(async (filename) => {
     try {
-      await authFetch(`${API}/cancel/${encodeURIComponent(filename)}`, { method: "POST" })
+      await authFetch(`${API}/cancel/${encodeURIComponent(filename)}`, { method: 'POST' })
       if (pollingRef.current[filename]) { clearInterval(pollingRef.current[filename]); delete pollingRef.current[filename] }
       const sid = activeSession?.id
-      setSessions(prev => prev.map(s =>
-        s.id === sid ? { ...s, fileNames: s.fileNames.filter(n => n !== filename) } : s
-      ))
+      setSessions(prev => prev.map(s => s.id === sid ? { ...s, fileNames: s.fileNames.filter(n => n !== filename) } : s))
       setGlobalFiles(prev => { const n = { ...prev }; delete n[filename]; return n })
-    } catch (e) { console.error("Cancel failed:", e) }
+    } catch (e) { console.error('Cancel failed:', e) }
   }, [activeSession?.id, authFetch])
 
   const handleUrlIngest = useCallback(async (e) => {
     e.preventDefault()
-    const url = urlInput.trim()
-    if (!url) return
+    const url = urlInput.trim(); if (!url) return
     setUrlError(''); setUrlLoading(true)
     try {
       const res  = await authFetch(`${API}/upload-url`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       })
       const data = await res.json()
       if (!res.ok) { setUrlError(data.detail || 'Failed to fetch URL'); return }
       setUrlInput('')
       setGlobalFiles(prev => ({ ...prev, [data.name]: { status: 'indexing', size: 0 } }))
-      addFileToSession(data.name)
-      pollStatus(data.name)
+      addFileToSession(data.name); pollStatus(data.name)
     } catch { setUrlError('Cannot reach server') }
     finally { setUrlLoading(false) }
   }, [urlInput, authFetch, addFileToSession, pollStatus])
@@ -527,13 +517,9 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     if (e?.preventDefault) e.preventDefault()
     if (scrollTimerRef.current) { clearTimeout(scrollTimerRef.current); scrollTimerRef.current = null }
     const cancelledId = pendingIdRef.current
-    pendingIdRef.current = null
-    isLoadingRef.current = false
+    pendingIdRef.current = null; isLoadingRef.current = false
     if (cancelledId) {
-      setSessions(prev => prev.map(s => ({
-        ...s,
-        history: s.history.filter(h => h.id !== cancelledId)
-      })))
+      setSessions(prev => prev.map(s => ({ ...s, history: s.history.filter(h => h.id !== cancelledId) })))
       setQuestion(currentQuestionRef.current)
     }
     setIsLoading(false)
@@ -543,987 +529,1055 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault()
     if (!question.trim() || isLoadingRef.current) return
-
     const currentQuestion = question.trim()
     currentQuestionRef.current = currentQuestion
-    historyIndexRef.current    = -1
-    draftQuestionRef.current   = ''
-    isLoadingRef.current       = true
-    setIsLoading(true)
-    setQuestion('')
-
+    historyIndexRef.current = -1; draftQuestionRef.current = ''
+    isLoadingRef.current = true; setIsLoading(true); setQuestion('')
     abortControllerRef.current = new AbortController()
-    const tempId = generateId()
-    pendingIdRef.current = tempId
-
+    const tempId = generateId(); pendingIdRef.current = tempId
     updateHistory(prev => [...prev, { id: tempId, question: currentQuestion, answer: null, sources: [], citations: [], warning: null, sentAt: new Date().toISOString() }])
     scrollTimerRef.current = setTimeout(scrollToBottom, 100)
-
     const sid = activeSession?.id
     const isFirstMessage = activeSession?.history.length === 0
-
     try {
       const res = await authFetch(`${API}/ask`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: currentQuestion,
-          history:  historyRef.current
+          history: historyRef.current
             .filter(e => e.answer !== null && !e.answer.startsWith('Error:'))
             .map(e => ({ question: e.question, answer: e.answer })),
-          files: sessionFileNames,
-          provider,
+          files: sessionFileNames, provider,
         }),
-        signal: abortControllerRef.current.signal
+        signal: abortControllerRef.current.signal,
       })
-
       if (!pendingIdRef.current) return
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.detail || `Server error: ${res.status}`)
-      }
-
-      const reader  = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let scrolledOnFirst = false
-
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || `Server error: ${res.status}`) }
+      const reader = res.body.getReader(); const decoder = new TextDecoder()
+      let buffer = ''; let scrolledOnFirst = false
       while (true) {
         if (!pendingIdRef.current) { reader.cancel(); break }
-        const { done, value } = await reader.read()
-        if (done) break
-
+        const { done, value } = await reader.read(); if (done) break
         buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
-
+        const lines = buffer.split('\n'); buffer = lines.pop() ?? ''
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue
-          const raw = line.slice(6).trim()
-          if (!raw) continue
+          const raw = line.slice(6).trim(); if (!raw) continue
           let data; try { data = JSON.parse(raw) } catch { continue }
-
           if (data.type === 'token' && data.content) {
-            updateHistory(prev => prev.map(entry =>
-              entry.id === tempId ? { ...entry, answer: (entry.answer ?? '') + data.content } : entry
-            ))
+            updateHistory(prev => prev.map(entry => entry.id === tempId ? { ...entry, answer: (entry.answer ?? '') + data.content } : entry))
             if (!scrolledOnFirst) { scrolledOnFirst = true; scrollTimerRef.current = setTimeout(scrollToBottom, 100) }
           } else if (data.type === 'done') {
-            updateHistory(prev => prev.map(entry =>
-              entry.id === tempId
-                ? { ...entry, answer: (entry.answer ?? '').trim(), sources: data.sources || [], citations: data.citations || [], warning: data.warning || null, mode: data.mode || 'standard' }
-                : entry
-            ))
+            updateHistory(prev => prev.map(entry => entry.id === tempId
+              ? { ...entry, answer: (entry.answer ?? '').trim(), sources: data.sources || [], citations: data.citations || [], warning: data.warning || null, mode: data.mode || 'standard' }
+              : entry))
             scrollTimerRef.current = setTimeout(scrollToBottom, 100)
-            authFetch(`${API}/dashboard`).then(r => r.json()).then(d => {
-              setTokenStats(d.tokens)
-              if (d.groq_tokens) setGroqTokens(d.groq_tokens)
-            }).catch(() => {})
+            authFetch(`${API}/dashboard`).then(r => r.json()).then(d => { setTokenStats(d.tokens); if (d.groq_tokens) setGroqTokens(d.groq_tokens) }).catch(() => {})
             if (isFirstMessage) {
-              authFetch(`${API}/title`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question: currentQuestion, files: sessionFileNames })
-              })
-                .then(r => r.json())
-                .then(({ title }) => {
-                  if (title) setSessions(prev => prev.map(s => s.id === sid ? { ...s, name: title } : s))
-                })
-                .catch(() => {})
+              authFetch(`${API}/title`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: currentQuestion, files: sessionFileNames }) })
+                .then(r => r.json()).then(({ title }) => { if (title) setSessions(prev => prev.map(s => s.id === sid ? { ...s, name: title } : s)) }).catch(() => {})
             }
           } else if (data.type === 'indexing_wait') {
-            updateHistory(prev => prev.map(entry =>
-              entry.id === tempId ? { ...entry, indexingWait: true } : entry
-            ))
+            updateHistory(prev => prev.map(entry => entry.id === tempId ? { ...entry, indexingWait: true } : entry))
           } else if (data.type === 'hypothesis') {
-            updateHistory(prev => prev.map(entry =>
-              entry.id === tempId ? { ...entry, hypothesis: data.text, indexingWait: false } : entry
-            ))
+            updateHistory(prev => prev.map(entry => entry.id === tempId ? { ...entry, hypothesis: data.text, indexingWait: false } : entry))
           } else if (data.type === 'eval') {
-            setSessions(prev => prev.map(s => ({
-              ...s,
-              history: s.history.map(entry =>
-                entry.id === tempId
-                  ? { ...entry, eval: { faithfulness: data.faithfulness, answer_relevance: data.answer_relevance } }
-                  : entry
-              )
-            })))
-          } else if (data.type === 'error') {
-            throw new Error(data.message)
-          }
+            setSessions(prev => prev.map(s => ({ ...s, history: s.history.map(entry => entry.id === tempId ? { ...entry, eval: { faithfulness: data.faithfulness, answer_relevance: data.answer_relevance } } : entry) })))
+          } else if (data.type === 'error') { throw new Error(data.message) }
         }
       }
-
     } catch (err) {
       if (!pendingIdRef.current) return
       setQuestion(currentQuestionRef.current)
       const msg = err.message || ''
-      const isRateLimit = msg.toLowerCase().includes('rate limit')
+      const isRateLimit  = msg.toLowerCase().includes('rate limit')
       const isDailyLimit = isRateLimit && (msg.toLowerCase().includes('per day') || msg.toLowerCase().includes('tpd') || msg.toLowerCase().includes('tomorrow'))
-      updateHistory(prev => prev.map(entry =>
-        entry.id === tempId
-          ? { ...entry,
-              answer: isRateLimit ? '' : `Error: ${msg}`,
-              rateLimitError: isRateLimit,
-              rateLimitDaily: isDailyLimit }
-          : entry
-      ))
-      authFetch(`${API}/dashboard`).then(r => r.json()).then(d => {
-        setTokenStats(d.tokens)
-        if (d.groq_tokens) setGroqTokens(d.groq_tokens)
-      }).catch(() => {})
+      updateHistory(prev => prev.map(entry => entry.id === tempId
+        ? { ...entry, answer: isRateLimit ? '' : `Error: ${msg}`, rateLimitError: isRateLimit, rateLimitDaily: isDailyLimit }
+        : entry))
+      authFetch(`${API}/dashboard`).then(r => r.json()).then(d => { setTokenStats(d.tokens); if (d.groq_tokens) setGroqTokens(d.groq_tokens) }).catch(() => {})
     } finally {
       if (pendingIdRef.current === tempId) {
-        pendingIdRef.current = null
-        isLoadingRef.current = false
-        setIsLoading(false)
-        abortControllerRef.current = null
+        pendingIdRef.current = null; isLoadingRef.current = false; setIsLoading(false); abortControllerRef.current = null
       }
     }
   }, [question, scrollToBottom, updateHistory, sessionFileNames, activeSession, authFetch])
 
   const openDashboard = useCallback(async () => {
-    setShowDashboard(true)
-    setEvalData(null)
-    setChunkView({})
-    setSummaryView({})
+    setShowDashboard(true); setEvalData(null); setChunkView({}); setSummaryView({})
     try { const res = await authFetch(`${API}/dashboard`); setDashboardData(await res.json()) }
     catch { setDashboardData(null) }
   }, [authFetch])
 
   const runEval = useCallback(async () => {
-    setEvalLoading(true)
-    setEvalData(null)
+    setEvalLoading(true); setEvalData(null)
     try {
       const res  = await authFetch(`${API}/eval`, { method: 'POST' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Eval failed')
       setEvalData(data)
-    } catch (e) {
-      setEvalData({ error: e.message })
-    } finally {
-      setEvalLoading(false)
-    }
+    } catch (e) { setEvalData({ error: e.message }) }
+    finally { setEvalLoading(false) }
   }, [authFetch])
 
-  const getStatusBadge = (status) => {
+  // ── Session list (derived) ─────────────────────────────────────────────────
+  const filteredSessions = (() => {
+    const q = sessionSearch.trim().toLowerCase()
+    const list = q
+      ? sessions.filter(s => s.name.toLowerCase().includes(q) || s.history.some(e => e.question?.toLowerCase().includes(q) || e.answer?.toLowerCase().includes(q)))
+      : sessions
+    if (list.length === 0) return (
+      <p className="text-xs text-muted-foreground text-center py-4">No chats match "{sessionSearch}"</p>
+    )
+    return list.map(s => {
+      const match = q ? s.history.find(e => e.question?.toLowerCase().includes(q) || e.answer?.toLowerCase().includes(q)) : null
+      let excerpt = null
+      if (match) {
+        const src = match.question?.toLowerCase().includes(q) ? match.question : match.answer
+        const idx = src.toLowerCase().indexOf(q)
+        const start = Math.max(0, idx - 20)
+        excerpt = (start > 0 ? '…' : '') + src.slice(start, idx + q.length + 35).trim() + '…'
+      }
+      const msgCount = s.history.filter(h => h.answer).length
+      return (
+        <button
+          key={s.id}
+          onClick={() => switchSession(s.id)}
+          className={cn(
+            'w-full text-left rounded-lg px-3 py-2.5 mb-1 group transition-colors relative',
+            s.id === activeSession?.id
+              ? 'bg-primary/10 text-foreground'
+              : 'hover:bg-muted/60 text-foreground'
+          )}
+        >
+          <div className="flex items-start justify-between gap-1">
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium truncate">{s.name}</div>
+              {excerpt ? (
+                <div className="text-[10px] text-muted-foreground truncate mt-0.5">{excerpt}</div>
+              ) : (
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  {s.fileNames.length} file{s.fileNames.length !== 1 ? 's' : ''} · {msgCount} msg{msgCount !== 1 ? 's' : ''}
+                </div>
+              )}
+            </div>
+            <button
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:text-destructive flex-shrink-0 mt-0.5"
+              onClick={ev => { ev.stopPropagation(); if (window.confirm('Delete this chat?')) deleteSession(s.id) }}
+              title="Delete"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          </div>
+        </button>
+      )
+    })
+  })()
+
+  // ── File status helper ─────────────────────────────────────────────────────
+  const fileStatusInfo = (status) => {
     switch (status) {
-      case 'uploading': return { label: 'Uploading...', color: 'var(--text-muted)' }
-      case 'indexing':  return { label: 'Indexing...', color: '#854F0B' }
-      case 'ready':     return { label: 'Ready', color: '#3B6D11' }
-      case 'error':     return { label: 'Error', color: '#e53e3e' }
+      case 'uploading': return { label: 'Uploading', className: 'text-muted-foreground' }
+      case 'indexing':  return { label: 'Indexing',  className: 'text-amber-600 dark:text-amber-400' }
+      case 'ready':     return { label: 'Ready',     className: 'text-emerald-600 dark:text-emerald-400' }
+      case 'error':     return { label: 'Error',     className: 'text-destructive' }
       default:          return null
     }
   }
 
-  const totalQuestions = sessions.reduce((acc, s) => acc + s.history.filter(e => e.answer !== null).length, 0)
-
-  const evalEntries = sessions.flatMap(s => s.history.filter(e => e.eval))
-  const avgFaithfulness = evalEntries.length
-    ? evalEntries.reduce((a, e) => a + e.eval.faithfulness, 0) / evalEntries.length
-    : null
-  const avgRelevance = evalEntries.length
-    ? evalEntries.reduce((a, e) => a + e.eval.answer_relevance, 0) / evalEntries.length
-    : null
-
+  // ─────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="app">
-      <nav className="navbar">
-        <div className="navbar-logo">RAG Assistant</div>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {anyIndexing && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Indexing documents...</span>}
-          {provider === 'cloud' && groqTokens && Object.keys(groqTokens.models || {}).length > 0 && (
-            <div className="groq-token-panel">
-              {Object.entries(groqTokens.models).map(([model, data]) => {
-                const pct  = Math.min(data.pct, 100)
-                const tpmPct = (data.tpm_limit != null && data.tpm_remaining != null)
-                  ? Math.min(100, Math.round((1 - data.tpm_remaining / data.tpm_limit) * 100))
-                  : null
-                const tpmLow = tpmPct != null && tpmPct >= 80
-                const fill = tpmLow ? '#e53e3e' : pct >= 90 ? '#e53e3e' : pct >= 60 ? '#e07b00' : '#3B6D11'
-                const tpmInfo = tpmPct != null
-                  ? `\nPer-minute: ${data.tpm_remaining?.toLocaleString()}/${data.tpm_limit?.toLocaleString()} remaining${data.tpm_reset ? ` (resets in ${data.tpm_reset})` : ''}`
-                  : ''
-                const tip  = `${model}\nDaily: ${data.total.toLocaleString()} / ${data.daily_limit.toLocaleString()} tokens${data.from_headers ? ' (live)' : ' (estimated)'}${tpmInfo}\nRate limits apply both daily AND per-minute — bar shows daily usage.`
-                return (
-                  <div key={model} className="groq-token-bar" title={tip}>
-                    <span className="groq-token-bar-label">
-                      {model} · {pct.toFixed(1)}%{tpmLow ? ' ⚠ TPM' : ''}
-                    </span>
-                    <div className="groq-token-bar-track">
-                      <div className="groq-token-bar-fill" style={{ width: `${pct}%`, background: fill }} />
-                    </div>
-                    <span className="groq-token-bar-count">{data.total.toLocaleString()}/{(data.daily_limit/1000).toFixed(0)}k</span>
-                  </div>
-                )
-              })}
+    <TooltipProvider>
+      <div className="flex flex-col h-screen bg-background overflow-hidden">
+
+        {/* ── Navbar ── */}
+        <nav className="border-b bg-background flex-shrink-0 z-10">
+          <div className="flex items-center gap-3 px-4 h-14">
+            {/* Logo */}
+            <div className="flex items-center gap-2.5 mr-2">
+              <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                <MessageSquare className="w-3.5 h-3.5 text-primary-foreground" />
+              </div>
+              <span className="font-bold text-base tracking-tight uppercase">RAG Assistant</span>
             </div>
-          )}
-          <div className="provider-toggle">
-            <button className={`provider-btn ${provider === 'local' ? 'active' : ''}`} onClick={() => setProvider('local')} title="Local: qwen2.5:7b + qwen2.5vl:7b">⚙ Local</button>
-            <button className={`provider-btn ${provider === 'cloud' ? 'active' : ''}`} onClick={() => setProvider('cloud')} title="Cloud: Llama 3.3 70B (Groq) + Gemini Flash">☁ Cloud</button>
-          </div>
-          <button className="clear-history-btn" onClick={() => setDarkMode(d => !d)} title="Toggle dark mode">
-            {darkMode ? '☀' : '☾'}
-          </button>
-          <button className="clear-history-btn" onClick={openDashboard}>Stats</button>
-          {history.filter(e => e.answer !== null).length > 0 && (
-            <button className="clear-history-btn" onClick={() => window.print()}>Export PDF</button>
-          )}
-          <div className="user-badge">
-            
-            
-            <button className="logout-btn" onClick={onLogout} title="Sign out">sign out</button>
-            <span className="user-fullname">{currentUser.lastname} {currentUser.firstname}</span>
-          </div>
-        </div>
-      </nav>
 
-      <div className="main-container">
-        <aside className="sidebar-sessions">
-          <button className="new-chat-btn" onClick={createSession}>＋ New chat</button>
+            <div className="flex-1" />
 
-          <div className="session-search-wrap">
-            <input
-              className="session-search-input"
-              type="text"
-              placeholder="Search chats…"
-              value={sessionSearch}
-              onChange={e => setSessionSearch(e.target.value)}
-            />
-            {sessionSearch && (
-              <button className="session-search-clear" onClick={() => setSessionSearch('')}>✕</button>
+            {/* Indexing indicator */}
+            {anyIndexing && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span className="hidden sm:inline">Indexing…</span>
+              </div>
             )}
-          </div>
 
-          <div className="session-list">
-            {(() => {
-              const q = sessionSearch.trim().toLowerCase()
-              const filtered = q
-                ? sessions.filter(s =>
-                    s.name.toLowerCase().includes(q) ||
-                    s.history.some(e =>
-                      e.question?.toLowerCase().includes(q) ||
-                      e.answer?.toLowerCase().includes(q)
-                    )
+            {/* Groq token bars */}
+            {provider === 'cloud' && groqTokens && Object.keys(groqTokens.models || {}).length > 0 && (
+              <div className="flex flex-col gap-1.5 justify-center">
+                {Object.entries(groqTokens.models).map(([model, data]) => {
+                  const pct  = Math.min(data.pct, 100)
+                  const tpmPct = (data.tpm_limit != null && data.tpm_remaining != null)
+                    ? Math.min(100, Math.round((1 - data.tpm_remaining / data.tpm_limit) * 100)) : null
+                  const tpmLow = tpmPct != null && tpmPct >= 80
+                  const fillColor = tpmLow || pct >= 90 ? '#ef4444' : pct >= 60 ? '#f59e0b' : '#22c55e'
+                  const shortName = model.includes('70b') ? '70B' : model.includes('8b') ? '8B' : model.split('-')[2] || model
+                  const tip = `${model}\nDaily: ${data.total.toLocaleString()} / ${data.daily_limit.toLocaleString()} tokens${data.from_headers ? ' (live)' : ' (est.)'}`
+                  return (
+                    <div key={model} className="flex items-center gap-1.5" title={tip}>
+                      <span className="text-[10px] text-muted-foreground w-6 text-right">{shortName}</span>
+                      <div className="w-14 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${pct}%`, backgroundColor: fillColor }} />
+                      </div>
+                      <span className="text-[10px] text-muted-foreground tabular-nums w-10">
+                        {pct.toFixed(0)}%{tpmLow ? ' ⚠' : ''}
+                      </span>
+                    </div>
                   )
-                : sessions
-              if (filtered.length === 0) return (
-                <p className="session-search-empty">No chats match "{sessionSearch}"</p>
-              )
-              return filtered.map(s => {
-                const q_lc = q
-                const match = q_lc ? s.history.find(e =>
-                  e.question?.toLowerCase().includes(q_lc) ||
-                  e.answer?.toLowerCase().includes(q_lc)
-                ) : null
-                let excerpt = null
-                if (match) {
-                  const src = match.question?.toLowerCase().includes(q_lc) ? match.question : match.answer
-                  const idx = src.toLowerCase().indexOf(q_lc)
-                  const start = Math.max(0, idx - 25)
-                  excerpt = (start > 0 ? '…' : '') + src.slice(start, idx + q_lc.length + 40).trim() + '…'
-                }
-                return (
-                  <div
-                    key={s.id}
-                    className={`session-item ${s.id === activeSession?.id ? 'active' : ''}`}
-                    onClick={() => switchSession(s.id)}
-                  >
-                    <div className="session-info">
-                      <div className="session-name" title={s.name}>{s.name}</div>
-                      {excerpt
-                        ? <div className="session-excerpt">{excerpt}</div>
-                        : <div className="session-meta">
-                            {s.fileNames.length} file{s.fileNames.length !== 1 ? 's' : ''} &middot;{' '}
-                            {s.history.filter(h => h.answer).length} msg{s.history.filter(h => h.answer).length !== 1 ? 's' : ''}
-                          </div>
-                      }
-                    </div>
-                    <button
-                      className="session-delete"
-                      onClick={ev => { ev.stopPropagation(); if (window.confirm('Delete this chat?')) deleteSession(s.id) }}
-                      title="Delete session"
-                    >✕</button>
-                  </div>
-                )
-              })
-            })()}
-          </div>
-        </aside>
-
-        <main className="chat-area">
-          <div className="print-header">
-            <div className="print-header-title">RAG Assistant — Chat Export</div>
-            <div className="print-header-date">{new Date().toLocaleString()}</div>
-          </div>
-
-          <div
-            className="chat-messages"
-            ref={chatScrollRef}
-            onScroll={e => {
-              const el = e.currentTarget
-              setShowScrollDown(el.scrollHeight - el.scrollTop - el.clientHeight > 120)
-            }}
-          >
-            {history.length === 0 && !isLoading && (
-              <div className="chat-empty">
-                <ChatIcon />
-                <h3 className="chat-empty-title">Start a conversation</h3>
-                <p className="chat-empty-text">Upload documents and ask questions to get answers with source citations.</p>
+                })}
               </div>
             )}
 
-            {history.map(entry => (
-              <div key={entry.id} id={`msg-${entry.id}`} className="conversation-entry">
-                <div className="message-wrapper user">
-                  <div className="message user">
-                    <p className="message-content">{entry.question}</p>
-                    <button
-                      className="copy-btn copy-prompt-btn"
-                      onClick={() => navigator.clipboard.writeText(entry.question)}
-                      title="Copy prompt"
-                    >Copy</button>
-                  </div>
-                  {entry.sentAt && (
-                    <div className="message-user-meta">
-                      <span className="message-timestamp">
-                        {new Date(entry.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className="message-wrapper ai">
-                  <div className="message ai">
-                    {entry.hypothesis && (
-                      <details className="hypothesis-block">
-                        <summary className="hypothesis-summary">🔍 Search hypothesis</summary>
-                        <p className="hypothesis-text">{entry.hypothesis}</p>
-                      </details>
-                    )}
-                    {entry.answer === null ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div className="loading-dots">
-                          <div className="loading-dot" /><div className="loading-dot" /><div className="loading-dot" />
-                        </div>
-                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                          {entry.indexingWait ? 'Waiting for indexing to finish…' : 'Generating a response…'}
-                        </span>
-                      </div>
-                    ) : entry.rateLimitError ? (
-                      <div className="rate-limit-banner">
-                        <span className="rate-limit-icon">⚠</span>
-                        <div>
-                          <div className="rate-limit-title">Rate limit reached</div>
-                          <div className="rate-limit-desc">{entry.rateLimitDaily ? "Groq's daily token quota is exhausted. Try again tomorrow or switch to a different model." : "Groq's per-minute token limit was hit — your request (question + retrieved context) was too large for the current minute window. Wait 1–2 minutes and try again, or reduce context by removing documents."}</div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="message-content markdown-body">
-                        <ReactMarkdown>{entry.answer}</ReactMarkdown>
-                        {entry.stopped && (
-                          <div className="stopped-indicator">⬛ Stopped</div>
-                        )}
-                        <button
-                          className="copy-btn"
-                          onClick={() => navigator.clipboard.writeText(entry.answer)}
-                          title="Copy response"
-                        >Copy</button>
-                      </div>
-                    )}
-                  </div>
-                  {entry.warning && (
-                    <p style={{ fontSize: '12px', color: '#854F0B', margin: '6px 0 0', padding: '6px 10px', background: '#FAEEDA', borderRadius: '6px' }}>
-                      ⚠ {entry.warning}
-                    </p>
-                  )}
-                  {entry.sources?.length > 0 && entry.answer !== null && (
-                    <div className="sources">
-                      {(entry.citations?.length > 0 ? entry.citations : entry.sources.map(s => ({ file: s, pages: [] }))).map((c, i) => (
-                        <span key={i} className="source-pill">
-                          <SourceIcon />
-                          {c.file}
-                          {c.pages?.length > 0 && (
-                            <span className="source-pages">p. {c.pages.join(', ')}</span>
-                          )}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {entry.eval && entry.answer !== null && (
-                    <div className="eval-scores">
-                      <span className={`eval-badge ${evalColor(entry.eval.faithfulness)}`}
-                        title="Faithfulness — how well the answer is grounded in the retrieved context">
-                        F {Math.round(entry.eval.faithfulness * 100)}%
-                      </span>
-                      <span className={`eval-badge ${evalColor(entry.eval.answer_relevance)}`}
-                        title="Answer relevance — how directly the answer addresses the question">
-                        R {Math.round(entry.eval.answer_relevance * 100)}%
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-            <div ref={chatEndRef} />
-          </div>
-
-          {showScrollDown && (
-            <button
-              className="scroll-down-btn"
-              onClick={scrollToBottom}
-              title="Scroll to latest"
-            >↓</button>
-          )}
-
-          <form className="input-bar" onSubmit={handleSubmit}>
-            <div className="input-container">
-              <input
-                type="text" className="input-field"
-                placeholder="Ask a question about your documents..."
-                value={question} onChange={e => setQuestion(e.target.value)}
-                onKeyDown={handleInputKeyDown} disabled={isLoading}
-              />
-              {isLoading
-                ? <button key="cancel" type="button" className="cancel-button" onClick={handleCancel}>Cancel</button>
-                : <button key="send"   type="submit"  className="send-button"   disabled={!question.trim()}>Send</button>
-              }
-            </div>
-            {tokenStats && tokenStats.total > 0 && (() => {
-              const model = COST_MODELS.find(m => m.name === selectedCostModel) || COST_MODELS[0]
-              const cost  = (tokenStats.prompt / 1e6) * model.input + (tokenStats.completion / 1e6) * model.output
-              const costStr = cost < 0.0001 ? '<$0.0001' : `$${cost.toFixed(4)}`
-              return (
-                <div className="cost-estimator">
-                  <span className="cost-label">Session cost on</span>
-                  <select
-                    className="cost-model-select"
-                    value={selectedCostModel}
-                    onChange={e => setSelectedCostModel(e.target.value)}
-                  >
-                    {COST_MODELS.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}
-                  </select>
-                  <span className="cost-value">{costStr}</span>
-                  <span className="cost-tokens">· {tokenStats.total.toLocaleString()} tokens</span>
-                </div>
-              )
-            })()}
-          </form>
-        </main>
-
-        <aside className="sidebar-files">
-          {history.filter(e => e.question).length > 0 && (
-            <div className="prompt-nav-sidebar">
+            {/* Provider toggle */}
+            <div className="flex items-center rounded-lg border bg-muted p-0.5 gap-0.5">
               <button
-                className="prompt-nav-sidebar-header"
-                onClick={() => setShowPromptNav(p => !p)}
+                onClick={() => setProvider('local')}
+                title="Local: qwen2.5:7b + qwen2.5vl:7b"
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all',
+                  provider === 'local' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+                )}
               >
-                <span className="sidebar-title" style={{ pointerEvents: 'none' }}>Prompts</span>
-                <span className="prompt-nav-chevron">{showPromptNav ? '▲' : '▼'}</span>
+                <Cpu className="w-3 h-3" /> Local
               </button>
-              {showPromptNav && (
-                <div className="prompt-nav-sidebar-list">
-                  {history.filter(e => e.question).map((entry, idx) => (
-                    <button
-                      key={entry.id}
-                      className="prompt-nav-item"
-                      onClick={() => {
-                        document.getElementById(`msg-${entry.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                      }}
-                    >
-                      <span className="prompt-nav-index">{idx + 1}</span>
-                      <span className="prompt-nav-text">{entry.question.length > 55 ? entry.question.slice(0, 55) + '…' : entry.question}</span>
-                    </button>
-                  ))}
+              <button
+                onClick={() => setProvider('cloud')}
+                title="Cloud: Llama 3.3 70B (Groq)"
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all',
+                  provider === 'cloud' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <Cloud className="w-3 h-3" /> Cloud
+              </button>
+            </div>
+
+            {/* Theme toggle */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDarkMode(d => !d)}>
+                  {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Toggle theme</TooltipContent>
+            </Tooltip>
+
+            {/* Stats */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={openDashboard}>
+                  <BarChart2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Usage stats</TooltipContent>
+            </Tooltip>
+
+            {/* Export PDF */}
+            {history.filter(e => e.answer !== null).length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.print()}>
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Export PDF</TooltipContent>
+              </Tooltip>
+            )}
+
+            <Separator orientation="vertical" className="h-6 mx-1" />
+
+            {/* User avatar */}
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-[10px] font-semibold text-primary-foreground flex-shrink-0 select-none">
+                {currentUser.firstname?.[0]}{currentUser.lastname?.[0]}
+              </div>
+              <span className="text-xs font-medium hidden md:block text-muted-foreground">
+                {currentUser.firstname} {currentUser.lastname}
+              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onLogout}>
+                    <LogOut className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Sign out</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+        </nav>
+
+        {/* ── Body ── */}
+        <div className="flex flex-1 overflow-hidden">
+
+          {/* ── Session sidebar ── */}
+          <aside className="w-60 flex-shrink-0 border-r flex flex-col bg-muted/20">
+            <div className="p-3 space-y-2 flex-shrink-0">
+              <Button className="w-full justify-start gap-2 h-8 text-xs" variant="outline" onClick={createSession}>
+                <Plus className="h-3.5 w-3.5" /> New chat
+              </Button>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  className="pl-8 h-8 text-xs"
+                  placeholder="Search chats…"
+                  value={sessionSearch}
+                  onChange={e => setSessionSearch(e.target.value)}
+                />
+                {sessionSearch && (
+                  <button className="absolute right-2.5 top-1/2 -translate-y-1/2" onClick={() => setSessionSearch('')}>
+                    <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-2 pb-2">
+              {filteredSessions}
+            </div>
+          </aside>
+
+          {/* ── Chat area ── */}
+          <main className="flex-1 flex flex-col overflow-hidden min-w-0 relative">
+            {/* Print header */}
+            <div className="print-header hidden print:block px-6 py-4 border-b">
+              <div className="font-semibold">RAG Assistant — Chat Export</div>
+              <div className="text-sm text-muted-foreground">{new Date().toLocaleString()}</div>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6" ref={chatScrollRef}>
+
+              {/* Empty state */}
+              {history.length === 0 && !isLoading && (
+                <div className="flex flex-col items-center justify-center h-full text-center gap-4">
+                  <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+                    <MessageSquare className="w-8 h-8 text-primary/60" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-base mb-1">Start a conversation</h3>
+                    <p className="text-sm text-muted-foreground max-w-xs">Upload documents and ask questions to get answers with source citations.</p>
+                  </div>
                 </div>
               )}
-            </div>
-          )}
 
-          <h2 className="sidebar-title">Documents</h2>
-
-          <div
-            className={`upload-zone ${isDragOver ? 'dragover' : ''}`}
-            onClick={() => fileInputRef.current?.click()}
-            onDrop={ev => { ev.preventDefault(); setIsDragOver(false); handleFileSelect(ev.dataTransfer.files) }}
-            onDragOver={ev => { ev.preventDefault(); setIsDragOver(true) }}
-            onDragLeave={ev => { ev.preventDefault(); setIsDragOver(false) }}
-          >
-            <UploadIcon />
-            <p className="upload-text">Click or drag to upload</p>
-            <p className="upload-hint">PDF, Word, Excel, PowerPoint, UML, TXT or images</p>
-            <input
-              ref={fileInputRef} type="file" accept=".pdf,.txt,.docx,.xlsx,.xls,.pptx,.puml,.plantuml,.uml,.md,.csv,image/*" multiple
-              style={{ display: 'none' }}
-              onChange={ev => { handleFileSelect(ev.target.files); ev.target.value = '' }}
-            />
-          </div>
-
-          <form className="url-ingest-form" onSubmit={handleUrlIngest}>
-            <input
-              className="url-ingest-input"
-              type="url"
-              placeholder="Paste a URL to index…"
-              value={urlInput}
-              onChange={e => { setUrlInput(e.target.value); setUrlError('') }}
-              disabled={urlLoading}
-            />
-            <button className="url-ingest-btn" type="submit" disabled={urlLoading || !urlInput.trim()}>
-              {urlLoading ? '…' : '↓'}
-            </button>
-          </form>
-          {urlError && <p className="url-ingest-error">{urlError}</p>}
-
-          {sessionFiles.length > 0 && (
-            <div className="file-list">
-              {sessionFiles.map(file => {
-                const badge = getStatusBadge(file.status)
-                return (
-                  <div
-                    key={file.name}
-                    className={`file-item ${file.status === 'ready' ? 'file-item--clickable' : ''}`}
-                    onClick={() => { if (file.status === 'ready') setPreviewFile(file.name) }}
-                  >
-                    <FileIcon />
-                    <div className="file-info">
-                      <div className="file-name">{file.name}</div>
-                      <div className="file-size" style={{ color: badge?.color }}>
-                        {badge ? badge.label : formatFileSize(file.size)}
+              {/* Message pairs */}
+              {history.map(entry => (
+                <div key={entry.id} id={`msg-${entry.id}`} className="space-y-3">
+                  {/* User bubble */}
+                  <div className="flex justify-end">
+                    <div className="max-w-[75%] group">
+                      <div className="bg-primary text-primary-foreground rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm leading-relaxed shadow-sm">
+                        {entry.question}
+                      </div>
+                      <div className="flex justify-end items-center gap-2 mt-1 px-1">
+                        {entry.sentAt && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {new Date(entry.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                        <button
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => navigator.clipboard.writeText(entry.question)}
+                          title="Copy"
+                        >
+                          <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                        </button>
                       </div>
                     </div>
-                    {file.status === 'ready' && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <div
-                          onClick={ev => { ev.stopPropagation(); handleReindexFile(file.name) }}
-                          style={{ cursor: 'pointer', opacity: 0.5, fontSize: '14px', lineHeight: 1, padding: '2px 4px' }}
-                          title="Re-index with latest extractor"
-                        >↺</div>
-                        <div onClick={ev => { ev.stopPropagation(); handleRemoveFile(file.name) }} style={{ cursor: 'pointer' }}>
-                          <RemoveIcon />
-                        </div>
+                  </div>
+
+                  {/* AI response */}
+                  <div className="flex justify-start">
+                    <div className="max-w-[85%] flex items-start gap-2.5">
+                      {/* AI avatar */}
+                      <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <MessageSquare className="w-3.5 h-3.5 text-primary" />
                       </div>
-                    )}
-                    {(file.status === 'indexing' || file.status === 'uploading') && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '80px' }}>
-                        {file.progress && file.progress.total > 0 ? (
-                          <>
-                            <div className="progress-bar-wrap">
-                              <div className="progress-bar" style={{
-                                width: `${Math.round((file.progress.current / file.progress.total) * 100)}%`
-                              }} />
+
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        {/* Hypothesis */}
+                        {entry.hypothesis && (
+                          <details className="text-xs rounded-lg bg-muted/60 border overflow-hidden">
+                            <summary className="px-3 py-2 cursor-pointer text-muted-foreground hover:text-foreground flex items-center gap-1.5 select-none">
+                              <Search className="w-3 h-3" /> Search hypothesis
+                            </summary>
+                            <p className="px-3 pb-2.5 pt-1 text-muted-foreground leading-relaxed">{entry.hypothesis}</p>
+                          </details>
+                        )}
+
+                        {/* Answer content */}
+                        {entry.answer === null ? (
+                          <div className="bg-card border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <div className="flex gap-1 items-center">
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+                              </div>
+                              <span className="text-xs">{entry.indexingWait ? 'Waiting for indexing…' : 'Generating response…'}</span>
                             </div>
-                            <span style={{ fontSize: '10px', color: 'var(--text-muted)', textAlign: 'right' }}>
-                              Page {file.progress.current}/{file.progress.total}
-                            </span>
-                          </>
+                          </div>
+                        ) : entry.rateLimitError ? (
+                          <div className="bg-destructive/10 border border-destructive/20 rounded-2xl rounded-tl-sm px-4 py-3 flex items-start gap-3">
+                            <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                            <div>
+                              <div className="font-medium text-sm text-destructive">Rate limit reached</div>
+                              <div className="text-xs text-destructive/80 mt-0.5 leading-relaxed">
+                                {entry.rateLimitDaily
+                                  ? "Groq's daily token quota is exhausted. Try again tomorrow or switch to a different model."
+                                  : "Groq's per-minute limit was hit. Wait 1–2 minutes and try again, or reduce context by removing documents."}
+                              </div>
+                            </div>
+                          </div>
                         ) : (
-                          <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
-                            {[0, 1, 2].map(i => (
-                              <div key={i} style={{
-                                width: '4px', height: '4px', borderRadius: '50%',
-                                background: 'var(--text-muted)',
-                                animation: `loading-pulse 1.2s infinite ${i * 0.2}s`
-                              }} />
+                          <div className="bg-card border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm group">
+                            <div className="markdown-body text-sm">
+                              <ReactMarkdown>{entry.answer}</ReactMarkdown>
+                            </div>
+                            {entry.stopped && (
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
+                                <Square className="w-3 h-3" /> Stopped
+                              </div>
+                            )}
+                            <button
+                              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground mt-2 transition-colors opacity-0 group-hover:opacity-100"
+                              onClick={() => navigator.clipboard.writeText(entry.answer)}
+                            >
+                              <Copy className="w-3 h-3" /> Copy
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Warning */}
+                        {entry.warning && (
+                          <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 dark:bg-amber-950/30 dark:border-amber-900 dark:text-amber-400 leading-relaxed">
+                            ⚠ {entry.warning}
+                          </div>
+                        )}
+
+                        {/* Sources */}
+                        {entry.sources?.length > 0 && entry.answer !== null && (
+                          <div className="flex flex-wrap gap-1.5 pt-0.5">
+                            {(entry.citations?.length > 0 ? entry.citations : entry.sources.map(s => ({ file: s, pages: [] }))).map((c, i) => (
+                              <Badge key={i} variant="secondary" className="text-[10px] font-normal gap-1 py-0.5 h-auto">
+                                <FileText className="w-2.5 h-2.5" />
+                                <span className="max-w-[160px] truncate">{c.file}</span>
+                                {c.pages?.length > 0 && <span className="text-muted-foreground">p.{c.pages.join(',')}</span>}
+                              </Badge>
                             ))}
                           </div>
                         )}
-                        {file.status === 'indexing' && (
-                          <span onClick={() => handleCancelIndexing(file.name)} style={{
-                            fontSize: '11px', color: '#854F0B', cursor: 'pointer', textDecoration: 'underline', textAlign: 'right'
-                          }}>cancel</span>
+
+                        {/* Eval badges */}
+                        {entry.eval && entry.answer !== null && (
+                          <div className="flex gap-1.5 pt-0.5">
+                            <span className={cn('text-[10px] px-1.5 py-0.5 rounded border font-medium', evalBadgeClass(entry.eval.faithfulness))}
+                              title="Faithfulness — how well the answer is grounded in the retrieved context">
+                              F {Math.round(entry.eval.faithfulness * 100)}%
+                            </span>
+                            <span className={cn('text-[10px] px-1.5 py-0.5 rounded border font-medium', evalBadgeClass(entry.eval.answer_relevance))}
+                              title="Answer relevance — how directly the answer addresses the question">
+                              R {Math.round(entry.eval.answer_relevance * 100)}%
+                            </span>
+                          </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </aside>
-      </div>
-
-      {previewFile && (() => {
-        const ext     = previewFile.split('.').pop().toLowerCase()
-        const fileUrl = `${API}/files/${encodeURIComponent(previewFile)}`
-        const isImage      = ['png','jpg','jpeg','gif','bmp','webp'].includes(ext)
-        const isPdfLike    = ['pdf','pptx','docx','doc','xlsx','xls'].includes(ext)
-        const hasText      = previewText !== null
-        return (
-          <div className="preview-overlay" onClick={() => { setPreviewFile(null) }}>
-            <div className="preview-modal" onClick={e => e.stopPropagation()}>
-              <div className="preview-header">
-                <span className="preview-filename">{previewFile}</span>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {previewBlobUrl && (
-                    <button className="preview-open-btn" onClick={() => window.open(previewBlobUrl, '_blank')}>Open in tab ↗</button>
-                  )}
-                  <button className="dashboard-close" onClick={() => setPreviewFile(null)}>✕</button>
-                </div>
-              </div>
-              <div className="preview-body">
-                {isPdfLike && (
-                  previewBlobUrl
-                    ? <iframe src={previewBlobUrl} title={previewFile} className="preview-iframe" />
-                    : hasText
-                      ? <pre className="preview-text">{previewText}</pre>
-                      : <div className="preview-loading">Converting to PDF…</div>
-                )}
-                {isImage && (
-                  previewBlobUrl
-                    ? <img src={previewBlobUrl} alt={previewFile} className="preview-image" />
-                    : <div className="preview-loading">Loading…</div>
-                )}
-                {!isPdfLike && !isImage && hasText && (
-                  <pre className="preview-text">{previewText}</pre>
-                )}
-                {!isPdfLike && !isImage && !hasText && (
-                  <div className="preview-loading">Loading…</div>
-                )}
-              </div>
-            </div>
-          </div>
-        )
-      })()}
-
-      {showDashboard && (
-        <div className="dashboard-overlay" onClick={() => setShowDashboard(false)}>
-          <div className="dashboard-modal" onClick={e => e.stopPropagation()}>
-            <div className="dashboard-header">
-              <h2 className="dashboard-title">Usage Stats</h2>
-              <button className="dashboard-close" onClick={() => setShowDashboard(false)}>✕</button>
-            </div>
-            {!dashboardData ? <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading…</p> : (
-              <>
-                <div className="dashboard-cards">
-                  {[
-                    { label: 'Questions asked',   value: dashboardData.queries?.total ?? totalQuestions },
-                    { label: 'Avg response time', value: dashboardData.queries?.avg_response_ms ? `${(dashboardData.queries.avg_response_ms / 1000).toFixed(1)}s` : '—' },
-                    { label: 'Documents ready',   value: dashboardData.documents.ready },
-                    { label: 'Total chunks',      value: dashboardData.chunks.total },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="dashboard-card">
-                      <div className="dashboard-card-value">{value}</div>
-                      <div className="dashboard-card-label">{label}</div>
                     </div>
-                  ))}
+                  </div>
+                </div>
+              ))}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Scroll to bottom */}
+            {showScrollDown && (
+              <button
+                className="absolute bottom-28 left-1/2 -translate-x-1/2 bg-background border shadow-md rounded-full p-2 hover:bg-muted transition-colors z-10"
+                onClick={scrollToBottom}
+                title="Scroll to latest"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Input bar */}
+            <div className="border-t bg-background px-4 pt-3 pb-4 flex-shrink-0">
+              <form onSubmit={handleSubmit}>
+                <div className="flex gap-2 items-center">
+                  <Input
+                    className="flex-1 text-sm h-10"
+                    placeholder="Ask a question about your documents…"
+                    value={question}
+                    onChange={e => setQuestion(e.target.value)}
+                    onKeyDown={handleInputKeyDown}
+                    disabled={isLoading}
+                    autoComplete="off"
+                  />
+                  {isLoading ? (
+                    <Button type="button" variant="destructive" size="icon" className="h-10 w-10 flex-shrink-0" onClick={handleCancel} title="Cancel">
+                      <Square className="h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <Button type="submit" size="icon" className="h-10 w-10 flex-shrink-0" disabled={!question.trim()}>
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
 
-                {evalEntries.length > 0 && (
-                  <div className="dashboard-section">
-                    <h3 className="dashboard-section-title">RAG quality (avg over {evalEntries.length} response{evalEntries.length !== 1 ? 's' : ''})</h3>
-                    <div className="dashboard-cards" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                      {[
-                        { label: 'Avg faithfulness', value: avgFaithfulness, title: 'How well answers are grounded in retrieved context' },
-                        { label: 'Avg relevance',    value: avgRelevance,    title: 'How directly answers address the questions' },
-                      ].map(({ label, value, title }) => (
-                        <div key={label} className="dashboard-card" title={title}>
-                          <div className={`dashboard-card-value eval-score-value ${evalColor(value)}`}>
-                            {Math.round(value * 100)}%
+                {tokenStats && tokenStats.total > 0 && (() => {
+                  const model = COST_MODELS.find(m => m.name === selectedCostModel) || COST_MODELS[0]
+                  const cost  = (tokenStats.prompt / 1e6) * model.input + (tokenStats.completion / 1e6) * model.output
+                  return (
+                    <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
+                      <span>Est. cost on</span>
+                      <select
+                        className="bg-transparent text-xs text-muted-foreground cursor-pointer hover:text-foreground outline-none border-none"
+                        value={selectedCostModel}
+                        onChange={e => setSelectedCostModel(e.target.value)}
+                      >
+                        {COST_MODELS.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}
+                      </select>
+                      <span className="font-medium text-foreground">{cost < 0.0001 ? '<$0.0001' : `$${cost.toFixed(4)}`}</span>
+                      <span>· {tokenStats.total.toLocaleString()} tokens</span>
+                    </div>
+                  )
+                })()}
+              </form>
+            </div>
+          </main>
+
+          {/* ── File sidebar ── */}
+          <aside className="w-72 flex-shrink-0 border-l flex flex-col bg-background">
+            {/* Prompt nav */}
+            {history.filter(e => e.question).length > 0 && (
+              <div className="border-b flex-shrink-0">
+                <button
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-medium hover:bg-muted/50 transition-colors"
+                  onClick={() => setShowPromptNav(p => !p)}
+                >
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    <BookOpen className="w-3.5 h-3.5" /> Prompts
+                  </span>
+                  {showPromptNav ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+                </button>
+                {showPromptNav && (
+                  <div className="border-t max-h-40 overflow-y-auto">
+                    {history.filter(e => e.question).map((entry, idx) => (
+                      <button
+                        key={entry.id}
+                        className="w-full text-left px-4 py-2 text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors flex gap-2 items-start"
+                        onClick={() => document.getElementById(`msg-${entry.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                      >
+                        <span className="flex-shrink-0 w-4 h-4 rounded bg-muted text-[9px] flex items-center justify-center font-medium">{idx + 1}</span>
+                        <span className="truncate">{entry.question.length > 50 ? entry.question.slice(0, 50) + '…' : entry.question}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Documents header */}
+            <div className="px-4 pt-4 pb-2 flex-shrink-0">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Documents</h2>
+
+              {/* Upload zone */}
+              <div
+                className={cn(
+                  'border-2 border-dashed rounded-lg px-3 py-4 text-center cursor-pointer transition-colors',
+                  isDragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                )}
+                onClick={() => fileInputRef.current?.click()}
+                onDrop={ev => { ev.preventDefault(); setIsDragOver(false); handleFileSelect(ev.dataTransfer.files) }}
+                onDragOver={ev => { ev.preventDefault(); setIsDragOver(true) }}
+                onDragLeave={ev => { ev.preventDefault(); setIsDragOver(false) }}
+              >
+                <Upload className={cn('w-5 h-5 mx-auto mb-1.5', isDragOver ? 'text-primary' : 'text-muted-foreground')} />
+                <p className="text-xs font-medium">Click or drag to upload</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">PDF, Word, Excel, PPTX, UML, images…</p>
+                <input
+                  ref={fileInputRef} type="file"
+                  accept=".pdf,.txt,.docx,.xlsx,.xls,.pptx,.puml,.plantuml,.uml,.md,.csv,image/*"
+                  multiple style={{ display: 'none' }}
+                  onChange={ev => { handleFileSelect(ev.target.files); ev.target.value = '' }}
+                />
+              </div>
+
+              {/* URL ingest */}
+              <form className="flex gap-1.5 mt-2" onSubmit={handleUrlIngest}>
+                <div className="relative flex-1">
+                  <Link2 className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+                  <Input
+                    className="pl-7 h-8 text-xs"
+                    type="url"
+                    placeholder="Paste a URL…"
+                    value={urlInput}
+                    onChange={e => { setUrlInput(e.target.value); setUrlError('') }}
+                    disabled={urlLoading}
+                  />
+                </div>
+                <Button type="submit" size="icon" variant="outline" className="h-8 w-8 flex-shrink-0"
+                  disabled={urlLoading || !urlInput.trim()}>
+                  {urlLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                </Button>
+              </form>
+              {urlError && <p className="text-xs text-destructive mt-1">{urlError}</p>}
+            </div>
+
+            {/* File list */}
+            <div className="flex-1 overflow-y-auto px-3 pb-4">
+              {sessionFiles.length > 0 && (
+                <div className="space-y-1.5 mt-1">
+                  {sessionFiles.map(file => {
+                    const info = fileStatusInfo(file.status)
+                    return (
+                      <div
+                        key={file.name}
+                        className={cn(
+                          'group rounded-lg border bg-card px-3 py-2.5 transition-colors',
+                          file.status === 'ready' ? 'cursor-pointer hover:border-primary/40 hover:bg-muted/30' : ''
+                        )}
+                        onClick={() => { if (file.status === 'ready') setPreviewFile(file.name) }}
+                      >
+                        <div className="flex items-start gap-2">
+                          <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium truncate" title={file.name}>{file.name}</div>
+                            <div className={cn('text-[10px] mt-0.5', info?.className || 'text-muted-foreground')}>
+                              {info?.label || formatFileSize(file.size)}
+                            </div>
+
+                            {/* Progress bar */}
+                            {(file.status === 'indexing' || file.status === 'uploading') && file.progress && file.progress.total > 0 && (
+                              <div className="mt-1.5">
+                                <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
+                                  <div className="h-full bg-amber-500 rounded-full transition-all"
+                                    style={{ width: `${Math.round((file.progress.current / file.progress.total) * 100)}%` }} />
+                                </div>
+                                <span className="text-[9px] text-muted-foreground">
+                                  Page {file.progress.current}/{file.progress.total}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Cancel indexing */}
+                            {file.status === 'indexing' && (
+                              <button
+                                className="text-[10px] text-muted-foreground hover:text-destructive mt-1 underline"
+                                onClick={e => { e.stopPropagation(); handleCancelIndexing(file.name) }}
+                              >
+                                cancel
+                              </button>
+                            )}
                           </div>
-                          <div className="dashboard-card-label">{label}</div>
+
+                          {/* Actions */}
+                          {file.status === 'ready' && (
+                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    className="p-1 rounded hover:bg-muted transition-colors"
+                                    onClick={e => { e.stopPropagation(); handleReindexFile(file.name) }}
+                                  >
+                                    <RotateCcw className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>Re-index</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    className="p-1 rounded hover:bg-muted transition-colors"
+                                    onClick={e => { e.stopPropagation(); handleRemoveFile(file.name) }}
+                                  >
+                                    <X className="w-3 h-3 text-muted-foreground hover:text-destructive" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>Remove</TooltipContent>
+                              </Tooltip>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
+
+        {/* ── Dashboard Sheet ── */}
+        <Sheet open={showDashboard} onOpenChange={setShowDashboard}>
+          <SheetContent className="w-[520px] sm:max-w-none overflow-y-auto p-0" side="right">
+            <SheetHeader className="px-6 py-4 border-b sticky top-0 bg-background z-10">
+              <SheetTitle>Usage Stats</SheetTitle>
+            </SheetHeader>
+            <div className="px-6 py-5 space-y-6">
+              {!dashboardData ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+                </div>
+              ) : (
+                <>
+                  {/* Stats cards */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'Questions asked',   value: dashboardData.queries?.total ?? totalQuestions },
+                      { label: 'Avg response time', value: dashboardData.queries?.avg_response_ms ? `${(dashboardData.queries.avg_response_ms / 1000).toFixed(1)}s` : '—' },
+                      { label: 'Documents ready',   value: dashboardData.documents.ready },
+                      { label: 'Total chunks',      value: dashboardData.chunks.total },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="rounded-lg border bg-card p-4">
+                        <div className="text-2xl font-bold">{value}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* RAG quality */}
+                  {evalEntries.length > 0 && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                        RAG Quality — avg over {evalEntries.length} response{evalEntries.length !== 1 ? 's' : ''}
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          { label: 'Avg Faithfulness', value: avgFaithfulness, title: 'How well answers are grounded in retrieved context' },
+                          { label: 'Avg Relevance',    value: avgRelevance,    title: 'How directly answers address the questions' },
+                        ].map(({ label, value, title }) => (
+                          <div key={label} className="rounded-lg border bg-card p-4" title={title}>
+                            <div className={cn('text-2xl font-bold', evalBadgeClass(value).split(' ')[0])}>
+                              {Math.round(value * 100)}%
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Active models */}
+                  <div>
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Active Models</h3>
+                    <div className="rounded-lg border divide-y">
+                      {[['LLM', dashboardData.models.llm], ['Embeddings', dashboardData.models.embed], ['Vision', dashboardData.models.vision]].map(([label, value]) => (
+                        <div key={label} className="flex items-center justify-between px-4 py-2.5">
+                          <span className="text-xs text-muted-foreground">{label}</span>
+                          <code className="text-xs bg-muted px-2 py-0.5 rounded">{value}</code>
                         </div>
                       ))}
                     </div>
                   </div>
-                )}
 
-                <div className="dashboard-section">
-                  <h3 className="dashboard-section-title">Active models</h3>
-                  <div className="dashboard-model-list">
-                    {[['LLM', dashboardData.models.llm], ['Embeddings', dashboardData.models.embed], ['Vision', dashboardData.models.vision]].map(([label, value]) => (
-                      <div key={label} className="dashboard-model-row">
-                        <span className="dashboard-model-label">{label}</span>
-                        <code className="dashboard-model-value">{value}</code>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="dashboard-section">
-                  <h3 className="dashboard-section-title">Token usage (this server session)</h3>
-                  <div className="dashboard-cards" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
-                    {[
-                      { label: 'Prompt tokens',     value: dashboardData.tokens.prompt.toLocaleString() },
-                      { label: 'Completion tokens', value: dashboardData.tokens.completion.toLocaleString() },
-                      { label: 'Total tokens',      value: dashboardData.tokens.total.toLocaleString() },
-                    ].map(({ label, value }) => (
-                      <div key={label} className="dashboard-card">
-                        <div className="dashboard-card-value" style={{ fontSize: '20px' }}>{value}</div>
-                        <div className="dashboard-card-label">{label}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {dashboardData.tokens.total > 0 && (
-                  <div className="dashboard-section">
-                    <h3 className="dashboard-section-title">Estimated cost on paid models</h3>
-                    <div className="dashboard-doc-list">
+                  {/* Token usage */}
+                  <div>
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Token Usage (session)</h3>
+                    <div className="grid grid-cols-3 gap-2">
                       {[
-                        { model: 'GPT-4o',           input: 2.50,  output: 10.00 },
-                        { model: 'GPT-4o mini',      input: 0.15,  output: 0.60  },
-                        { model: 'Claude Sonnet 4',  input: 3.00,  output: 15.00 },
-                        { model: 'Claude Haiku 4',   input: 0.80,  output: 4.00  },
-                        { model: 'Gemini 1.5 Pro',   input: 1.25,  output: 5.00  },
-                        { model: 'Gemini 1.5 Flash', input: 0.075, output: 0.30  },
-                      ].map(({ model, input, output }) => {
-                        const cost = (dashboardData.tokens.prompt / 1e6) * input + (dashboardData.tokens.completion / 1e6) * output
-                        return (
-                          <div key={model} className="dashboard-doc-row">
-                            <span className="dashboard-doc-name">{model}</span>
-                            <span className="dashboard-doc-chunks">${cost < 0.001 ? '<$0.001' : cost.toFixed(4)}</span>
-                          </div>
-                        )
-                      })}
+                        { label: 'Prompt',     value: dashboardData.tokens.prompt.toLocaleString() },
+                        { label: 'Completion', value: dashboardData.tokens.completion.toLocaleString() },
+                        { label: 'Total',      value: dashboardData.tokens.total.toLocaleString() },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="rounded-lg border bg-card px-3 py-3 text-center">
+                          <div className="text-lg font-bold">{value}</div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
+                        </div>
+                      ))}
                     </div>
-                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      Prices per 1M tokens. Resets on server restart.
-                    </p>
                   </div>
-                )}
 
-                {Object.keys(dashboardData.documents.file_chunks).length > 0 && (
-                  <div className="dashboard-section">
-                    <h3 className="dashboard-section-title">Documents</h3>
-                    <div className="dashboard-doc-list">
-                      {Object.entries(dashboardData.documents.file_chunks).map(([name, chunks]) => {
-                        const cv = chunkView[name] || {}
-                        const toggleChunks = async () => {
-                          if (cv.open) {
-                            setChunkView(p => ({ ...p, [name]: { ...p[name], open: false } }))
-                            return
-                          }
-                          if (cv.chunks) {
-                            setChunkView(p => ({ ...p, [name]: { ...p[name], open: true } }))
-                            return
-                          }
-                          setChunkView(p => ({ ...p, [name]: { open: true, loading: true, chunks: null } }))
-                          try {
-                            const res = await authFetch(`${API}/debug/chunks/${encodeURIComponent(name)}`)
-                            const data = await res.json()
-                            setChunkView(p => ({ ...p, [name]: { open: true, loading: false, chunks: data.chunks || [] } }))
-                          } catch {
-                            setChunkView(p => ({ ...p, [name]: { open: true, loading: false, chunks: [] } }))
-                          }
-                        }
-                        const sv = summaryView[name] || {}
-                        const summarize = async (e) => {
-                          e.stopPropagation()
-                          if (sv.loading) return
-                          if (sv.text) {
-                            setSummaryView(p => ({ ...p, [name]: { ...p[name], text: null } }))
-                            return
-                          }
-                          setSummaryView(p => ({ ...p, [name]: { loading: true, text: null } }))
-                          try {
-                            let accumulated = ''
-                            const res = await authFetch(`${API}/ask`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                question: 'Résume ce document complètement : couvre tous les sujets principaux, points clés et détails importants. Ne saute rien.',
-                                files: [name],
-                                history: [],
-                              }),
-                            })
-                            const reader = res.body.getReader()
-                            const decoder = new TextDecoder()
-                            let buf = ''
-                            while (true) {
-                              const { done, value } = await reader.read()
-                              if (done) break
-                              buf += decoder.decode(value, { stream: true })
-                              const lines = buf.split('\n')
-                              buf = lines.pop()
-                              for (const line of lines) {
-                                if (!line.startsWith('data: ')) continue
-                                try {
-                                  const msg = JSON.parse(line.slice(6))
-                                  if (msg.type === 'token') accumulated += msg.content
-                                } catch {}
-                              }
-                              setSummaryView(p => ({ ...p, [name]: { loading: false, text: accumulated || '…' } }))
-                            }
-                          } catch {
-                            setSummaryView(p => ({ ...p, [name]: { loading: false, text: 'Error generating summary.' } }))
-                          }
-                        }
-                        return (
-                          <div key={name}>
-                            <div className="dashboard-doc-row" onClick={toggleChunks}
-                              style={{ cursor: 'pointer', userSelect: 'none' }}>
-                              <span className="dashboard-doc-name">
-                                <span style={{ marginRight: '6px', fontSize: '10px', color: 'var(--text-muted)' }}>
-                                  {cv.open ? '▼' : '▶'}
-                                </span>
-                                {name}
-                              </span>
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <button
-                                  onClick={summarize}
-                                  style={{
-                                    fontSize: '11px', padding: '2px 8px', borderRadius: '4px',
-                                    border: '1px solid var(--border, #ccc)', background: sv.text ? 'var(--accent, #888)' : 'transparent',
-                                    color: sv.text ? '#fff' : 'var(--text-muted)', cursor: 'pointer',
-                                    opacity: sv.loading ? 0.6 : 1,
-                                  }}
-                                  title="Generate a summary of this document"
-                                >
-                                  {sv.loading ? '…' : sv.text ? '✕ Summary' : '∑ Summarize'}
-                                </button>
-                                <span className="dashboard-doc-chunks">{chunks} chunks</span>
-                              </span>
+                  {/* Cost estimate */}
+                  {dashboardData.tokens.total > 0 && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Estimated Cost</h3>
+                      <div className="rounded-lg border divide-y">
+                        {[
+                          { model: 'GPT-4o',           input: 2.50,  output: 10.00 },
+                          { model: 'GPT-4o mini',      input: 0.15,  output: 0.60  },
+                          { model: 'Claude Sonnet 4',  input: 3.00,  output: 15.00 },
+                          { model: 'Claude Haiku 4',   input: 0.80,  output: 4.00  },
+                          { model: 'Gemini 1.5 Pro',   input: 1.25,  output: 5.00  },
+                          { model: 'Gemini 1.5 Flash', input: 0.075, output: 0.30  },
+                        ].map(({ model, input, output }) => {
+                          const cost = (dashboardData.tokens.prompt / 1e6) * input + (dashboardData.tokens.completion / 1e6) * output
+                          return (
+                            <div key={model} className="flex items-center justify-between px-4 py-2">
+                              <span className="text-xs text-muted-foreground">{model}</span>
+                              <span className="text-xs font-medium">{cost < 0.001 ? '<$0.001' : `$${cost.toFixed(4)}`}</span>
                             </div>
-                            {sv.text && (
-                              <div style={{
-                                margin: '4px 0 8px 16px', padding: '10px 12px',
-                                background: 'var(--bg-secondary, #f5f5f5)', borderRadius: '6px',
-                                fontSize: '12px', color: 'var(--text-primary)', lineHeight: '1.6',
-                                whiteSpace: 'pre-wrap', borderLeft: '3px solid var(--accent, #888)'
-                              }}>
-                                <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
-                                  Summary — {name}
-                                </span>
-                                {sv.text}
-                              </div>
-                            )}
-                            {cv.open && (
-                              <div style={{ margin: '4px 0 10px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                {cv.loading && <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>Loading chunks…</p>}
-                                {cv.chunks && cv.chunks.length === 0 && <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No chunks found.</p>}
-                                {cv.chunks && cv.chunks.map((text, i) => (
-                                  <div key={i} style={{
-                                    background: 'var(--bg-secondary, #f5f5f5)',
-                                    borderRadius: '6px',
-                                    padding: '8px 10px',
-                                    fontSize: '12px',
-                                    color: 'var(--text-primary)',
-                                    whiteSpace: 'pre-wrap',
-                                    lineHeight: '1.5',
-                                    borderLeft: '3px solid var(--accent, #888)'
-                                  }}>
-                                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                                      Chunk {i + 1}
-                                    </span>
-                                    {text}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
+                          )
+                        })}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-2">Prices per 1M tokens. Resets on server restart.</p>
                     </div>
-                  </div>
-                )}
-
-                <div className="dashboard-section">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <h3 className="dashboard-section-title">Retrieval evaluation</h3>
-                    <button className="clear-history-btn" onClick={runEval} disabled={evalLoading}
-                      style={{ fontSize: '12px', padding: '4px 12px' }}>
-                      {evalLoading ? 'Running…' : 'Run eval'}
-                    </button>
-                  </div>
-
-                  {!evalData && !evalLoading && (
-                    <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                      Measures Hit Rate, Precision, MRR and Recall against <code>eval_dataset.json</code>.
-                      Make sure the dataset files are indexed before running.
-                    </p>
                   )}
 
-                  {evalLoading && (
-                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                      Running retrieval for each question — this may take 30–60 s…
-                    </p>
+                  {/* Documents */}
+                  {Object.keys(dashboardData.documents.file_chunks).length > 0 && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Documents</h3>
+                      <div className="rounded-lg border divide-y">
+                        {Object.entries(dashboardData.documents.file_chunks).map(([name, chunks]) => {
+                          const cv = chunkView[name] || {}
+                          const sv = summaryView[name] || {}
+
+                          const toggleChunks = async () => {
+                            if (cv.open) { setChunkView(p => ({ ...p, [name]: { ...p[name], open: false } })); return }
+                            if (cv.chunks) { setChunkView(p => ({ ...p, [name]: { ...p[name], open: true } })); return }
+                            setChunkView(p => ({ ...p, [name]: { open: true, loading: true, chunks: null } }))
+                            try {
+                              const res  = await authFetch(`${API}/debug/chunks/${encodeURIComponent(name)}`)
+                              const data = await res.json()
+                              setChunkView(p => ({ ...p, [name]: { open: true, loading: false, chunks: data.chunks || [] } }))
+                            } catch { setChunkView(p => ({ ...p, [name]: { open: true, loading: false, chunks: [] } })) }
+                          }
+
+                          const summarize = async (e) => {
+                            e.stopPropagation()
+                            if (sv.loading) return
+                            if (sv.text) { setSummaryView(p => ({ ...p, [name]: { ...p[name], text: null } })); return }
+                            setSummaryView(p => ({ ...p, [name]: { loading: true, text: null } }))
+                            try {
+                              let accumulated = ''
+                              const res = await authFetch(`${API}/ask`, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ question: 'Résume ce document complètement : couvre tous les sujets principaux, points clés et détails importants. Ne saute rien.', files: [name], history: [] }),
+                              })
+                              const reader = res.body.getReader(); const decoder = new TextDecoder(); let buf = ''
+                              while (true) {
+                                const { done, value } = await reader.read(); if (done) break
+                                buf += decoder.decode(value, { stream: true })
+                                const lines = buf.split('\n'); buf = lines.pop()
+                                for (const line of lines) {
+                                  if (!line.startsWith('data: ')) continue
+                                  try { const msg = JSON.parse(line.slice(6)); if (msg.type === 'token') accumulated += msg.content } catch {}
+                                }
+                                setSummaryView(p => ({ ...p, [name]: { loading: false, text: accumulated || '…' } }))
+                              }
+                            } catch { setSummaryView(p => ({ ...p, [name]: { loading: false, text: 'Error generating summary.' } })) }
+                          }
+
+                          return (
+                            <div key={name}>
+                              <div className="px-4 py-2.5 cursor-pointer hover:bg-muted/50 transition-colors" onClick={toggleChunks}>
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <ChevronDown className={cn('w-3 h-3 text-muted-foreground flex-shrink-0 transition-transform', cv.open ? '' : '-rotate-90')} />
+                                    <span className="text-xs truncate">{name}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <button
+                                      onClick={summarize}
+                                      className={cn(
+                                        'text-[10px] px-2 py-0.5 rounded border transition-colors',
+                                        sv.text ? 'bg-primary text-primary-foreground border-primary' : 'text-muted-foreground hover:text-foreground border-border hover:border-foreground/30',
+                                        sv.loading ? 'opacity-60' : ''
+                                      )}
+                                      title="Generate a summary"
+                                    >
+                                      {sv.loading ? '…' : sv.text ? '✕ Summary' : '∑ Summarize'}
+                                    </button>
+                                    <span className="text-[10px] text-muted-foreground">{chunks} chunks</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {sv.text && (
+                                <div className="mx-4 mb-3 p-3 bg-muted/50 rounded-lg border-l-2 border-primary text-xs leading-relaxed text-foreground whitespace-pre-wrap">
+                                  <span className="text-[10px] text-muted-foreground font-medium block mb-1">Summary — {name}</span>
+                                  {sv.text}
+                                </div>
+                              )}
+
+                              {cv.open && (
+                                <div className="mx-4 mb-3 space-y-2">
+                                  {cv.loading && <p className="text-xs text-muted-foreground italic">Loading chunks…</p>}
+                                  {cv.chunks && cv.chunks.length === 0 && <p className="text-xs text-muted-foreground">No chunks found.</p>}
+                                  {cv.chunks && cv.chunks.map((text, i) => (
+                                    <div key={i} className="p-2.5 bg-muted/50 rounded-lg border-l-2 border-primary/40 text-xs leading-relaxed whitespace-pre-wrap">
+                                      <span className="text-[9px] text-muted-foreground font-medium block mb-1">Chunk {i + 1}</span>
+                                      {text}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
                   )}
 
-                  {evalData?.error && (
-                    <p style={{ fontSize: '12px', color: '#e53e3e' }}>{evalData.error}</p>
-                  )}
+                  {/* Retrieval eval */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Retrieval Evaluation</h3>
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={runEval} disabled={evalLoading}>
+                        {evalLoading ? <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Running…</> : 'Run eval'}
+                      </Button>
+                    </div>
 
-                  {evalData && !evalData.error && (
-                    <>
-                      {evalData.configurations && (
-                        <div className="eval-config-table">
-                          <div className="eval-config-row eval-config-header">
-                            <span className="eval-config-name">Configuration</span>
-                            <span className="eval-config-metric">Hit@{evalData.top_k}</span>
-                            <span className="eval-config-metric">MRR</span>
+                    {!evalData && !evalLoading && (
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Measures Hit Rate, Precision, MRR and Recall against <code className="text-[11px]">eval_dataset.json</code>.
+                        Make sure dataset files are indexed before running.
+                      </p>
+                    )}
+                    {evalLoading && <p className="text-xs text-muted-foreground italic">Running retrieval for each question — this may take 30–60 s…</p>}
+                    {evalData?.error && <p className="text-xs text-destructive">{evalData.error}</p>}
+
+                    {evalData && !evalData.error && (
+                      <div className="space-y-3">
+                        {evalData.configurations && (
+                          <div className="rounded-lg border overflow-hidden">
+                            <div className="grid grid-cols-3 bg-muted px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase">
+                              <span>Configuration</span>
+                              <span className="text-right">Hit@{evalData.top_k}</span>
+                              <span className="text-right">MRR</span>
+                            </div>
+                            {evalData.configurations.map(cfg => (
+                              <div key={cfg.name} className={cn('grid grid-cols-3 px-3 py-2 divide-x-0 border-t text-xs', cfg.name === 'Hybrid + Reranker' ? 'bg-primary/5 font-medium' : '')}>
+                                <span className="text-muted-foreground">{cfg.name}</span>
+                                <span className="text-right">{(cfg.hit_rate * 100).toFixed(0)}%</span>
+                                <span className="text-right">{cfg.mrr.toFixed(2)}</span>
+                              </div>
+                            ))}
                           </div>
-                          {evalData.configurations.map(cfg => (
-                            <div key={cfg.name} className={`eval-config-row${cfg.name === 'Hybrid + Reranker' ? ' eval-config-best' : ''}`}>
-                              <span className="eval-config-name">{cfg.name}</span>
-                              <span className="eval-config-metric">{(cfg.hit_rate * 100).toFixed(0)}%</span>
-                              <span className="eval-config-metric">{cfg.mrr.toFixed(2)}</span>
+                        )}
+
+                        <div className="rounded-lg border overflow-hidden">
+                          <div className="grid grid-cols-4 bg-muted px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase">
+                            <span className="col-span-2">Question</span>
+                            <span className="text-center">Hit</span>
+                            <span className="text-right">MRR</span>
+                          </div>
+                          {evalData.per_question.map(r => (
+                            <div key={r.id}>
+                              <div
+                                className="grid grid-cols-4 px-3 py-2 border-t text-xs cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => setEvalSelectedQ(evalSelectedQ === r.id ? null : r.id)}
+                              >
+                                <span className="col-span-2 text-muted-foreground truncate">{r.id}</span>
+                                <span className={cn('text-center font-semibold', r.hit ? 'text-emerald-600' : 'text-destructive')}>
+                                  {r.hit ? '✓' : '✗'}
+                                </span>
+                                <span className="text-right text-muted-foreground">{r.mrr.toFixed(2)}</span>
+                              </div>
+                              {evalSelectedQ === r.id && (
+                                <div className="mx-3 mb-2 p-3 bg-muted/50 rounded-lg border text-xs space-y-2">
+                                  <div>
+                                    <div className="text-[10px] text-muted-foreground font-medium mb-0.5">Question</div>
+                                    <div>{r.question}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-[10px] text-muted-foreground font-medium mb-0.5">Expected source</div>
+                                    <div>{(r.source_files || []).join(', ') || '—'}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-[10px] text-muted-foreground font-medium mb-1">Retrieved</div>
+                                    <div className="space-y-1">
+                                      {(r.retrieved || []).map((chunk, i) => (
+                                        <div key={i} className={cn('flex items-center gap-1.5', chunk.hit ? 'text-emerald-600' : 'text-muted-foreground')}>
+                                          <span>{chunk.hit ? '✓' : '✗'}</span>
+                                          <span>{chunk.file}{chunk.page && chunk.page !== '?' ? ` (p.${chunk.page})` : ''}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
-                      )}
-
-                      <div className="dashboard-doc-list" style={{ marginTop: '8px' }}>
-                        <div className="dashboard-doc-row" style={{ fontWeight: 600, fontSize: '11px', color: 'var(--text-muted)' }}>
-                          <span style={{ flex: 2 }}>Question ID</span>
-                          <span style={{ width: 28, textAlign: 'center' }}>Hit</span>
-                          <span style={{ width: 40, textAlign: 'right' }}>P@K</span>
-                          <span style={{ width: 40, textAlign: 'right' }}>MRR</span>
-                        </div>
-                        {evalData.per_question.map(r => (
-                          <div key={r.id}>
-                            <div
-                              className="dashboard-doc-row eval-q-row"
-                              onClick={() => setEvalSelectedQ(evalSelectedQ === r.id ? null : r.id)}
-                              title="Click to see retrieved chunks"
-                            >
-                              <span className="dashboard-doc-name" style={{ flex: 2 }}>{r.id}</span>
-                              <span style={{ width: 28, textAlign: 'center', color: r.hit ? '#276030' : '#9B2020', fontWeight: 600 }}>
-                                {r.hit ? '✓' : '✗'}
-                              </span>
-                              <span className="dashboard-doc-chunks" style={{ width: 40 }}>{r.precision.toFixed(2)}</span>
-                              <span className="dashboard-doc-chunks" style={{ width: 40 }}>{r.mrr.toFixed(2)}</span>
-                            </div>
-                            {evalSelectedQ === r.id && (
-                              <div className="eval-detail-card">
-                                <div className="eval-detail-label">Question</div>
-                                <div className="eval-detail-value">{r.question}</div>
-                                <div className="eval-detail-label" style={{ marginTop: '8px' }}>Expected source</div>
-                                <div className="eval-detail-value">{(r.source_files || []).join(', ') || '—'}</div>
-                                <div className="eval-detail-label" style={{ marginTop: '8px' }}>Retrieved</div>
-                                {(r.retrieved || []).map((chunk, i) => (
-                                  <div key={i} className={`eval-chunk-row${chunk.hit ? ' eval-chunk-hit' : ' eval-chunk-miss'}`}>
-                                    <span className="eval-chunk-icon">{chunk.hit ? '✓' : '✗'}</span>
-                                    <span>{chunk.file}{chunk.page && chunk.page !== '?' ? ` (page ${chunk.page})` : ''}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
+                        <p className="text-[10px] text-muted-foreground">{evalData.n_questions} questions · click a row to inspect retrieved chunks</p>
                       </div>
-                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        {evalData.n_questions} questions · click a row to inspect retrieved chunks
-                      </p>
-                    </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        {/* ── File preview modal ── */}
+        {previewFile && (() => {
+          const ext      = previewFile.split('.').pop().toLowerCase()
+          const isImage  = ['png','jpg','jpeg','gif','bmp','webp'].includes(ext)
+          const isPdfLike = ['pdf','pptx','docx','doc','xlsx','xls'].includes(ext)
+          const hasText  = previewText !== null
+          return (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setPreviewFile(null)}>
+              <div className="bg-background rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col"
+                onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0">
+                  <span className="text-sm font-medium truncate">{previewFile}</span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {previewBlobUrl && (
+                      <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-8"
+                        onClick={() => window.open(previewBlobUrl, '_blank')}>
+                        <ExternalLink className="w-3 h-3" /> Open in tab
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setPreviewFile(null)}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-auto p-2 min-h-0">
+                  {isPdfLike && (
+                    previewBlobUrl
+                      ? <iframe src={previewBlobUrl} title={previewFile} className="w-full h-full rounded-lg min-h-[500px]" />
+                      : hasText ? <pre className="text-xs p-4 font-mono whitespace-pre-wrap">{previewText}</pre>
+                        : <div className="flex items-center justify-center h-40 text-sm text-muted-foreground gap-2"><Loader2 className="w-4 h-4 animate-spin" />Converting to PDF…</div>
+                  )}
+                  {isImage && (
+                    previewBlobUrl
+                      ? <img src={previewBlobUrl} alt={previewFile} className="max-w-full max-h-full mx-auto object-contain rounded" />
+                      : <div className="flex items-center justify-center h-40 text-sm text-muted-foreground gap-2"><Loader2 className="w-4 h-4 animate-spin" />Loading…</div>
+                  )}
+                  {!isPdfLike && !isImage && hasText && (
+                    <pre className="text-xs p-4 font-mono whitespace-pre-wrap leading-relaxed">{previewText}</pre>
+                  )}
+                  {!isPdfLike && !isImage && !hasText && (
+                    <div className="flex items-center justify-center h-40 text-sm text-muted-foreground gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />Loading…
+                    </div>
                   )}
                 </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+              </div>
+            </div>
+          )
+        })()}
+      </div>
+    </TooltipProvider>
   )
 }
 
+// ─── Root App ────────────────────────────────────────────────────────────────
+
 function App() {
-  const [authToken, setAuthToken] = useState(() => localStorage.getItem('rag_token'))
+  const [authToken, setAuthToken]   = useState(() => localStorage.getItem('rag_token'))
   const [currentUser, setCurrentUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem('rag_user')) } catch { return null }
   })
 
-  const handleAuth = (token, user) => { setAuthToken(token); setCurrentUser(user) }
-  const handleLogout = useCallback(() => {
+  const handleAuth    = (token, user) => { setAuthToken(token); setCurrentUser(user) }
+  const handleLogout  = useCallback(() => {
     localStorage.removeItem('rag_token'); localStorage.removeItem('rag_user')
     setAuthToken(null); setCurrentUser(null)
   }, [])
@@ -1532,10 +1586,7 @@ function App() {
     return fetch(url, {
       ...options,
       headers: { ...options.headers, ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) }
-    }).then(res => {
-      if (res.status === 401) handleLogout()
-      return res
-    })
+    }).then(res => { if (res.status === 401) handleLogout(); return res })
   }, [authToken, handleLogout])
 
   if (!authToken || !currentUser) return <AuthScreen onAuth={handleAuth} />
