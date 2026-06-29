@@ -207,6 +207,7 @@ def _save_provider(p: str):
         pass
 
 _active_provider: str = _load_provider()
+_last_groq_model: str = GROQ_MODEL  # updated per-request, shown in dashboard
 
 class _CompatLLM:
     """Thin async wrapper around any OpenAI-compatible API.
@@ -472,17 +473,48 @@ query_stats = {"total": 0, "total_ms": 0}   # questions asked + cumulative respo
 # Groq daily token limits per model (tokens-per-day on the free tier)
 GROQ_TPD_LIMITS: dict[str, int] = {
     # Active free-tier models (as of 2026-06)
-    "llama-3.3-70b-versatile":  100_000,
-    "llama-3.1-70b-versatile":  100_000,
-    "llama-3.1-8b-instant":     500_000,
-    "mixtral-8x7b-32768":       500_000,
-    "qwen-qwq-32b":             100_000,
+    "llama-3.3-70b-versatile":                             100_000,
+    "llama-3.1-8b-instant":                                500_000,
+    "meta-llama/llama-4-scout-17b-16e-instruct":           100_000,
+    "meta-llama/llama-4-maverick-17b-128e-instruct":       100_000,
+    "mixtral-8x7b-32768":                                  500_000,
+    "qwen-qwq-32b":                                        100_000,
     # gemma2-9b-it — decommissioned by Groq, removed
 }
 
 # Auxiliary (cheap) model used for condense / HyDE / multi-query / eval scoring
 # when the main provider is cloud — preserves 70B quota for the actual answer.
 GROQ_AUX_MODEL = "llama-3.1-8b-instant"
+
+def _track_vision_groq_usage(usage, headers=None):
+    """Track token usage for the Groq vision model (Llama 4 Scout)."""
+    import datetime
+    VISION_KEY = "meta-llama/llama-4-scout-17b-16e-instruct"
+    today = datetime.date.today().isoformat()
+    if groq_token_usage.get("date") != today:
+        groq_token_usage["date"]   = today
+        groq_token_usage["models"] = {}
+    m = groq_token_usage["models"].setdefault(
+        VISION_KEY, {"prompt": 0, "completion": 0, "used_actual": None, "limit_actual": None}
+    )
+    if usage:
+        m["prompt"]     += getattr(usage, "prompt_tokens",     0)
+        m["completion"] += getattr(usage, "completion_tokens", 0)
+    if headers:
+        try:
+            limit     = headers.get("x-ratelimit-limit-tokens-day")
+            remaining = headers.get("x-ratelimit-remaining-tokens-day")
+            used      = headers.get("x-ratelimit-used-tokens-day")
+            if limit:     m["limit_actual"] = int(limit)
+            if used:      m["used_actual"]  = int(used)
+            elif limit and remaining: m["used_actual"] = int(limit) - int(remaining)
+            tpm_limit     = headers.get("x-ratelimit-limit-tokens")
+            tpm_remaining = headers.get("x-ratelimit-remaining-tokens")
+            if tpm_limit is not None:     m["tpm_limit"]     = int(tpm_limit)
+            if tpm_remaining is not None: m["tpm_remaining"] = int(tpm_remaining)
+        except (ValueError, TypeError):
+            pass
+    _save_groq_usage()
 
 def _load_groq_usage() -> dict:
     """Load today's per-model Groq usage from disk; reset if the date changed."""
@@ -579,7 +611,7 @@ def _analyze_image_cloud(image_b64: str, prompt: str, max_tokens: int = 3500) ->
     client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
     for attempt in range(5):
         try:
-            response = client.chat.completions.create(
+            raw_resp = client.chat.completions.with_raw_response.create(
                 model="meta-llama/llama-4-scout-17b-16e-instruct",
                 messages=[{
                     "role": "user",
@@ -591,6 +623,8 @@ def _analyze_image_cloud(image_b64: str, prompt: str, max_tokens: int = 3500) ->
                 max_tokens=max_tokens,
                 temperature=0.1,
             )
+            response = raw_resp.parse()
+            _track_vision_groq_usage(response.usage, raw_resp.headers)
             return response.choices[0].message.content
         except RateLimitError:
             wait = 20 * (attempt + 1)   # 20s, 40s, 60s, 80s, 100s
@@ -1619,7 +1653,7 @@ def dashboard(current_user: UserModel = Depends(get_current_user)):
 
     return {
         "models": {
-            "llm":    GROQ_MODEL if _active_provider == "cloud" else LLM_MODEL,
+            "llm":    _last_groq_model if _active_provider == "cloud" else LLM_MODEL,
             "embed":  EMBED_MODEL,
             "vision": "llama-4-scout-17b (Groq)" if _active_provider == "cloud" else VISION_MODEL,
             "provider": _active_provider,
@@ -2096,6 +2130,9 @@ async def ask(q: Question,
     question       = q.question
     history        = q.history
     question_files = q.files
+    global _last_groq_model
+    if q.provider == "cloud" and q.groq_model:
+        _last_groq_model = q.groq_model
     active_llm     = _get_llm(q.provider, groq_model=q.groq_model)
     # For cloud, route cheap auxiliary calls (condense/HyDE/multi-query/eval) to the
     # 8B model (500K TPD) so the 70B quota is reserved for the actual answer.
@@ -2460,6 +2497,162 @@ async def ask(q: Question,
             "X-Accel-Buffering": "no",
         }
     )
+
+@app.post("/eval/quality")
+async def run_quality_eval(
+    provider:    str       = "cloud",
+    groq_model:  str | None = None,
+    current_user: UserModel = Depends(get_current_user),
+):
+    """
+    Answer-quality evaluation: runs the full RAG pipeline for each question
+    that has type=answer_quality + expected_answer, then scores with LLM:
+      • faithfulness   – answer grounded in retrieved context?
+      • relevance      – answer addresses the question?
+      • correctness    – answer matches the expected answer?
+    Returns per-question breakdown + aggregate scores.
+    """
+    dataset_path = os.path.join(os.path.dirname(__file__), "eval_dataset.json")
+    if not os.path.exists(dataset_path):
+        raise HTTPException(404, "eval_dataset.json not found")
+
+    with open(dataset_path, encoding="utf-8") as f:
+        raw = json.load(f)
+
+    questions = [
+        q for q in raw
+        if isinstance(q, dict)
+        and q.get("id")
+        and not str(q.get("id", "")).startswith("_")
+        and q.get("type") == "answer_quality"
+        and q.get("expected_answer")
+    ]
+
+    if not questions:
+        raise HTTPException(400, "No answer_quality questions with expected_answer found in eval_dataset.json")
+
+    # ── LLMs ─────────────────────────────────────────────────────────────────
+    try:
+        main_llm = _get_llm(provider, groq_model=groq_model)
+    except Exception:
+        main_llm = Settings.llm
+    try:
+        scorer   = _get_llm("cloud", groq_model=GROQ_AUX_MODEL)   # always 8B for scoring
+    except Exception:
+        scorer   = Settings.llm
+
+    # ── Retriever helpers (mirrors /eval pipeline) ────────────────────────────
+    def _build_filters(source_files):
+        return MetadataFilters(
+            filters=[MetadataFilter(key="file_name", value=f, operator=FilterOperator.EQ)
+                     for f in source_files],
+            condition=FilterCondition.OR,
+        )
+
+    async def _retrieve(question, source_files, k=SIMILARITY_TOP_K):
+        if not index:
+            return []
+        candidates = k * 2 if reranker else k
+        kw = {"similarity_top_k": candidates}
+        if source_files:
+            kw["filters"] = _build_filters(source_files)
+        vec_ret    = index.as_retriever(**kw)
+        bm25_nodes = get_nodes_for_files(source_files) if source_files else []
+        if bm25_nodes:
+            bm25_ret  = BM25Retriever.from_defaults(nodes=bm25_nodes, similarity_top_k=candidates)
+            retriever = QueryFusionRetriever([vec_ret, bm25_ret], similarity_top_k=candidates,
+                                             num_queries=1, mode="reciprocal_rerank", use_async=False)
+        else:
+            retriever = vec_ret
+        nodes = await retriever.aretrieve(question)
+        if reranker and len(nodes) > 1:
+            loop = asyncio.get_event_loop()
+            def _rr(ns=list(nodes), q=question, top=k):
+                pairs  = [(q, n.get_content()) for n in ns]
+                scores = reranker.predict(pairs)
+                ranked = sorted(zip(ns, scores), key=lambda x: x[1], reverse=True)
+                return [n for n, _ in ranked[:top]]
+            nodes = await loop.run_in_executor(None, _rr)
+        return list(nodes)[:k]
+
+    async def _score(prompt: str) -> float:
+        try:
+            result = await scorer.acomplete(prompt)
+            s = parse_eval_score(str(result))
+            return s if s is not None else 0.0
+        except Exception:
+            return 0.0
+
+    # ── Main loop ─────────────────────────────────────────────────────────────
+    results = []
+    for q in questions:
+        question_text = q["question"].strip()
+        expected      = q["expected_answer"].strip()
+        source_files  = q.get("source_files", [])
+
+        nodes   = await _retrieve(question_text, source_files)
+        context = "\n\n".join(n.get_content() for n in nodes)[:4000]
+
+        # Generate answer
+        try:
+            gen_prompt = (
+                f"Answer the following question based strictly on the provided context.\n\n"
+                f"Context:\n{context}\n\n"
+                f"Question: {question_text}\n\n"
+                f"Answer concisely and directly."
+            )
+            gen_result  = await main_llm.acomplete(gen_prompt)
+            gen_answer  = str(gen_result).strip()
+        except Exception as e:
+            gen_answer = f"[generation error: {e}]"
+
+        # Score
+        faith = await _score(
+            f"Retrieved context:\n{context[:3000]}\n\n"
+            f"AI answer:\n{gen_answer[:800]}\n\n"
+            "Faithfulness: are the answer\'s claims grounded in the context? "
+            "Penalise only definite statements absent from or contradicting the context. "
+            "Reply with ONLY a decimal 0.0–1.0."
+        )
+        relevance = await _score(
+            f"Question: {question_text}\n\n"
+            f"AI answer:\n{gen_answer[:800]}\n\n"
+            "Answer relevance: does the answer directly and completely address the question? "
+            "Reply with ONLY a decimal 0.0–1.0."
+        )
+        correctness = await _score(
+            f"Question: {question_text}\n\n"
+            f"Expected answer:\n{expected}\n\n"
+            f"AI answer:\n{gen_answer[:800]}\n\n"
+            "Correctness: does the AI answer contain all key facts from the expected answer? "
+            "Score 1.0 = all key facts present, 0.5 = partially correct, 0.0 = wrong or missing key facts. "
+            "Reply with ONLY a decimal 0.0–1.0."
+        )
+
+        results.append({
+            "id"           : q["id"],
+            "question"     : question_text,
+            "expected"     : expected,
+            "generated"    : gen_answer,
+            "source_files" : source_files,
+            "faithfulness" : faith,
+            "relevance"    : relevance,
+            "correctness"  : correctness,
+        })
+
+    n = len(results)
+    def _avg(key): return round(sum(r[key] for r in results) / n, 3) if n else 0.0
+
+    return {
+        "provider"      : provider,
+        "model"         : groq_model or "local",
+        "n_questions"   : n,
+        "avg_faithfulness"  : _avg("faithfulness"),
+        "avg_relevance"     : _avg("relevance"),
+        "avg_correctness"   : _avg("correctness"),
+        "per_question"  : results,
+    }
+
 @app.delete("/documents/all")
 def clear_all(current_user: UserModel = Depends(_require_admin)):
     global index, storage_context
@@ -2754,9 +2947,4 @@ async def run_eval(top_k: int = SIMILARITY_TOP_K):
     }
 
 
-@app.post("/cancel/{filename}")
-def cancel_indexing(filename: str, current_user: UserModel = Depends(get_current_user)):
-    if indexing_status.get(filename) == "indexing":
-        cancelled_files.add(filename)
-        return {"message": f"Cancellation requested for {filename}"}
-    return {"message": f"{filename} is not currently indexing"}
+

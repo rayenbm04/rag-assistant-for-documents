@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,7 @@ import {
   Loader2, ExternalLink, RotateCcw, BookOpen, Paperclip, Menu
 } from 'lucide-react'
 import './App.css'
+import { AreaChart, Area, XAxis, Tooltip as RechartTooltip, ResponsiveContainer } from 'recharts'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -26,6 +27,15 @@ const COST_MODELS = [
   { name: 'Claude Haiku 4',   input: 0.80,  output: 4.00  },
   { name: 'Gemini 1.5 Pro',   input: 1.25,  output: 5.00  },
   { name: 'Gemini 1.5 Flash', input: 0.075, output: 0.30  },
+]
+
+const CLOUD_MODELS = [
+  { key: 'llama-3.3-70b-versatile',                           label: '3.3 70B',   limit: 100_000 },
+  { key: 'llama-3.1-8b-instant',                              label: '3.1 8B',    limit: 500_000 },
+  { key: 'meta-llama/llama-4-scout-17b-16e-instruct',         label: 'Scout 17B', limit: 100_000 },
+  { key: 'meta-llama/llama-4-maverick-17b-128e-instruct',     label: 'Mavrik 17B',limit: 100_000 },
+  { key: 'mixtral-8x7b-32768',                                label: 'Mixtral',   limit: 500_000 },
+  { key: 'qwen-qwq-32b',                                      label: 'QwQ 32B',   limit: 100_000 },
 ]
 
 function evalBadgeClass(score) {
@@ -181,6 +191,9 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [chunkView, setChunkView]             = useState({})
   const [summaryView, setSummaryView]         = useState({})
   const [evalSelectedQ, setEvalSelectedQ]     = useState(null)
+  const [qualityData, setQualityData]         = useState(null)
+  const [qualityLoading, setQualityLoading]   = useState(false)
+  const [qualitySelectedQ, setQualitySelectedQ] = useState(null)
   const [urlInput, setUrlInput]               = useState('')
   const [urlLoading, setUrlLoading]           = useState(false)
   const [urlError, setUrlError]               = useState('')
@@ -199,6 +212,13 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [groqTokens, setGroqTokens]           = useState(null)
   const [showLeftSidebar, setShowLeftSidebar]   = useState(false)
   const [showRightSidebar, setShowRightSidebar] = useState(false)
+  const [cloudModel, setCloudModel] = useState(() => localStorage.getItem('rag-cloud-model') || 'llama-3.3-70b-versatile')
+  const [rightSidebarTab, setRightSidebarTab] = useState('files')
+  const [usagePeriod, setUsagePeriod] = useState('daily')
+  const [hypothesisOpenId, setHypothesisOpenId] = useState(null)
+  const [showChatUrl, setShowChatUrl] = useState(false)
+  const [chatUrlInput, setChatUrlInput] = useState('')
+  const [showAllModels, setShowAllModels] = useState(false)
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const fileInputRef       = useRef(null)
@@ -241,6 +261,15 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     document.documentElement.classList.toggle('dark', darkMode)
     localStorage.setItem('rag-theme', darkMode ? 'dark' : 'light')
   }, [darkMode])
+
+  useEffect(() => { localStorage.setItem('rag-cloud-model', cloudModel) }, [cloudModel])
+
+  useEffect(() => {
+    if (!showDashboard) return
+    authFetch(`${API}/dashboard`).then(r => r.json()).then(d => {
+      setDashboardData(d); setTokenStats(d.tokens); if (d.groq_tokens) setGroqTokens(d.groq_tokens)
+    }).catch(() => {})
+  }, [provider, cloudModel, showDashboard])
 
   useEffect(() => {
     localStorage.setItem('rag-provider', provider)
@@ -321,6 +350,17 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   }, [])
 
   useEffect(() => () => Object.values(pollingRef.current).forEach(clearInterval), [])
+
+  useEffect(() => {
+    if (!tokenStats?.total || !currentUser?.email) return
+    const today = new Date().toISOString().slice(0, 10)
+    const key = `rag-usage-${currentUser.email}`
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || '{}')
+      saved[today] = { prompt: tokenStats.prompt || 0, completion: tokenStats.completion || 0, total: tokenStats.total }
+      localStorage.setItem(key, JSON.stringify(saved))
+    } catch {}
+  }, [tokenStats, currentUser?.email])
 
   // ── Callbacks ─────────────────────────────────────────────────────────────
   const updateHistory = useCallback((updater) => {
@@ -497,9 +537,9 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     } catch (e) { console.error('Cancel failed:', e) }
   }, [activeSession?.id, authFetch])
 
-  const handleUrlIngest = useCallback(async (e) => {
-    e.preventDefault()
-    const url = urlInput.trim(); if (!url) return
+  const handleUrlIngest = useCallback(async (e, overrideUrl) => {
+    if (e?.preventDefault) e.preventDefault()
+    const url = (overrideUrl || urlInput).trim(); if (!url) return
     setUrlError(''); setUrlLoading(true)
     try {
       const res  = await authFetch(`${API}/upload-url`, {
@@ -508,7 +548,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
       })
       const data = await res.json()
       if (!res.ok) { setUrlError(data.detail || 'Failed to fetch URL'); return }
-      setUrlInput('')
+      if (!overrideUrl) setUrlInput('')
       setGlobalFiles(prev => ({ ...prev, [data.name]: { status: 'indexing', size: 0 } }))
       addFileToSession(data.name); pollStatus(data.name)
     } catch { setUrlError('Cannot reach server') }
@@ -550,6 +590,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
             .filter(e => e.answer !== null && !e.answer.startsWith('Error:'))
             .map(e => ({ question: e.question, answer: e.answer })),
           files: sessionFileNames, provider,
+          groq_model: provider === 'cloud' ? cloudModel : undefined,
         }),
         signal: abortControllerRef.current.signal,
       })
@@ -621,6 +662,19 @@ function MainApp({ authFetch, currentUser, onLogout }) {
     } catch (e) { setEvalData({ error: e.message }) }
     finally { setEvalLoading(false) }
   }, [authFetch])
+
+  const runQualityEval = useCallback(async () => {
+    setQualityLoading(true); setQualityData(null)
+    try {
+      const params = new URLSearchParams({ provider })
+      if (provider === 'cloud') params.set('groq_model', cloudModel)
+      const res  = await authFetch(`${API}/eval/quality?${params}`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Quality eval failed')
+      setQualityData(data)
+    } catch (e) { setQualityData({ error: e.message }) }
+    finally { setQualityLoading(false) }
+  }, [authFetch, provider, cloudModel])
 
   // ── Session list (derived) ─────────────────────────────────────────────────
   const filteredSessions = (() => {
@@ -757,32 +811,99 @@ function MainApp({ authFetch, currentUser, onLogout }) {
               )}
             </div>
 
-            {/* Groq token bars */}
-            {provider === 'cloud' && groqTokens && Object.keys(groqTokens.models || {}).length > 0 && (
+            {/* Cloud model selector */}
+            {provider === 'cloud' && (
               <div className="px-3 py-2 border-b flex-shrink-0">
-                {Object.entries(groqTokens.models).map(([model, data]) => {
-                  const pct  = Math.min(data.pct, 100)
-                  const tpmPct = (data.tpm_limit != null && data.tpm_remaining != null)
-                    ? Math.min(100, Math.round((1 - data.tpm_remaining / data.tpm_limit) * 100)) : null
-                  const tpmLow = tpmPct != null && tpmPct >= 80
-                  const fillColor = tpmLow || pct >= 90 ? '#ef4444' : pct >= 60 ? '#f59e0b' : '#22c55e'
-                  const shortName = model.includes('70b') ? '70B' : model.includes('8b') ? '8B' : model.split('-')[2] || model
-                  const tip = `${model}\nDaily: ${data.total.toLocaleString()} / ${data.daily_limit.toLocaleString()} tokens${data.from_headers ? ' (live)' : ' (est.)'}`
-                  return (
-                    <div key={model} className="flex items-center gap-1.5 mb-1 last:mb-0" title={tip}>
-                      <span className="text-[10px] text-muted-foreground w-6 text-right">{shortName}</span>
-                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div className="h-full rounded-full transition-all duration-500"
-                          style={{ width: `${pct}%`, backgroundColor: fillColor }} />
-                      </div>
-                      <span className="text-[10px] text-muted-foreground tabular-nums w-10">
-                        {pct.toFixed(0)}%{tpmLow ? ' ⚠' : ''}
-                      </span>
-                    </div>
-                  )
-                })}
+                <select
+                  className="w-full bg-background text-foreground text-xs border border-border rounded px-2 py-1.5 cursor-pointer outline-none"
+                  value={cloudModel}
+                  onChange={e => setCloudModel(e.target.value)}
+                >
+                  <optgroup label="Llama 3">
+                    <option value="llama-3.3-70b-versatile">Llama 3.3 70B</option>
+                    <option value="llama-3.1-8b-instant">Llama 3.1 8B (fast)</option>
+                  </optgroup>
+                  <optgroup label="Llama 4">
+                    <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B</option>
+                    <option value="meta-llama/llama-4-maverick-17b-128e-instruct">Llama 4 Maverick 17B</option>
+                  </optgroup>
+                  <optgroup label="Other">
+                    <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
+                    <option value="qwen-qwq-32b">Qwen QwQ 32B</option>
+                  </optgroup>
+                </select>
               </div>
             )}
+
+            {/* Groq token indicator — active model + expandable all-models */}
+            {provider === 'cloud' && (() => {
+              const activeModelDef = CLOUD_MODELS.find(m => m.key === cloudModel) || CLOUD_MODELS[0]
+              const renderDonut = (model, label, limit, isActive) => {
+                const data = groqTokens?.models?.[model]
+                const used = data?.total ?? 0
+                const dailyLimit = data?.daily_limit ?? limit
+                const pct = Math.min(Math.round(used / Math.max(dailyLimit, 1) * 100), 100)
+                const tpmPct = (data?.tpm_limit != null && data?.tpm_remaining != null)
+                  ? Math.min(100, Math.round((1 - data.tpm_remaining / data.tpm_limit) * 100)) : null
+                const tpmLow = tpmPct != null && tpmPct >= 80
+                const fillColor = tpmLow || pct >= 90 ? '#ef4444' : pct >= 60 ? '#f59e0b' : '#22c55e'
+                const trackColor = '#27272a'
+                const r = 13; const circ = 2 * Math.PI * r
+                return (
+                  <div key={model} className="flex items-center gap-2.5" title={`${model}\n${used.toLocaleString()} / ${dailyLimit.toLocaleString()} tpd`}>
+                    <div className="relative flex-shrink-0 w-8 h-8 flex items-center justify-center">
+                      <svg width="32" height="32" className="absolute inset-0">
+                        <circle cx="16" cy="16" r={r} fill="none" stroke={trackColor} strokeWidth="2.5" />
+                        {pct > 0 && (
+                          <circle cx="16" cy="16" r={r} fill="none" stroke={fillColor} strokeWidth="2.5"
+                            strokeDasharray={circ} strokeDashoffset={circ * (1 - pct / 100)}
+                            strokeLinecap="round" transform="rotate(-90 16 16)"
+                            style={{ transition: 'stroke-dashoffset 0.5s ease' }} />
+                        )}
+                      </svg>
+                      <span className="text-[8px] font-bold relative z-10" style={{ color: pct > 0 ? fillColor : '#52525b' }}>{pct}%</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] font-medium text-foreground">{label}</div>
+                      <div className="text-[9px] text-muted-foreground truncate">
+                        {used.toLocaleString()} / {dailyLimit.toLocaleString()} tpd{tpmLow ? ' ⚠' : ''}
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+              return (
+                <div className="border-b flex-shrink-0">
+                  {/* Active model row + toggle */}
+                  <div className="px-3 py-2.5 flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      {renderDonut(activeModelDef.key, activeModelDef.label, activeModelDef.limit, true)}
+                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          className={cn('flex-shrink-0 p-1 rounded transition-colors', showAllModels ? 'text-foreground bg-muted' : 'text-muted-foreground hover:text-foreground hover:bg-muted')}
+                          onClick={() => setShowAllModels(p => !p)}
+                        >
+                          <BarChart2 className="w-3.5 h-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>{showAllModels ? 'Hide all models' : 'Show all models'}</TooltipContent>
+                    </Tooltip>
+                  </div>
+                  {/* Expanded: all models */}
+                  {showAllModels && (
+                    <div className="px-3 pb-2.5 space-y-2.5 border-t pt-2.5 overflow-y-auto" style={{ maxHeight: '260px' }}>
+                      {CLOUD_MODELS.map(({ key: model, label, limit }) => (
+                        <div key={model} className={cn('transition-opacity', model === cloudModel ? 'opacity-100' : 'opacity-55')}>
+                          {renderDonut(model, label, limit, model === cloudModel)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* New chat + search */}
             <div className="p-2 space-y-2 flex-shrink-0">
@@ -893,25 +1014,42 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                   {sessionFiles.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 justify-center">
                       {sessionFiles.map(file => (
-                        <div
-                          key={file.name}
-                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-muted/50 text-xs text-muted-foreground max-w-[180px]"
-                          title={file.name}
-                        >
+                        <div key={file.name}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-muted/50 text-xs text-muted-foreground max-w-[200px] group/chip">
                           {(file.status === 'indexing' || file.status === 'uploading') ? (
                             <Loader2 className="w-3 h-3 flex-shrink-0 text-amber-500 animate-spin" />
                           ) : (
-                            <FileText className="w-3 h-3 flex-shrink-0 text-primary/70" />
+                            <FileText className="w-3 h-3 flex-shrink-0 text-primary/70 cursor-pointer" onClick={() => setPreviewFile(file.name)} />
                           )}
-                          <span className="truncate">{file.name}</span>
+                          <span
+                            className={file.status === 'ready' ? 'truncate cursor-pointer hover:text-foreground' : 'truncate'}
+                            onClick={() => file.status === 'ready' && setPreviewFile(file.name)}
+                            title={file.name}
+                          >{file.name}</span>
                           {(file.status === 'indexing' || file.status === 'uploading') && (
                             <span className="text-[9px] text-amber-500 flex-shrink-0">indexing</span>
                           )}
+                          <button
+                            className="ml-0.5 flex-shrink-0 opacity-0 group-hover/chip:opacity-100 transition-opacity hover:text-destructive"
+                            onClick={e => { e.stopPropagation(); handleRemoveFile(file.name) }}
+                            title="Remove"
+                          ><X className="w-2.5 h-2.5" /></button>
                         </div>
                       ))}
                     </div>
                   )}
 
+                  {showChatUrl && (
+                    <form className="mb-2 flex gap-1.5" onSubmit={e => { handleUrlIngest(e, chatUrlInput); setChatUrlInput(''); setShowChatUrl(false) }}>
+                      <Input autoFocus className="flex-1 h-8 text-xs" type="url" placeholder="Paste a URL to ingest…"
+                        value={chatUrlInput} onChange={e => setChatUrlInput(e.target.value)} />
+                      <Button type="submit" size="icon" variant="outline" className="h-8 w-8 flex-shrink-0" disabled={urlLoading || !chatUrlInput.trim()}>
+                        {urlLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                      </Button>
+                      <Button type="button" size="icon" variant="ghost" className="h-8 w-8 flex-shrink-0"
+                        onClick={() => { setShowChatUrl(false); setChatUrlInput('') }}><X className="w-3 h-3" /></Button>
+                    </form>
+                  )}
                   <form onSubmit={handleSubmit}>
                     <div className="flex gap-2 items-center">
                       <Tooltip>
@@ -923,6 +1061,16 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>Attach file</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button type="button" variant="ghost" size="icon"
+                            className={cn('h-10 w-10 flex-shrink-0', showChatUrl ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                            onClick={() => setShowChatUrl(p => !p)}>
+                            <Link2 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Paste URL</TooltipContent>
                       </Tooltip>
                       <Input
                         className="flex-1 text-sm h-10"
@@ -979,16 +1127,6 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                       </div>
 
                       <div className="flex-1 min-w-0 space-y-1.5">
-                        {/* Hypothesis */}
-                        {entry.hypothesis && (
-                          <details className="text-xs rounded-lg bg-muted/60 border overflow-hidden">
-                            <summary className="px-3 py-2 cursor-pointer text-muted-foreground hover:text-foreground flex items-center gap-1.5 select-none">
-                              <Search className="w-3 h-3" /> Search hypothesis
-                            </summary>
-                            <p className="px-3 pb-2.5 pt-1 text-muted-foreground leading-relaxed">{entry.hypothesis}</p>
-                          </details>
-                        )}
-
                         {/* Answer content */}
                         {entry.answer === null ? (
                           <div className="bg-card border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
@@ -1014,7 +1152,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                             </div>
                           </div>
                         ) : (
-                          <div className="bg-card border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm group">
+                          <div className="group">
                             <div className="markdown-body text-sm">
                               <ReactMarkdown>{entry.answer}</ReactMarkdown>
                             </div>
@@ -1052,17 +1190,39 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                           </div>
                         )}
 
-                        {/* Eval badges */}
-                        {entry.eval && entry.answer !== null && (
-                          <div className="flex gap-1.5 pt-0.5">
-                            <span className={cn('text-[10px] px-1.5 py-0.5 rounded border font-medium', evalBadgeClass(entry.eval.faithfulness))}
-                              title="Faithfulness — how well the answer is grounded in the retrieved context">
-                              F {Math.round(entry.eval.faithfulness * 100)}%
-                            </span>
-                            <span className={cn('text-[10px] px-1.5 py-0.5 rounded border font-medium', evalBadgeClass(entry.eval.answer_relevance))}
-                              title="Answer relevance — how directly the answer addresses the question">
-                              R {Math.round(entry.eval.answer_relevance * 100)}%
-                            </span>
+                        {/* Eval badges + hypothesis toggle */}
+                        {(entry.eval || entry.hypothesis) && entry.answer !== null && (
+                          <div className="space-y-1.5">
+                            <div className="flex gap-1.5 pt-0.5 items-center flex-wrap">
+                              {entry.eval && (
+                                <>
+                                  <span className={cn('text-[10px] px-1.5 py-0.5 rounded border font-medium', evalBadgeClass(entry.eval.faithfulness))}
+                                    title="Faithfulness">
+                                    F {Math.round(entry.eval.faithfulness * 100)}%
+                                  </span>
+                                  <span className={cn('text-[10px] px-1.5 py-0.5 rounded border font-medium', evalBadgeClass(entry.eval.answer_relevance))}
+                                    title="Answer relevance">
+                                    R {Math.round(entry.eval.answer_relevance * 100)}%
+                                  </span>
+                                </>
+                              )}
+                              {entry.hypothesis && (
+                                <button
+                                  className={cn('flex items-center justify-center w-5 h-5 rounded border transition-colors',
+                                    hypothesisOpenId === entry.id
+                                      ? 'text-foreground border-foreground/30 bg-muted'
+                                      : 'text-muted-foreground border-border hover:text-foreground hover:border-foreground/30')}
+                                  onClick={() => setHypothesisOpenId(hypothesisOpenId === entry.id ? null : entry.id)}
+                                  title="Search hypothesis"
+                                ><Search className="w-2.5 h-2.5" /></button>
+                              )}
+                            </div>
+                            {hypothesisOpenId === entry.id && entry.hypothesis && (
+                              <div className="text-xs rounded-lg bg-muted/60 border px-3 py-2 text-muted-foreground leading-relaxed">
+                                <span className="text-[10px] font-medium text-foreground/60 block mb-1">Search hypothesis</span>
+                                {entry.hypothesis}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1092,20 +1252,40 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                     <div className="max-w-3xl mx-auto mb-2 flex flex-wrap gap-1.5">
                       {sessionFiles.map(file => (
                         <div key={file.name}
-                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-muted/50 text-xs text-muted-foreground max-w-[200px]"
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-muted/50 text-xs text-muted-foreground max-w-[200px] group/chip"
                           title={file.name}>
                           {(file.status === 'indexing' || file.status === 'uploading') ? (
                             <Loader2 className="w-3 h-3 flex-shrink-0 text-amber-500 animate-spin" />
                           ) : (
-                            <FileText className="w-3 h-3 flex-shrink-0 text-primary/70" />
+                            <FileText className="w-3 h-3 flex-shrink-0 text-primary/70 cursor-pointer" onClick={() => setPreviewFile(file.name)} />
                           )}
-                          <span className="truncate">{file.name}</span>
+                          <span
+                            className={file.status === 'ready' ? 'truncate cursor-pointer hover:text-foreground' : 'truncate'}
+                            onClick={() => file.status === 'ready' && setPreviewFile(file.name)}
+                            title={file.name}
+                          >{file.name}</span>
                           {(file.status === 'indexing' || file.status === 'uploading') && (
                             <span className="text-[9px] text-amber-500 flex-shrink-0">indexing</span>
                           )}
+                          <button
+                            className="ml-0.5 flex-shrink-0 opacity-0 group-hover/chip:opacity-100 transition-opacity hover:text-destructive"
+                            onClick={e => { e.stopPropagation(); handleRemoveFile(file.name) }}
+                            title="Remove"
+                          ><X className="w-2.5 h-2.5" /></button>
                         </div>
                       ))}
                     </div>
+                  )}
+                  {showChatUrl && (
+                    <form className="max-w-3xl mx-auto mb-2 flex gap-1.5" onSubmit={e => { handleUrlIngest(e, chatUrlInput); setChatUrlInput(''); setShowChatUrl(false) }}>
+                      <Input autoFocus className="flex-1 h-8 text-xs" type="url" placeholder="Paste a URL to ingest…"
+                        value={chatUrlInput} onChange={e => setChatUrlInput(e.target.value)} />
+                      <Button type="submit" size="icon" variant="outline" className="h-8 w-8 flex-shrink-0" disabled={urlLoading || !chatUrlInput.trim()}>
+                        {urlLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                      </Button>
+                      <Button type="button" size="icon" variant="ghost" className="h-8 w-8 flex-shrink-0"
+                        onClick={() => { setShowChatUrl(false); setChatUrlInput('') }}><X className="w-3 h-3" /></Button>
+                    </form>
                   )}
                   <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
                     <div className="flex gap-2 items-center">
@@ -1118,6 +1298,16 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>Attach file</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button type="button" variant="ghost" size="icon"
+                            className={cn('h-10 w-10 flex-shrink-0', showChatUrl ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                            onClick={() => setShowChatUrl(p => !p)}>
+                            <Link2 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Paste URL</TooltipContent>
                       </Tooltip>
                       <Input
                         className="flex-1 text-sm h-10"
@@ -1166,6 +1356,102 @@ function MainApp({ authFetch, currentUser, onLogout }) {
           {/* ── File sidebar ── */}
           {showRightSidebar && (
           <aside className="w-72 flex-shrink-0 border-l flex flex-col bg-background">
+
+            {/* Tab switcher */}
+            <div className="flex flex-shrink-0 border-b">
+              {['files', 'usage'].map(tab => (
+                <button key={tab}
+                  className={cn('flex-1 py-2 text-xs font-medium capitalize transition-colors border-b-2 -mb-px',
+                    rightSidebarTab === tab
+                      ? 'text-foreground border-primary'
+                      : 'text-muted-foreground border-transparent hover:text-foreground')}
+                  onClick={() => setRightSidebarTab(tab)}>{tab}</button>
+              ))}
+            </div>
+
+            {rightSidebarTab === 'usage' ? (
+              /* ── Usage tab ── */
+              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
+                <div className="flex items-center rounded-md border bg-muted p-0.5 gap-0.5 w-fit">
+                  {['daily', 'monthly'].map(p => (
+                    <button key={p} onClick={() => setUsagePeriod(p)}
+                      className={cn('px-3 py-1 rounded text-[10px] font-medium capitalize transition-all',
+                        usagePeriod === p ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground')}>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+                {(() => {
+                  const key = `rag-usage-${currentUser?.email || 'default'}`
+                  let raw = {}
+                  try { raw = JSON.parse(localStorage.getItem(key) || '{}') } catch {}
+                  let chartData = []
+                  if (usagePeriod === 'daily') {
+                    chartData = Object.entries(raw).sort(([a],[b]) => a.localeCompare(b)).slice(-14)
+                      .map(([date, d]) => ({ label: date.slice(5), tokens: d.total || 0, prompt: d.prompt || 0, completion: d.completion || 0 }))
+                  } else {
+                    const byMonth = {}
+                    Object.entries(raw).forEach(([date, d]) => {
+                      const m = date.slice(0, 7)
+                      byMonth[m] = Math.max(byMonth[m] || 0, d.total || 0)
+                    })
+                    chartData = Object.entries(byMonth).sort(([a],[b]) => a.localeCompare(b)).slice(-6)
+                      .map(([month, tokens]) => ({ label: month.slice(5), tokens }))
+                  }
+                  if (chartData.length === 0) return (
+                    <div className="text-xs text-muted-foreground text-center py-10 leading-relaxed">
+                      No usage data yet.<br />Start chatting to see your stats.
+                    </div>
+                  )
+                  const total = chartData.reduce((a, d) => a + d.tokens, 0)
+                  const last = chartData[chartData.length - 1]
+                  return (
+                    <div className="space-y-3">
+                      <div className="rounded-lg border bg-card px-4 py-3">
+                        <div className="text-xl font-bold">{total.toLocaleString()}</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          {usagePeriod === 'daily' ? 'Tokens — last 14 days' : 'Peak tokens — last 6 months'}
+                        </div>
+                      </div>
+                      <div className="h-40">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="usageGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#a855f7" stopOpacity={0.25} />
+                                <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                              </linearGradient>
+                            </defs>
+                            <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#71717a' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                            <RechartTooltip
+                              contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '10px', padding: '6px 10px' }}
+                              labelStyle={{ color: '#71717a', marginBottom: '2px' }}
+                              formatter={(v) => [v.toLocaleString() + ' tokens', 'Usage']}
+                            />
+                            <Area type="monotone" dataKey="tokens" stroke="#a855f7" strokeWidth={1.5} fill="url(#usageGrad)" dot={false} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                      {usagePeriod === 'daily' && last && (
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { label: 'Prompt (today)', value: last.prompt },
+                            { label: 'Completion (today)', value: last.completion },
+                          ].map(({ label, value }) => (
+                            <div key={label} className="rounded-lg border bg-card px-3 py-2.5 text-center">
+                              <div className="text-sm font-bold">{(value || 0).toLocaleString()}</div>
+                              <div className="text-[9px] text-muted-foreground mt-0.5">{label}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            ) : (
+              /* ── Files tab ── */
+              <>
             {/* Prompt nav */}
             {history.filter(e => e.question).length > 0 && (
               <div className="border-b flex-shrink-0">
@@ -1299,6 +1585,8 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                 </div>
               )}
             </div>
+              </>
+            )}
           </aside>
           )}
         </div>
@@ -1357,7 +1645,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                   <div>
                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Active Models</h3>
                     <div className="rounded-lg border divide-y">
-                      {[['LLM', dashboardData.models.llm], ['Embeddings', dashboardData.models.embed], ['Vision', dashboardData.models.vision]].map(([label, value]) => (
+                      {[['LLM', provider === 'cloud' ? cloudModel : dashboardData.models.llm], ['Embeddings', dashboardData.models.embed], ['Vision', dashboardData.models.vision]].map(([label, value]) => (
                         <div key={label} className="flex items-center justify-between px-4 py-2.5">
                           <span className="text-xs text-muted-foreground">{label}</span>
                           <code className="text-xs bg-muted px-2 py-0.5 rounded">{value}</code>
@@ -1589,6 +1877,66 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                         <p className="text-[10px] text-muted-foreground">{evalData.n_questions} questions · click a row to inspect retrieved chunks</p>
                       </div>
                     )}
+                  </div>
+
+                  {/* ── Answer Quality eval ─────────────────────────────── */}
+                  <div className="border-t pt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Answer Quality</h3>
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={runQualityEval} disabled={qualityLoading}>
+                        {qualityLoading ? <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Running…</> : 'Run quality eval'}
+                      </Button>
+                    </div>
+                    {!qualityData && !qualityLoading && (
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Runs 15 LLM-graded questions through the full RAG pipeline and scores faithfulness, relevance, and correctness vs expected answers. Uses current provider ({provider === 'cloud' ? cloudModel : 'local'}).
+                      </p>
+                    )}
+                    {qualityLoading && <p className="text-xs text-muted-foreground italic">Generating and scoring answers — ~2–3 min for 15 questions…</p>}
+                    {qualityData?.error && <p className="text-xs text-destructive">{qualityData.error}</p>}
+                    {qualityData && !qualityData.error && (() => {
+                      const sc = v => v >= 0.8 ? 'text-emerald-600' : v >= 0.5 ? 'text-amber-500' : 'text-destructive'
+                      return (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-3 gap-2">
+                            {[['Faithfulness', qualityData.avg_faithfulness], ['Relevance', qualityData.avg_relevance], ['Correctness', qualityData.avg_correctness]].map(([label, val]) => (
+                              <div key={label} className="rounded-lg border p-2 text-center">
+                                <div className={cn('text-lg font-bold tabular-nums', sc(val))}>{Math.round(val * 100)}%</div>
+                                <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">Model: {qualityData.model} · {qualityData.n_questions} questions</p>
+                          <div className="rounded-lg border overflow-hidden">
+                            <div className="grid grid-cols-4 bg-muted px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase">
+                              <span className="col-span-2">Question</span><span className="text-center">F/R</span><span className="text-right">Corr</span>
+                            </div>
+                            {qualityData.per_question.map(r => (
+                              <div key={r.id}>
+                                <div className="grid grid-cols-4 px-3 py-2 border-t text-xs cursor-pointer hover:bg-muted/50 transition-colors"
+                                     onClick={() => setQualitySelectedQ(qualitySelectedQ === r.id ? null : r.id)}>
+                                  <span className="col-span-2 text-muted-foreground truncate">{r.id}</span>
+                                  <span className={cn('text-center tabular-nums', sc(Math.min(r.faithfulness, r.relevance)))}>{Math.round(r.faithfulness * 100)}/{Math.round(r.relevance * 100)}</span>
+                                  <span className={cn('text-right tabular-nums font-medium', sc(r.correctness))}>{Math.round(r.correctness * 100)}%</span>
+                                </div>
+                                {qualitySelectedQ === r.id && (
+                                  <div className="mx-3 mb-2 p-3 bg-muted/50 rounded-lg border text-xs space-y-2">
+                                    <div><div className="text-[10px] text-muted-foreground font-medium mb-0.5">Question</div><div>{r.question}</div></div>
+                                    <div><div className="text-[10px] text-muted-foreground font-medium mb-0.5">Generated</div><div className="text-muted-foreground leading-relaxed">{r.generated}</div></div>
+                                    <div><div className="text-[10px] text-muted-foreground font-medium mb-0.5">Expected</div><div className="leading-relaxed">{r.expected}</div></div>
+                                    <div className="flex gap-3 pt-1">
+                                      {[['Faith', r.faithfulness], ['Rel', r.relevance], ['Corr', r.correctness]].map(([k, v]) => (
+                                        <span key={k} className={cn('text-[10px] font-semibold', sc(v))}>{k} {Math.round(v * 100)}%</span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </div>
                 </>
               )}
