@@ -17,7 +17,7 @@ import {
   Plus, Search, Trash2, Upload, FileText, X, Send, Square,
   Sun, Moon, BarChart2, LogOut, RefreshCw, Link2, ChevronDown,
   ChevronUp, MessageSquare, Cpu, Cloud, AlertTriangle, Copy,
-  Loader2, ExternalLink, RotateCcw, BookOpen, Paperclip, Menu
+  Loader2, ExternalLink, RotateCcw, BookOpen, Paperclip, Menu, Zap
 } from 'lucide-react'
 import './App.css'
 import { AreaChart, Area, XAxis, Tooltip as RechartTooltip, ResponsiveContainer } from 'recharts'
@@ -211,6 +211,7 @@ function MainApp({ authFetch, currentUser, onLogout }) {
   const [globalFiles, setGlobalFiles]         = useState({})
   const [question, setQuestion]               = useState('')
   const [isLoading, setIsLoading]             = useState(false)
+  const [streamMode, setStreamMode]           = useState(true)  // false = instant response
   const [isDragOver, setIsDragOver]           = useState(false)
   const [showPromptNav, setShowPromptNav]     = useState(false)
   const [showScrollDown, setShowScrollDown]   = useState(false)
@@ -621,11 +622,30 @@ function MainApp({ authFetch, currentUser, onLogout }) {
             .map(e => ({ question: e.question, answer: e.answer })),
           files: sessionFileNames, provider,
           groq_model: provider === 'cloud' ? cloudModel : undefined,
+          stream: streamMode,
+          fast: !streamMode,
         }),
         signal: abortControllerRef.current.signal,
       })
       if (!pendingIdRef.current) return
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail || `Server error: ${res.status}`) }
+
+      // ── Instant mode: single JSON response ──────────────────────────────────
+      if (!streamMode) {
+        const data = await res.json()
+        updateHistory(prev => prev.map(entry => entry.id === tempId
+          ? { ...entry, answer: (data.answer ?? '').trim(), sources: data.sources || [],
+              citations: data.citations || [], warning: data.warning || null, mode: data.mode || 'standard' }
+          : entry))
+        scrollTimerRef.current = setTimeout(scrollToBottom, 100)
+        authFetch(`${API}/dashboard`).then(r => r.json()).then(d => { setTokenStats(d.tokens); if (d.groq_tokens) setGroqTokens(d.groq_tokens) }).catch(() => {})
+        if (isFirstMessage) {
+          authFetch(`${API}/title`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: currentQuestion, files: sessionFileNames }) })
+            .then(r => r.json()).then(({ title }) => { if (title) setSessions(prev => prev.map(s => s.id === sid ? { ...s, name: title } : s)) }).catch(() => {})
+        }
+        return
+      }
+      // ── Stream mode: SSE ────────────────────────────────────────────────────
       const reader = res.body.getReader(); const decoder = new TextDecoder()
       let buffer = ''; let scrolledOnFirst = false
       while (true) {
@@ -1378,6 +1398,16 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                         disabled={isLoading}
                         autoComplete="off"
                       />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button type="button" variant="ghost" size="icon"
+                            className={cn('h-10 w-10 flex-shrink-0', streamMode ? 'text-primary' : 'text-muted-foreground hover:text-foreground')}
+                            onClick={() => setStreamMode(p => !p)}>
+                            <Zap className={cn('h-4 w-4', streamMode && 'fill-primary')} />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{streamMode ? 'Streaming on — click for instant' : 'Instant mode — click for streaming'}</TooltipContent>
+                      </Tooltip>
                       {isLoading ? (
                         <Button type="button" variant="destructive" size="icon" className="h-10 w-10 flex-shrink-0" onClick={handleCancel} title="Cancel">
                           <Square className="h-4 w-4" />

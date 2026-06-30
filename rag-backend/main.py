@@ -175,6 +175,7 @@ class Question(BaseModel):
     provider: str = "local"       # "local" (Ollama) or "cloud"
     groq_model: str | None = None # override Groq model for this request only
     fast: bool = False            # skip HyDE/multi-query/condense/eval for batch evals
+    stream: bool = True            # False → return full JSON instead of SSE
 
 cancelled_files = set()   # filenames that should stop indexing
 
@@ -214,11 +215,12 @@ class _CompatLLM:
     Bypasses LlamaIndex model-name validation and returns objects
     compatible with our acomplete/astream_complete call sites."""
 
-    def __init__(self, api_key: str, model: str, base_url: str = "https://api.openai.com/v1"):
+    def __init__(self, api_key: str, model: str, base_url: str = "https://api.openai.com/v1", max_tokens: int | None = None):
         from openai import AsyncOpenAI
-        self._client   = AsyncOpenAI(api_key=api_key, base_url=base_url)
-        self._model    = model
-        self._is_groq  = "groq.com" in base_url
+        self._client     = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self._model      = model
+        self._is_groq    = "groq.com" in base_url
+        self._max_tokens = max_tokens
 
     def _track_groq(self, usage, headers=None):
         """Update per-model groq_token_usage from response headers (authoritative)
@@ -283,9 +285,12 @@ class _CompatLLM:
         from openai import RateLimitError as _RLE
         for attempt in range(6):
             try:
+                kw = {}
+                if self._max_tokens: kw["max_tokens"] = self._max_tokens
                 raw_resp = await self._client.chat.completions.with_raw_response.create(
                     model=self._model,
                     messages=[{"role": "user", "content": prompt}],
+                    **kw,
                 )
                 resp  = raw_resp.parse()
                 text  = resp.choices[0].message.content or ""
@@ -312,10 +317,13 @@ class _CompatLLM:
         from openai import RateLimitError as _RLE
         for attempt in range(6):
             try:
+                kw = {}
+                if self._max_tokens: kw["max_tokens"] = self._max_tokens
                 raw_resp = await self._client.chat.completions.with_raw_response.create(
                     model=self._model,
                     messages=[{"role": "user", "content": prompt}],
                     stream=False,
+                    **kw,
                 )
                 resp  = raw_resp.parse()
                 text  = resp.choices[0].message.content or ""
@@ -339,17 +347,17 @@ class _CompatLLM:
         raise RuntimeError("Rate limit reached — too many requests to Groq. Please wait 1–2 minutes and try again.")
 
 
-def _get_llm(provider: str = "local", groq_model: str | None = None):
+def _get_llm(provider: str = "local", groq_model: str | None = None, max_tokens: int | None = None):
     """Return the LLM for the given provider. Embeddings always stay local."""
     if provider in ("cloud", "groq"):
         if not GROQ_API_KEY:
             raise HTTPException(status_code=400, detail="GROQ_API_KEY not set in .env")
         model = groq_model or GROQ_MODEL
-        return _CompatLLM(api_key=GROQ_API_KEY, model=model, base_url="https://api.groq.com/openai/v1")
+        return _CompatLLM(api_key=GROQ_API_KEY, model=model, base_url="https://api.groq.com/openai/v1", max_tokens=max_tokens)
     if provider == "openai":
         if not OPENAI_API_KEY:
             raise HTTPException(status_code=400, detail="OPENAI_API_KEY not set in .env")
-        return _CompatLLM(api_key=OPENAI_API_KEY, model=OPENAI_MODEL)
+        return _CompatLLM(api_key=OPENAI_API_KEY, model=OPENAI_MODEL, max_tokens=max_tokens)
     return Settings.llm
 
 app = FastAPI(title="RAG Assistant API")
@@ -2130,7 +2138,9 @@ async def ask(q: Question,
     global _last_groq_model
     if q.provider == "cloud" and q.groq_model:
         _last_groq_model = q.groq_model
-    active_llm     = _get_llm(q.provider, groq_model=q.groq_model)
+    # Fast mode: same model the user selected, but hard-cap output at 250 tokens
+    # Fast mode cap: 500 tokens — enough for a short answer but still 2-3× faster than unlimited
+    active_llm     = _get_llm(q.provider, groq_model=q.groq_model, max_tokens=500 if q.fast else None)
     # For cloud, route cheap auxiliary calls (condense/HyDE/multi-query/eval) to the
     # 8B model (500K TPD) so the 70B quota is reserved for the actual answer.
     aux_llm        = (_get_llm(q.provider, groq_model=GROQ_AUX_MODEL)
@@ -2386,6 +2396,15 @@ async def ask(q: Question,
                     "- Format your response in clear Markdown: use numbered lists (`1.`, `2.`) or bullet lists (`-`) when enumerating items, use **bold** for key terms, and use headings (`##`) for long structured answers. Use a Markdown pipe table ONLY when every cell value fits on a single line with no nested lists or line breaks; if any cell would need multi-line content, use a bullet list instead."
 
                 )
+            elif q.fast:
+                system_instruction = (
+                    "You are a document assistant. Give a BRIEF, DIRECT answer using only the provided context.\n"
+                    "Rules:\n"
+                    "- Maximum 5 bullet points or 3 short paragraphs. Stop when you have covered the key points — do not elaborate.\n"
+                    "- No preamble ('Here is...', 'Based on the documents...'). Start directly with the answer.\n"
+                    "- No source citations in parentheses unless explicitly asked.\n"
+                    "- If the answer is not in the context, say: \'Not found in documents.\'\n"
+                )
             else:
                 system_instruction = (
                     "You are a document assistant. Answer using ONLY the provided context and conversation history.\n"
@@ -2489,6 +2508,27 @@ async def ask(q: Question,
 
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+    if not q.stream:
+        # Collect all SSE events and return a single JSON response
+        answer = ""; sources = []; citations = []; warning = None; mode = "standard"
+        async for chunk in event_stream():
+            if not chunk.startswith("data: "): continue
+            raw = chunk[6:].strip()
+            if not raw: continue
+            try: data = json.loads(raw)
+            except Exception: continue
+            if data.get("type") == "token":
+                answer += data.get("content", "")
+            elif data.get("type") == "done":
+                sources   = data.get("sources", [])
+                citations = data.get("citations", [])
+                warning   = data.get("warning")
+                mode      = data.get("mode", "standard")
+            elif data.get("type") == "error":
+                raise HTTPException(500, data.get("message", "Unknown error"))
+        return {"type": "done", "answer": answer.strip(), "sources": sources,
+                "citations": citations, "warning": warning, "mode": mode}
 
     return StreamingResponse(
         event_stream(),
