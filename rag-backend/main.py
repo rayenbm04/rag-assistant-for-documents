@@ -476,9 +476,6 @@ GROQ_TPD_LIMITS: dict[str, int] = {
     "llama-3.3-70b-versatile":                             100_000,
     "llama-3.1-8b-instant":                                500_000,
     "meta-llama/llama-4-scout-17b-16e-instruct":           100_000,
-    "meta-llama/llama-4-maverick-17b-128e-instruct":       100_000,
-    "mixtral-8x7b-32768":                                  500_000,
-    "qwen-qwq-32b":                                        100_000,
     # gemma2-9b-it — decommissioned by Groq, removed
 }
 

@@ -33,9 +33,6 @@ const CLOUD_MODELS = [
   { key: 'llama-3.3-70b-versatile',                           label: '3.3 70B',   limit: 100_000 },
   { key: 'llama-3.1-8b-instant',                              label: '3.1 8B',    limit: 500_000 },
   { key: 'meta-llama/llama-4-scout-17b-16e-instruct',         label: 'Scout 17B', limit: 100_000 },
-  { key: 'meta-llama/llama-4-maverick-17b-128e-instruct',     label: 'Mavrik 17B',limit: 100_000 },
-  { key: 'mixtral-8x7b-32768',                                label: 'Mixtral',   limit: 500_000 },
-  { key: 'qwen-qwq-32b',                                      label: 'QwQ 32B',   limit: 100_000 },
 ]
 
 function evalBadgeClass(score) {
@@ -824,13 +821,8 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                     <option value="llama-3.1-8b-instant">Llama 3.1 8B (fast)</option>
                   </optgroup>
                   <optgroup label="Llama 4">
-                    <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B</option>
-                    <option value="meta-llama/llama-4-maverick-17b-128e-instruct">Llama 4 Maverick 17B</option>
-                  </optgroup>
-                  <optgroup label="Other">
-                    <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
-                    <option value="qwen-qwq-32b">Qwen QwQ 32B</option>
-                  </optgroup>
+                    <option value="meta-llama/llama-4-scout-17b-16e-instruct">Llama 4 Scout 17B</option>                  </optgroup>
+                  <optgroup label="Other">                  </optgroup>
                 </select>
               </div>
             )}

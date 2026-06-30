@@ -435,47 +435,51 @@ rag-assistant/
 
 ## Benchmarks
 
-Evaluated on a 116-question dataset covering all uploaded file types (DOCX, PDF, XLSX, PPTX, PUML, PNG) using `answer_eval.py`. Questions have ground-truth `expected_answer` fields; correctness is scored by an LLM-as-judge.
-
 Pipeline config for all runs: `CHILD_CHUNK_SIZE=256`, `SIMILARITY_TOP_K=8`, `ENABLE_HYDE=true`, `ENABLE_MULTI_QUERY=true`, `ENABLE_RERANK=true`.
 
 ---
 
-### Retrieval quality (Hit@8 / MRR)
+### Retrieval quality (Hit@8 / MRR) — 65 questions
 
 Retrieval is model-independent — embeddings always use `nomic-embed-text` locally.
 
 | Configuration | Hit@8 | MRR |
 |---|---|---|
-| Vector only | 86% | 0.65 |
-| Hybrid (vector + BM25) | 87% | 0.65 |
-| **Hybrid + Reranker** | **86%** | **0.80** |
+| Vector only | 96% | 0.72 |
+| Hybrid (vector + BM25) | 99% | 0.78 |
+| **Hybrid + Reranker** | **100%** | **0.89** |
 
 ---
 
-### Answer quality (110 scoreable questions)
+### Answer quality — Local (110 questions)
 
-Correctness scored by keyword-overlap between expected and actual answers. Faithfulness and relevance scored by an LLM-as-judge inline after each answer.
+Evaluated with `answer_eval.py` on a 110-question dataset covering all file types (DOCX, PDF, XLSX, PPTX, PUML, PNG). Correctness scored by keyword-overlap. Faithfulness and relevance scored by the local LLM-as-judge (same model as the answerer — scores may be inflated by ~5–15%).
 
-| LLM | Provider | Questions | Pass rate (≥ 0.75) | Avg correctness |
-|---|---|---|---|---|
-| qwen2.5:7b | Local (Ollama) | 110 / 110 | **82.7%** | **0.707** |
-| llama-3.3-70b-versatile (answer) + llama-3.1-8b-instant (aux) | Groq (cloud) | 110 / 110 | **66.4%** | **0.620** |
-| llama-3.1-8b-instant (all calls) | Groq (cloud) | 99 / 110 ¹ | **81.8%** | **0.801** |
-| gpt-4o | OpenAI (cloud) | — | — | — |
-
-> ¹ 11 questions skipped — 8B model hit Groq's per-request token limit (413) on large PPTX context. Scores computed over the 99 valid responses.
-
-> **Note on scoring method:** local scores use an LLM-as-judge (same model as the answerer, which inflates scores ~5–15%). Cloud scores use keyword-overlap (no LLM judge), which tends to undercount paraphrased correct answers. The two methods are not directly comparable — local scores are likely closer to true quality than the gap suggests.
-
-**Local baseline thresholds:**
+| Model | Provider | Questions | Faithfulness | Relevance | Correctness |
+|---|---|---|---|---|---|
+| **qwen2.5:7b** | **Local (Ollama)** | **110 / 110** | **0.923** | **0.797** | **0.707** |
 
 | Metric | Score | Threshold |
 |---|---|---|
-| Pass rate | 82.7% | ≥ 80% ✓ |
-| Avg correctness | 0.707 | ≥ 0.70 ✓ |
-| Avg faithfulness | 0.923 | ≥ 0.85 ✓ |
-| Avg relevance | 0.797 | ≥ 0.80 ~ |
+| Faithfulness | 0.923 | ≥ 0.85 ✓ |
+| Relevance | 0.797 | ≥ 0.80 ~ |
+| Correctness | 0.707 | ≥ 0.70 ✓ |
+
+---
+
+### Answer quality — Cloud / Groq (57 questions)
+
+The cloud eval dataset was reduced from 110 to 57 questions for two reasons: (1) Groq's free-tier daily token limits (100K TPD for 70B-class models) make a 110-question eval with generation + three LLM-as-judge scoring calls per question impractical in a single run without hitting the cap; (2) the dataset was rebuilt from scratch against the current set of uploaded files, so questions targeting deprecated files were dropped.
+
+All three metrics are scored by `llama-3.1-8b-instant` as LLM-as-judge. Aux calls (HyDE, multi-query, condensing) always use `llama-3.1-8b-instant` regardless of which main model is selected — so every run is a hybrid: 8B for aux, selected model for final answer generation.
+
+| Model | Faithfulness | Relevance | Correctness |
+|---|---|---|---|
+| llama-3.1-8b-instant | 82% | 83% | **85%** |
+| **llama-3.3-70b-versatile** | **84%** | **84%** | 82% |
+| meta-llama/llama-4-scout-17b-16e-instruct | 79% | 84% | 81% |
+
+> **Scout note:** Scout doubles as both the vision model (image and scanned-PDF analysis) and a capable text generation model. Its scores are competitive with the 70B despite being a much smaller model.
 
 ---
 
