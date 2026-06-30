@@ -3,6 +3,22 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/jetbrains-mono";
 
+@keyframes shimmer {
+  100% { transform: translateX(200%); }
+}
+
+@keyframes spotlight {
+  0% {
+    opacity: 0;
+    transform: translate(-72%, -62%) scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -40%) scale(1);
+  }
+}
+
+
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -127,6 +143,8 @@ body {
 }
 
 @theme inline {
+  --animate-spotlight: spotlight 2s ease 0.75s 1 forwards;
+  --animate-shimmer: shimmer 2s infinite;
   --font-heading: var(--font-mono);
   --font-mono: 'JetBrains Mono Variable', monospace;
   --color-sidebar-ring: var(--sidebar-ring);
@@ -175,10 +193,6 @@ body {
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-  }
-  html {
-    @apply font-mono;
-    font-family: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+    font-family: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
   }
 }

@@ -17,6 +17,11 @@ import {
 } from 'lucide-react'
 import './App.css'
 import { AreaChart, Area, XAxis, Tooltip as RechartTooltip, ResponsiveContainer } from 'recharts'
+import { BackgroundBeams }    from '@/components/ui/background-beams'
+import { Spotlight }          from '@/components/ui/spotlight'
+import { TextGenerateEffect } from '@/components/ui/text-generate-effect'
+import { HoverEffect }        from '@/components/ui/card-hover-effect'
+import { ShimmerButton }      from '@/components/ui/shimmer-button'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -86,8 +91,9 @@ function AuthScreen({ onAuth }) {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
-      <Card className="w-full max-w-sm shadow-lg">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
+      <BackgroundBeams className="opacity-40" />
+      <Card className="w-full max-w-sm shadow-lg relative z-10">
         <CardHeader className="text-center pb-4">
           <div className="mx-auto mb-3 w-11 h-11 bg-primary rounded-xl flex items-center justify-center shadow-sm">
             <MessageSquare className="w-5 h-5 text-primary-foreground" />
@@ -992,15 +998,28 @@ function MainApp({ authFetch, currentUser, onLogout }) {
 
             {history.length === 0 && !isLoading ? (
               /* ── Empty state: centered input ── */
-              <div className="flex-1 flex items-center justify-center px-6 pb-10">
-                <div className="w-full max-w-2xl space-y-5">
+              <div className="flex-1 flex items-center justify-center px-6 pb-10 relative overflow-hidden">
+                <Spotlight className="-top-20 left-1/2 -translate-x-1/2" fill="white" />
+                <div className="w-full max-w-2xl space-y-5 relative z-10">
 
                   {/* Greeting */}
                   <div className="text-center select-none">
-                    <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-                      How can I help you today{currentUser.firstname ? `, ${currentUser.firstname}` : ''}?
-                    </h1>
+                    <TextGenerateEffect
+                      words={`How can I help you today${currentUser.firstname ? `, ${currentUser.firstname}` : ''}?`}
+                      className="text-2xl font-semibold tracking-tight"
+                      duration={0.3}
+                    />
                   </div>
+
+                  {/* Suggestion cards */}
+                  <HoverEffect
+                    className="w-full"
+                    items={[
+                      { title: "Summarize my documents", description: "Get a quick overview of all uploaded files", onClick: () => setQuestion("Summarize the uploaded documents") },
+                      { title: "Key concepts & terms", description: "Extract the main ideas and definitions", onClick: () => setQuestion("What are the key concepts and terms in these documents?") },
+                      { title: "Compare & contrast", description: "Find similarities and differences across files", onClick: () => setQuestion("Compare and contrast the main topics across the uploaded documents") },
+                    ]}
+                  />
 
                   {/* Uploaded file chips */}
                   {sessionFiles.length > 0 && (
@@ -1072,9 +1091,9 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                         onKeyDown={handleInputKeyDown}
                         autoComplete="off"
                       />
-                      <Button type="submit" size="icon" className="h-10 w-10 flex-shrink-0" disabled={!question.trim()}>
+                      <ShimmerButton type="submit" className="h-10 w-10 flex-shrink-0 p-0" disabled={!question.trim()}>
                         <Send className="h-4 w-4" />
-                      </Button>
+                      </ShimmerButton>
                     </div>
                   </form>
                 </div>
