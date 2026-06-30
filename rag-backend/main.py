@@ -2382,7 +2382,9 @@ async def ask(q: Question,
                     "and ALL its relationships. Do not stop early — include every entity block in the context.\n"
                     "- When the question asks to explain or describe, cover both documents exhaustively — "
                     "do not omit any entity, class, or section that appears in the context.\n"
-                    "- If a document lacks relevant information, say so explicitly.\n\n"
+                    "- If a document lacks relevant information, say so explicitly.\n"
+                    "- Format your response in clear Markdown: use numbered lists (`1.`, `2.`) or bullet lists (`-`) when enumerating items, use **bold** for key terms, and use headings (`##`) for long structured answers. Use a Markdown pipe table ONLY when every cell value fits on a single line with no nested lists or line breaks; if any cell would need multi-line content, use a bullet list instead."
+
                 )
             else:
                 system_instruction = (
@@ -2398,7 +2400,9 @@ async def ask(q: Question,
                     "- If the answer cannot be found in the context, say exactly: "
                     "'I don't have enough information in the provided documents to answer this.'\n"
                     "- Do NOT add disclaimers, caveats, or meta-commentary about context limitations at the end of your answer. "
-                    "Just answer directly.\n\n"
+                    "Just answer directly.\n"
+                    "- Format your response in clear Markdown: use numbered lists (`1.`, `2.`) or bullet lists (`-`) when enumerating items, use **bold** for key terms, and use headings (`##`) for long structured answers. Use a Markdown pipe table ONLY when every cell value fits on a single line with no nested lists or line breaks; if any cell would need multi-line content, use a bullet list instead."
+
                 )
 
             exhaustive_reminder = (

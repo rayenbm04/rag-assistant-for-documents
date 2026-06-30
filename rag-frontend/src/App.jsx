@@ -1,5 +1,9 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm   from 'remark-gfm'
+import remarkMath  from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import rehypeHighlight from 'rehype-highlight'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +26,29 @@ import { Spotlight }          from '@/components/ui/spotlight'
 import { TextGenerateEffect } from '@/components/ui/text-generate-effect'
 import { HoverEffect }        from '@/components/ui/card-hover-effect'
 import { ShimmerButton }      from '@/components/ui/shimmer-button'
+
+
+// Fix malformed markdown: model sometimes puts bullet lists inside table cells,
+// which causes the last bullet to trail "| | next col |..." on the same line,
+// and subsequent table rows to appear as raw pipe-text after the list.
+function sanitizeMarkdown(text) {
+  if (!text) return text
+  return text
+    .split('\n')
+    .map(line => {
+      // Bullet line that leaked a table continuation: "* foo bar | | col | col |"
+      // Strip everything from the first " | |" onward
+      if (/^[*\-] /.test(line) && line.includes(' | |')) {
+        return line.replace(/ \| \|.*$/, '')
+      }
+      // Bullet line ending with a bare " |" (table cell boundary leaked)
+      if (/^[*\-] /.test(line) && / \|\s*$/.test(line)) {
+        return line.replace(/ \|\s*$/, '')
+      }
+      return line
+    })
+    .join('\n')
+}
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -1165,7 +1192,29 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                         ) : (
                           <div className="group">
                             <div className="markdown-body text-sm">
-                              <ReactMarkdown>{entry.answer}</ReactMarkdown>
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm, remarkMath]}
+                                rehypePlugins={[rehypeKatex, rehypeHighlight]}
+                                components={{
+                                  pre({ children }) {
+                                    return (
+                                      <div className="relative group/code">
+                                        <button
+                                          className="absolute top-2 right-2 opacity-0 group-hover/code:opacity-100 transition-opacity text-[10px] text-muted-foreground hover:text-foreground bg-muted border border-border rounded px-1.5 py-0.5 z-10"
+                                          onClick={e => {
+                                            const code = e.currentTarget.closest('.relative').querySelector('code')
+                                            if (code) navigator.clipboard.writeText(code.innerText)
+                                          }}
+                                        >copy</button>
+                                        <pre>{children}</pre>
+                                      </div>
+                                    )
+                                  },
+                                  table({ children }) {
+                                    return <div className="table-wrapper"><table>{children}</table></div>
+                                  }
+                                }}
+                              >{sanitizeMarkdown(entry.answer)}</ReactMarkdown>
                             </div>
                             {entry.stopped && (
                               <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
