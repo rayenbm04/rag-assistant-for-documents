@@ -136,7 +136,7 @@ def compute_question_metrics(nodes: list, answer_keywords: list[str],
 
 # ── Main evaluation loop ─────────────────────────────────────────────────────
 
-async def evaluate(dataset_path: str, top_k: int, debug: bool = False) -> dict:
+async def evaluate(dataset_path: str, top_k: int, debug: bool = False, file_filter: set = None) -> dict:
     with open(dataset_path, encoding="utf-8") as f:
         raw = json.load(f)
 
@@ -149,6 +149,9 @@ async def evaluate(dataset_path: str, top_k: int, debug: bool = False) -> dict:
         and "_SKIP" not in q["id"]
         and (q.get("answer_keywords") or q.get("source_files"))
     ]
+
+    if file_filter:
+        questions = [q for q in questions if any(f in file_filter for f in q.get("source_files", []))]
 
     if not questions:
         print("No evaluable questions found.")
@@ -228,10 +231,15 @@ if __name__ == "__main__":
         "--debug", action="store_true",
         help="Print retrieved chunk text for every miss (helps fix wrong keywords)"
     )
+    parser.add_argument(
+        "--filter", default=None,
+        help="Comma-separated file names to restrict questions to (e.g. 'CCF04162026.pdf')"
+    )
     args = parser.parse_args()
 
     if not os.path.exists(args.dataset):
         print(f"Dataset not found: {args.dataset}")
         sys.exit(1)
 
-    asyncio.run(evaluate(args.dataset, args.top_k, debug=args.debug))
+    file_filter = {x.strip() for x in args.filter.split(",")} if args.filter else None
+    asyncio.run(evaluate(args.dataset, args.top_k, debug=args.debug, file_filter=file_filter))

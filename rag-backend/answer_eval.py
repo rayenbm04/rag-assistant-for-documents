@@ -105,7 +105,7 @@ def call_ask(url: str, token: str, question: str, files: list[str], provider: st
     Returns (answer_text, faithfulness_0_to_1, relevance_0_to_1).
     F/R come from the `eval` SSE event if ENABLE_EVAL=true; otherwise -1.
     """
-    payload = {"question": question, "files": files, "history": [], "provider": provider, "fast": True}
+    payload = {"question": question, "files": files, "history": [], "provider": provider}
     if groq_model:
         payload["groq_model"] = groq_model
     headers = {

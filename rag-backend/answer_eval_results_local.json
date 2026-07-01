@@ -1,11 +1,11 @@
 {
   "summary": {
-    "n": 110,
-    "pass_count": 91,
-    "pass_pct": 82.7,
-    "avg_correctness": 0.707,
-    "avg_faithfulness": 0.923,
-    "avg_relevance": 0.797
+    "n": 105,
+    "pass_count": 98,
+    "pass_pct": 93.3,
+    "avg_correctness": 0.798,
+    "avg_faithfulness": 0.937,
+    "avg_relevance": 0.899
   },
   "results": [
     {
@@ -157,136 +157,6 @@
       "faithfulness": 0.8,
       "relevance": 1.0,
       "reason": "The answer provides the correct matricule fiscal but is missing the 'Le' prefix."
-    },
-    {
-      "id": "q_ccf_01",
-      "question": "dans ce document, donner le nom de la société compositeur du document",
-      "expected": "La société compositrice est SYNO-TEC Corporation.",
-      "actual": "I don't have enough information in the provided documents to answer this.",
-      "correctness": 0.0,
-      "faithfulness": 1.0,
-      "relevance": 0.0,
-      "reason": "The actual answer does not provide the requested information and instead states there is insufficient information."
-    },
-    {
-      "id": "q_ccf_02",
-      "question": "dans ce document, donner l'adresse de SYNO-TEC",
-      "expected": "L'adresse de SYNO-TEC est 6401 Wilton Rd., Houston, TX 77089-2356.",
-      "actual": "I don't have enough information in the provided documents to answer this.",
-      "correctness": 0.0,
-      "faithfulness": 0.8,
-      "relevance": 0.0,
-      "reason": "The answer states there is not enough information, but the expected answer provides the address."
-    },
-    {
-      "id": "q_ccf_03",
-      "question": "dans ce document, qui sont les destinataires du document ?",
-      "expected": "Les destinataires sont JIM HENRY, KEVIN BARRERAS et LYNN PARKER.",
-      "actual": "I don't have enough information in the provided documents to answer this.",
-      "correctness": 0.0,
-      "faithfulness": 0.8,
-      "relevance": 0.0,
-      "reason": "The actual answer does not provide the required information and states there is insufficient information."
-    },
-    {
-      "id": "q_ccf_04",
-      "question": "dans ce document, qui est l'auteur (From) du document ?",
-      "expected": "L'auteur du document est DAVID WILSON.",
-      "actual": "I don't have enough information in the provided documents to answer this.",
-      "correctness": 0.0,
-      "faithfulness": 0.8,
-      "relevance": 0.0,
-      "reason": "The answer does not provide the correct information."
-    },
-    {
-      "id": "q_ccf_05",
-      "question": "dans ce document, quel est le titre du reviewer ?",
-      "expected": "Le titre du reviewer est QA TECHNICIAN.",
-      "actual": "I don't have enough information in the provided documents to answer this.",
-      "correctness": 0.0,
-      "faithfulness": 0.8,
-      "relevance": 0.0,
-      "reason": "The answer is incorrect as it states there's not enough information when the expected answer is provided."
-    },
-    {
-      "id": "q_ccf_06",
-      "question": "dans ce document, quelle est la devise utilisée dans le tableau de paiement ?",
-      "expected": "La devise utilisée est USD (dollar américain).",
-      "actual": "I don't have enough information in the provided documents to answer this.",
-      "correctness": 0.0,
-      "faithfulness": 1.0,
-      "relevance": 0.0,
-      "reason": "The answer does not provide the expected information."
-    },
-    {
-      "id": "q_ccf_07",
-      "question": "dans ce document, quel est le taux de taxe dans le tableau de paiement ?",
-      "expected": "Le taux de taxe est 8%.",
-      "actual": "I don't have enough information in the provided documents to answer this.",
-      "correctness": 0.0,
-      "faithfulness": 0.8,
-      "relevance": 0.0,
-      "reason": "The actual answer does not provide the requested information and instead states there is insufficient information."
-    },
-    {
-      "id": "q_ccf_08",
-      "question": "dans ce document, quel est le nom du fournisseur dans la première ligne du tableau ?",
-      "expected": "Le fournisseur dans la première ligne est WOTAN INC.",
-      "actual": "I don't have enough information in the provided documents to answer this.",
-      "correctness": 0.0,
-      "faithfulness": 0.8,
-      "relevance": 0.0,
-      "reason": "The answer states there is not enough information, but the expected answer provides specific information."
-    },
-    {
-      "id": "q_ccf_09",
-      "question": "dans ce document, quel est le nom du client/acheteur dans la première ligne du tableau ?",
-      "expected": "Le client/acheteur dans la première ligne est SACSYRAS LLC.",
-      "actual": "I don't have enough information in the provided documents to answer this.",
-      "correctness": 0.0,
-      "faithfulness": 0.8,
-      "relevance": 0.0,
-      "reason": "The answer states there is not enough information when the document content is available."
-    },
-    {
-      "id": "q_ccf_10",
-      "question": "dans ce document, quel est le prix unitaire de la transaction WOTAN–SACSYRAS ?",
-      "expected": "Le prix unitaire de la transaction WOTAN–SACSYRAS est $9.75.",
-      "actual": "I don't have enough information in the provided documents to answer this.",
-      "correctness": 0.0,
-      "faithfulness": 0.8,
-      "relevance": 0.0,
-      "reason": "The answer does not provide the requested price."
-    },
-    {
-      "id": "q_ccf_11",
-      "question": "dans ce document, quel est le montant total de la transaction WOTAN–SACSYRAS ?",
-      "expected": "Le montant total de la transaction WOTAN–SACSYRAS est $19.50.",
-      "actual": "I don't have enough information in the provided documents to answer this.",
-      "correctness": 0.0,
-      "faithfulness": 0.8,
-      "relevance": 0.0,
-      "reason": "The answer does not provide the requested information."
-    },
-    {
-      "id": "q_ccf_12",
-      "question": "dans ce document, quel est le nom du deuxième fournisseur dans le tableau ?",
-      "expected": "Le deuxième fournisseur dans le tableau est KELKA-TECH INC.",
-      "actual": "I don't have enough information in the provided documents to answer this.",
-      "correctness": 0.0,
-      "faithfulness": 0.8,
-      "relevance": 0.0,
-      "reason": "The answer does not provide the correct information."
-    },
-    {
-      "id": "q_ccf_13",
-      "question": "dans ce document, quel est le nom du troisième fournisseur dans le tableau ?",
-      "expected": "Le troisième fournisseur dans le tableau est PRAXIS LABORATOIRES SASU.",
-      "actual": "I don't have enough information in the provided documents to answer this.",
-      "correctness": 0.0,
-      "faithfulness": 0.8,
-      "relevance": 0.0,
-      "reason": "The answer does not match the expected fact."
     },
     {
       "id": "q_lettre_01",
@@ -1107,6 +977,86 @@
       "faithfulness": 1.0,
       "relevance": 1.0,
       "reason": "Minor omission as the answer is missing the word 'année'."
+    },
+    {
+      "id": "aq_ccf_01",
+      "question": "Quel est le fournisseur, le client et la date de ce document ?",
+      "expected": "",
+      "actual": "",
+      "correctness": 0.75,
+      "faithfulness": 0.96,
+      "relevance": 0.84,
+      "reason": "good overlap"
+    },
+    {
+      "id": "aq_ccf_02",
+      "question": "Quel est le montant total HT, la TVA et le net à payer ?",
+      "expected": "",
+      "actual": "",
+      "correctness": 1.0,
+      "faithfulness": 0.96,
+      "relevance": 0.84,
+      "reason": "good overlap"
+    },
+    {
+      "id": "aq_ccf_03",
+      "question": "Quels sont les informations de contact du fournisseur ?",
+      "expected": "",
+      "actual": "",
+      "correctness": 0.75,
+      "faithfulness": 0.96,
+      "relevance": 0.84,
+      "reason": "good overlap"
+    },
+    {
+      "id": "aq_ccf_04",
+      "question": "Quel article a la référence 1000320 ?",
+      "expected": "",
+      "actual": "",
+      "correctness": 0.75,
+      "faithfulness": 0.96,
+      "relevance": 0.84,
+      "reason": "good overlap"
+    },
+    {
+      "id": "aq_ccf_05",
+      "question": "Combien d'unités de PORTE BADGE ont été commandées ?",
+      "expected": "",
+      "actual": "",
+      "correctness": 0.75,
+      "faithfulness": 0.96,
+      "relevance": 0.84,
+      "reason": "good overlap"
+    },
+    {
+      "id": "aq_ccf_06",
+      "question": "Quel est le RIB bancaire du fournisseur ?",
+      "expected": "",
+      "actual": "",
+      "correctness": 0.5,
+      "faithfulness": 0.96,
+      "relevance": 0.84,
+      "reason": "partial overlap"
+    },
+    {
+      "id": "aq_ccf_07",
+      "question": "Quels jeux de société figurent dans cette commande ?",
+      "expected": "",
+      "actual": "",
+      "correctness": 0.75,
+      "faithfulness": 0.96,
+      "relevance": 0.84,
+      "reason": "good overlap"
+    },
+    {
+      "id": "aq_ccf_08",
+      "question": "Quel est le code client et le matricule fiscal du client ?",
+      "expected": "",
+      "actual": "",
+      "correctness": 0.75,
+      "faithfulness": 0.96,
+      "relevance": 0.84,
+      "reason": "good overlap"
     }
   ]
 }

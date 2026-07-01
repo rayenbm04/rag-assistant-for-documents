@@ -179,7 +179,7 @@ class Question(BaseModel):
 
 cancelled_files = set()   # filenames that should stop indexing
 
-_llm_extra = {"num_gpu": 99}
+_llm_extra = {"num_gpu": 99, "num_predict": 2048}
 if LLM_MODEL.lower().startswith("qwen3"):
     _llm_extra["think"] = False
 Settings.llm = Ollama(model=LLM_MODEL, base_url=OLLAMA_BASE_URL, request_timeout=120.0, additional_kwargs=_llm_extra)
@@ -1333,6 +1333,61 @@ def _split_schema_by_semicolons(text: str, filename: str, doc_type: str) -> list
 
     return entity_nodes
 
+def _split_pdf_by_pages(text: str, filename: str, doc_type: str) -> list:
+    """
+    Split vision-extracted PDF content by page boundaries so tables are never
+    cut mid-row by the token splitter.
+
+    The extractor embeds markers like:
+        ========================================
+        Page 2/5
+        ========================================
+    We split on those and create one TextNode per page, prepending the document
+    header (supplier, client, etc.) from the first chunk so every node is
+    self-contained.
+    """
+    page_pattern = re.compile(
+        r'={3,}\s*\nPage\s+(\d+)/(\d+)\s*\n={3,}',
+        re.IGNORECASE
+    )
+
+    # Split: [pre-page-1-text, page_num, total, content, page_num, total, content, ...]
+    parts = page_pattern.split(text)
+    header = parts[0].strip()  # "Document: filename" line
+
+    nodes = []
+    i = 1
+    while i + 2 <= len(parts) - 1:
+        page_num   = parts[i]
+        total_pages = parts[i + 1]
+        page_content = parts[i + 2].strip()
+        i += 3
+
+        if not page_content:
+            continue
+
+        chunk_text = f"{header}\n\nPage {page_num}/{total_pages}\n\n{page_content}"
+        nodes.append(TextNode(
+            text=chunk_text,
+            metadata={
+                "file_name":   filename,
+                "doc_type":    doc_type,
+                "page_label":  page_num,
+                "page_number": int(page_num),
+            }
+        ))
+
+    # Fallback: if regex didn't match any pages, return the whole text as one node
+    if not nodes:
+        nodes.append(TextNode(
+            text=text,
+            metadata={"file_name": filename, "doc_type": doc_type}
+        ))
+
+    print(f"  PDF page-split: {len(nodes)} page node(s) for {filename}")
+    return nodes
+
+
 def add_document_to_index(file_path, filename, provider: str | None = None):
     global index
     if provider is None:
@@ -1379,6 +1434,10 @@ def add_document_to_index(file_path, filename, provider: str | None = None):
         # for the LLM to read a definition in one piece.
         # When the extracted text looks like an MLD, bypass HierarchicalNodeParser
         # and create one TextNode per entity instead.
+        # Vision-extracted PDFs: split by page boundaries so vision-extracted
+        # tables (markdown rows) are never cut mid-cell by the token splitter.
+        _is_vision_pdf = (doc_type == "pdf" and "[Visual content — page" in text)
+
         if _looks_like_mld(text):
             print(f"Schema detected in {filename} — using semicolon-delimiter chunking")
             schema_nodes = _split_schema_by_semicolons(text, filename, doc_type)
@@ -1410,6 +1469,37 @@ def add_document_to_index(file_path, filename, provider: str | None = None):
                 )
             else:
                 index.insert_nodes(schema_nodes)
+
+        elif _is_vision_pdf:
+            print(f"Vision PDF detected: {filename} — using page-level chunking to preserve tables")
+            page_nodes = _split_pdf_by_pages(text, filename, doc_type)
+
+            # Clear stale ChromaDB entries
+            try:
+                stale = chroma_collection.get(where={"file_name": filename})
+                if stale["ids"]:
+                    chroma_collection.delete(ids=stale["ids"])
+                    print(f"  Deleted {len(stale['ids'])} stale ChromaDB chunks for {filename}")
+            except Exception as e:
+                print(f"  Warning: could not clear stale ChromaDB chunks: {e}")
+
+            if PARENT_CHILD_AVAILABLE:
+                old_node_ids = [
+                    nid for nid, node in storage_context.docstore.docs.items()
+                    if node.metadata.get("file_name") == filename
+                ]
+                for nid in old_node_ids:
+                    try:
+                        storage_context.docstore.delete_document(nid)
+                    except Exception:
+                        pass
+
+            if index is None:
+                index = VectorStoreIndex(
+                    page_nodes, storage_context=storage_context, show_progress=False
+                )
+            else:
+                index.insert_nodes(page_nodes)
 
         else:
             doc = Document(
@@ -2360,6 +2450,25 @@ async def ask(q: Question,
                                 uml_pinned += 1
                         if uml_pinned:
                             print(f"[pin] injected {uml_pinned} UML/diagram chunks for {fname}")
+                    elif fname.lower().endswith('.pdf'):
+                        # For scanned PDFs (vision-extracted content), the first chunk contains
+                        # all header metadata: supplier, client, email, currency, date, etc.
+                        # Table fragment chunks outrank it in retrieval, so we always pin it.
+                        all_file_nodes = get_nodes_for_files([fname])
+                        pdf_pinned = 0
+                        for n in all_file_nodes:
+                            content = n.get_content()
+                            is_header = (
+                                content.startswith("Document:")
+                                or "[Visual content — page 1]" in content
+                                or "Page 1/" in content
+                            )
+                            if is_header and n.node_id not in retrieved_ids:
+                                pinned.append(n)
+                                retrieved_ids.add(n.node_id)
+                                pdf_pinned += 1
+                        if pdf_pinned:
+                            print(f"[pin] injected {pdf_pinned} PDF header chunk(s) for {fname}")
                     else:
                         # Pin MLD overview nodes (any file that has schema_chunk='overview')
                         all_file_nodes = get_nodes_for_files([fname])
@@ -2393,6 +2502,7 @@ async def ask(q: Question,
                     "- When the question asks to explain or describe, cover both documents exhaustively — "
                     "do not omit any entity, class, or section that appears in the context.\n"
                     "- If a document lacks relevant information, say so explicitly.\n"
+                    "- Always respond in the same language as the user's question. If the question is in French, answer in French. If in English, answer in English. Never respond in Chinese unless the question itself is written in Chinese.\n"
                     "- Format your response in clear Markdown: use numbered lists (`1.`, `2.`) or bullet lists (`-`) when enumerating items, use **bold** for key terms, and use headings (`##`) for long structured answers. Use a Markdown pipe table ONLY when every cell value fits on a single line with no nested lists or line breaks; if any cell would need multi-line content, use a bullet list instead."
 
                 )
@@ -2403,6 +2513,7 @@ async def ask(q: Question,
                     "- Maximum 5 bullet points or 3 short paragraphs. Stop when you have covered the key points — do not elaborate.\n"
                     "- No preamble ('Here is...', 'Based on the documents...'). Start directly with the answer.\n"
                     "- No source citations in parentheses unless explicitly asked.\n"
+                    "- Always respond in the same language as the user's question. Never respond in Chinese unless the question is in Chinese.\n"
                     "- If the answer is not in the context, say: \'Not found in documents.\'\n"
                 )
             else:
@@ -2410,6 +2521,7 @@ async def ask(q: Question,
                     "You are a document assistant. Answer using ONLY the provided context and conversation history.\n"
                     "Do not use any prior knowledge outside of these.\n"
                     "Important rules:\n"
+                    "- Always respond in the same language as the user's question. If the question is in French, answer in French. If in English, answer in English. Never respond in Chinese unless the question itself is written in Chinese.\n"
                     "- Image files have already been analysed by a vision model. Their full description is in the context. "
                     "Do NOT ask the user to provide an image — all visual content is already available to you as text.\n"
                     "- Tables and row data are in the context as pipe-separated lines. Count or sum them directly from the text.\n"

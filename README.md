@@ -122,10 +122,11 @@ After hybrid retrieval fetches 2× the needed chunks, a `BAAI/bge-reranker-base`
 Queries containing listing/summary/extraction keywords in English or French (`list all`, `enumerate`, `summarize`, `résume`, `liste toutes`, `extrait`, `récapitule`, etc.) automatically switch to exhaustive mode: up to 200 chunks are fetched instead of top-K, and the system prompt explicitly instructs the LLM not to stop early, skip entries, or use "etc." — ensuring complete enumeration of entities, attributes, or items.
 
 **Smart context pinning**
-Three file-type-specific pinning strategies guarantee critical chunks are always in context regardless of retrieval scores:
+Four file-type-specific pinning strategies guarantee critical chunks are always in context regardless of retrieval scores:
 - **PPTX**: slide index, total slide count, and cover slide body are always injected.
 - **MLD/schema files**: the entity overview node (listing all table names) is always pinned first, so "list all entities" queries always receive the complete index.
 - **UML / PlantUML / diagram images**: ALL entity blocks are pinned unconditionally — structured schema data should never be partially retrieved.
+- **Scanned PDFs**: the first page chunk (containing supplier name, client, date, reference number, currency) is always injected — prevents table-fragment chunks from outranking the document header in retrieval.
 
 **Document comparison mode**
 Automatically detected from keywords in English and French (*compare, contrast, difference, versus, à partir du PDF et du diagramme, les deux documents*, etc.). Switches from unified retrieval to per-file balanced retrieval — guaranteeing chunks from each document — and builds a labeled context (`=== Document: X ===`) so the LLM reasons across sources and cites each one explicitly.
@@ -155,6 +156,9 @@ Follow-up questions ("what about the second one?" / "explain further") are rewri
 
 **MLD / relational schema chunking**
 When a document is detected as a relational schema (≥ 3 `entity = (...)` patterns), the standard token-size chunker is bypassed. Instead, the text is split on `;` delimiters so each entity definition becomes exactly one chunk. An additional overview chunk listing all entity names is prepended — this chunk scores highest on "list all entities / tables" queries and ensures exhaustive answers even when top-K < total entity count. Stale ChromaDB chunks are deleted before re-indexing so old and new chunks never mix.
+
+**Vision-extracted PDF page chunking**
+When a PDF has image-only pages processed by the vision model, the standard token-size chunker is also bypassed. Instead, each page is kept as a single chunk — a natural unit since the vision model already processes pages individually. This prevents the 128-char child chunk splitter from cutting markdown table rows mid-cell (e.g. splitting `75,546` across two chunks), which was the main cause of poor retrieval on scanned invoices and forms.
 
 **PDF encoding repair**
 `pdfplumber` can produce garbled text when a PDF uses non-standard font encodings. All extracted text is passed through a post-processor that maps common CID ligature sequences (`(cid:28)` → `fi`, `(cid:29)` → `fl`, etc.) and corrects MacRoman/WinAnsi mis-maps (`Ø` → `é`, `Æ` → `à`, `Ç` → `ç`, etc.) common in French LaTeX-generated PDFs.
@@ -451,35 +455,64 @@ Retrieval is model-independent — embeddings always use `nomic-embed-text` loca
 
 ---
 
-### Answer quality — Local (110 questions)
+### Answer quality — Local (105 questions)
 
-Evaluated with `answer_eval.py` on a 110-question dataset covering all file types (DOCX, PDF, XLSX, PPTX, PUML, PNG). Correctness scored by keyword-overlap. Faithfulness and relevance scored by the local LLM-as-judge (same model as the answerer — scores may be inflated by ~5–15%).
+Evaluated with `answer_eval.py` on a 105-question dataset covering all file types (DOCX, PDF, XLSX, PPTX, PUML, PNG, scanned PDF). Correctness scored by keyword-overlap. Faithfulness and relevance scored by the local LLM-as-judge (same model as the answerer — scores may be inflated by ~5–15%).
 
 | Model | Provider | Questions | Faithfulness | Relevance | Correctness |
 |---|---|---|---|---|---|
-| **qwen2.5:7b** | **Local (Ollama)** | **110 / 110** | **0.923** | **0.797** | **0.707** |
+| **qwen2.5:7b** | **Local (Ollama)** | **105 / 105** | **0.937** | **0.899** | **0.798** |
 
 | Metric | Score | Threshold |
 |---|---|---|
-| Faithfulness | 0.923 | ≥ 0.85 ✓ |
-| Relevance | 0.797 | ≥ 0.80 ~ |
-| Correctness | 0.707 | ≥ 0.70 ✓ |
+| Faithfulness | 0.937 | ≥ 0.85 ✓ |
+| Relevance | 0.899 | ≥ 0.80 ✓ |
+| Correctness | 0.798 | ≥ 0.70 ✓ |
 
 ---
 
-### Answer quality — Cloud / Groq (57 questions)
+### Answer quality — Cloud / Groq (65 questions)
 
-The cloud eval dataset was reduced from 110 to 57 questions for two reasons: (1) Groq's free-tier daily token limits (100K TPD for 70B-class models) make a 110-question eval with generation + three LLM-as-judge scoring calls per question impractical in a single run without hitting the cap; (2) the dataset was rebuilt from scratch against the current set of uploaded files, so questions targeting deprecated files were dropped.
+The cloud eval covers 65 questions across all file types including scanned PDFs. Groq's free-tier token limits (100K TPD for 70B-class models) make larger runs impractical in a single session. All three metrics are scored by `llama-3.1-8b-instant` as LLM-as-judge. Aux calls (HyDE, multi-query, condensing) always use `llama-3.1-8b-instant` regardless of which main model is selected — so every run is a hybrid: 8B for aux, selected model for final answer generation.
 
-All three metrics are scored by `llama-3.1-8b-instant` as LLM-as-judge. Aux calls (HyDE, multi-query, condensing) always use `llama-3.1-8b-instant` regardless of which main model is selected — so every run is a hybrid: 8B for aux, selected model for final answer generation.
-
-| Model | Faithfulness | Relevance | Correctness |
-|---|---|---|---|
-| llama-3.1-8b-instant | 82% | 83% | **85%** |
-| **llama-3.3-70b-versatile** | **84%** | **84%** | 82% |
-| meta-llama/llama-4-scout-17b-16e-instruct | 79% | 84% | 81% |
+| Model | Questions | Faithfulness | Relevance | Correctness |
+|---|---|---|---|---|
+| **llama-3.1-8b-instant** | **65** | 82.6% | 83.8% | **84.5%** |
+| **llama-3.3-70b-versatile** | **65** | **84.8%** | **84.3%** | 81.5% |
+| meta-llama/llama-4-scout-17b-16e-instruct | **65** | 80.4% | 84.0% | 81.0% |
 
 > **Scout note:** Scout doubles as both the vision model (image and scanned-PDF analysis) and a capable text generation model. Its scores are competitive with the 70B despite being a much smaller model.
+
+---
+
+### Model comparison
+
+Full comparison across all models and providers on a common 65-question subset (answer quality). Retrieval always uses `nomic-embed-text` — differences in Hit@8 reflect the quality of LLM-generated HyDE queries.
+
+**Retrieval quality on scanned PDF (CCF — 15 questions)**
+
+| Model | Provider | Hit@8 | MRR |
+|---|---|---|---|
+| qwen2.5:7b | Local | 86.7% | 0.80 |
+| llama-3.3-70b-versatile | Cloud | 93.3% | 0.90 |
+| llama-4-scout-17b | Cloud | 93.3% | 0.90 |
+| **llama-3.1-8b-instant** | **Cloud** | **100%** | **0.97** |
+
+**Answer quality — all file types**
+
+| Model | Provider | Q | Faithfulness | Relevance | Correctness |
+|---|---|---|---|---|---|
+| **qwen2.5:7b** | Local | 105 | **93.7%** | **89.9%** | 79.8% |
+| llama-3.1-8b-instant | Cloud | 65 | 82.6% | 83.8% | **84.5%** |
+| **llama-3.3-70b-versatile** | **Cloud** | **65** | **84.8%** | **84.3%** | 81.5% |
+| llama-4-scout-17b | Cloud | 65 | 80.4% | 84.0% | 81.0% |
+
+**Key takeaways**
+
+- **Local (qwen2.5:7b)** scores highest on faithfulness (93.7%) and relevance (89.9%) — it stays tightly grounded in retrieved context and runs entirely offline with no data leaving the machine.
+- **llama-3.1-8b-instant** achieves the best correctness (84.5%) and perfect retrieval on scanned PDFs (Hit@8=100%), despite being the smallest cloud model. Best choice when accuracy on factual documents matters.
+- **llama-3.3-70b-versatile** delivers the best overall balance across all three metrics. Recommended for general-purpose use on the cloud tier.
+- **Scout (llama-4-scout-17b)** is the only model that serves dual duty as both vision model (scanned PDF / image extraction) and text generation model. Its answer quality is comparable to the 70B at a much lower cost.
 
 ---
 
@@ -493,6 +526,9 @@ A single phrasing of a question may not match the vocabulary used in the source 
 
 **Why delimiter-based chunking for MLD schemas?**
 Fixed-size token chunking splits entity definitions mid-definition. A retriever with top-K=8 then misses the entities whose chunks happened to score lower. Splitting on `;` guarantees each entity is one atomic chunk, and the overview node (listing all entity names) scores highest on exhaustive queries — so "list all entities" always returns the complete list regardless of top-K.
+
+**Why page-level chunking for vision-extracted PDFs?**
+The vision model processes one page at a time and returns a markdown transcript — tables included. If that transcript is then split by the 128-char child chunker, markdown table rows are cut mid-cell: `75,` in one chunk and `546 | 20 | 60,437` in the next. No retriever can recover the original row from those fragments, and the LLM can't answer questions about pricing. Keeping each page as one chunk preserves table structure at the cost of slightly larger retrieval units — an acceptable trade-off for structured documents.
 
 **Why pin all UML chunks?**
 UML and PlantUML files are structured data, not narrative text. Every entity block is equally important and should always be in context. Embedding-based similarity would arbitrarily favour entities whose names happen to appear in the query. Pinning all blocks is O(n) in the number of entities and the context cost is acceptable given typical schema sizes (15–30 entities).

@@ -1617,5 +1617,124 @@
       "aperçu",
       "vision"
     ]
+  },
+  {
+    "_section": "══════════════════════════════════════════",
+    "_label": "CCF04162026.pdf  (7 retrieval + 8 answer_quality)",
+    "source_files": []
+  },
+  {
+    "id": "ccf_01",
+    "type": "retrieval",
+    "question": "Quel est le nom du fournisseur dans ce document ?",
+    "source_files": ["CCF04162026.pdf"],
+    "answer_keywords": ["SYNO-TEC"]
+  },
+  {
+    "id": "ccf_02",
+    "type": "retrieval",
+    "question": "Quel est le nom du client ?",
+    "source_files": ["CCF04162026.pdf"],
+    "answer_keywords": ["SUP'COM", "ASSOCIATION"]
+  },
+  {
+    "id": "ccf_03",
+    "type": "retrieval",
+    "question": "Quelle est la date du document ?",
+    "source_files": ["CCF04162026.pdf"],
+    "answer_keywords": ["15/04/2026", "2026"]
+  },
+  {
+    "id": "ccf_04",
+    "type": "retrieval",
+    "question": "Quel est le numéro de référence du document ?",
+    "source_files": ["CCF04162026.pdf"],
+    "answer_keywords": ["DC 26000122", "26000122"]
+  },
+  {
+    "id": "ccf_05",
+    "type": "retrieval",
+    "question": "Quel est le montant net à payer ?",
+    "source_files": ["CCF04162026.pdf"],
+    "answer_keywords": ["291,707", "291"]
+  },
+  {
+    "id": "ccf_06",
+    "type": "retrieval",
+    "question": "Quel est le taux de TVA appliqué ?",
+    "source_files": ["CCF04162026.pdf"],
+    "answer_keywords": ["19%", "19,00"]
+  },
+  {
+    "id": "ccf_07",
+    "type": "retrieval",
+    "question": "Quelle est l'adresse email du fournisseur ?",
+    "source_files": ["CCF04162026.pdf"],
+    "answer_keywords": ["direction@synotec.tn"]
+  },
+  {
+    "id": "aq_ccf_01",
+    "type": "answer_quality",
+    "source_files": ["CCF04162026.pdf"],
+    "question": "Quel est le fournisseur, le client et la date de ce document ?",
+    "expected_answer": "Le fournisseur est SYNO-TEC, situé au 5 AV HABIB BOURGUIBA 2083 ARIANA. Le client est ASSOCIATION SUP'COM. La date du document est le 15/04/2026 et la référence est DC 26000122.",
+    "answer_keywords": ["SYNO-TEC", "SUP'COM", "15/04/2026", "DC 26000122"]
+  },
+  {
+    "id": "aq_ccf_02",
+    "type": "answer_quality",
+    "source_files": ["CCF04162026.pdf"],
+    "question": "Quel est le montant total HT, la TVA et le net à payer ?",
+    "expected_answer": "Le total HT est 252,183 TND, le montant de TVA (19%) est 39,524 TND, et le net à payer est 291,707 TND.",
+    "answer_keywords": ["252,183", "39,524", "291,707", "TND", "19%"]
+  },
+  {
+    "id": "aq_ccf_03",
+    "type": "answer_quality",
+    "source_files": ["CCF04162026.pdf"],
+    "question": "Quels sont les informations de contact du fournisseur ?",
+    "expected_answer": "Le fournisseur SYNO-TEC est joignable par téléphone au 70 146 200, par fax au 71 756 505, et par email à direction@synotec.tn. Son matricule fiscal est 1410466XPM000.",
+    "answer_keywords": ["70 146 200", "direction@synotec.tn", "1410466XPM000"]
+  },
+  {
+    "id": "aq_ccf_04",
+    "type": "answer_quality",
+    "source_files": ["CCF04162026.pdf"],
+    "question": "Quel article a la référence 1000320 et quel est son prix unitaire ?",
+    "expected_answer": "L'article de référence 1000320 est un SPEAKER BT ZQS-4269 avec un prix unitaire HT de 75,546 TND et un montant HT de 60,437 TND après remise de 20%.",
+    "answer_keywords": ["SPEAKER", "ZQS-4269", "75,546", "60,437"]
+  },
+  {
+    "id": "aq_ccf_05",
+    "type": "answer_quality",
+    "source_files": ["CCF04162026.pdf"],
+    "question": "Combien d'unités de PORTE BADGE ont été commandées et pour quel montant ?",
+    "expected_answer": "8 unités de PORTE BADGE SOUPLE 12,8*7,9 (REF 0102473) ont été commandées à 0,630 TND l'unité, avec une remise de 20%, pour un montant HT de 4,032 TND.",
+    "answer_keywords": ["PORTE BADGE", "0102473", "4,032", "0,630"]
+  },
+  {
+    "id": "aq_ccf_06",
+    "type": "answer_quality",
+    "source_files": ["CCF04162026.pdf"],
+    "question": "Quel est le RIB bancaire du fournisseur ?",
+    "expected_answer": "Le RIB du fournisseur SYNO-TEC est BTE 24002007577251110127.",
+    "answer_keywords": ["BTE", "24002007577251110127"]
+  },
+  {
+    "id": "aq_ccf_07",
+    "type": "answer_quality",
+    "source_files": ["CCF04162026.pdf"],
+    "question": "Quels jeux de société figurent dans cette commande ?",
+    "expected_answer": "Les jeux de société présents dans la commande sont : JEU DECHEC AMIRA (REF 6194021300271), JEUX LE SERPENT ET L'ECHELLE ARABE (REF 6194021301179), MONOPOLY ARABE REF 50 (REF 6194021300233), et CHEVEAUX LOIE (REF 6194021300066).",
+    "answer_keywords": ["DECHEC", "ECHELLE", "MONOPOLY", "CHEVEAUX"]
+  },
+  {
+    "id": "aq_ccf_08",
+    "type": "answer_quality",
+    "source_files": ["CCF04162026.pdf"],
+    "question": "Quel est le code client et le matricule fiscal du client ?",
+    "expected_answer": "Le code client est 050757 et le matricule fiscal du client (ASSOCIATION SUP'COM) est 1362892/RPN000.",
+    "answer_keywords": ["050757", "1362892", "RPN000"]
   }
 ]
+
