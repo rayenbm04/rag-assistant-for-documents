@@ -397,6 +397,82 @@ All endpoints except `/auth/register` and `/auth/login` require `Authorization: 
 
 ---
 
+## MCP integration (Claude Desktop)
+
+`mcp_server.py` exposes the RAG assistant as a tool inside Claude Desktop. Once configured, you can query your indexed documents directly from any Claude conversation — no browser needed.
+
+### Tools exposed
+
+| Tool | Description |
+|---|---|
+| `list_documents()` | Lists all indexed files ready to query |
+| `query_documents(question, files, provider)` | Runs the full RAG pipeline and returns the answer with citations |
+| `upload_document(file_path, provider)` | Uploads and indexes a file from a local path |
+
+### Setup
+
+**1. Install the MCP dependency**
+
+```bash
+cd rag-backend
+venv\Scripts\activate
+pip install fastmcp
+```
+
+**2. Add credentials to `.env`**
+
+```env
+MCP_EMAIL=your@email.com
+MCP_PASSWORD=yourpassword
+MCP_BASE_URL=http://localhost:8000
+```
+
+**3. Configure Claude Desktop**
+
+Open `%APPDATA%\Claude\claude_desktop_config.json` (create it if it doesn't exist) and add:
+
+```json
+{
+  "mcpServers": {
+    "rag-assistant": {
+      "command": "python",
+      "args": ["D:/PROJECTS/rag-assistant/rag-backend/mcp_server.py"]
+    }
+  }
+}
+```
+
+**4. Start your backend, then restart Claude Desktop**
+
+```bash
+cd rag-backend
+uvicorn main:app --reload
+```
+
+Restart Claude Desktop. A 🔌 icon in the bottom-left of the input bar confirms the MCP server connected. You'll see `list_documents`, `query_documents`, and `upload_document` in the tools list.
+
+### Usage example
+
+```
+You: What is the net amount to pay in the CCF invoice?
+
+Claude: [calls list_documents → sees CCF04162026.pdf]
+        [calls query_documents("net amount to pay", ["CCF04162026.pdf"])]
+
+        The net amount to pay is **291,707 TND** (Tunisian Dinar).
+
+        Sources:
+          • CCF04162026.pdf (page 2)
+```
+
+### Notes
+
+- Your FastAPI backend must be running for the tools to work — the MCP server is a thin proxy to it.
+- `provider="local"` uses Ollama (default, fully private). `provider="cloud"` uses Groq (faster, requires `GROQ_API_KEY`).
+- The MCP server and the web UI (`localhost:5173`) work simultaneously — the same indexed files are accessible from both.
+
+---
+
 ## Running tests
 
 ```bash
