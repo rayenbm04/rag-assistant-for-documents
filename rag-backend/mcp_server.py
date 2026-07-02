@@ -2,10 +2,16 @@
 """
 mcp_server.py — MCP server for the RAG Assistant.
 
-Exposes three tools to any MCP-compatible client (Claude Desktop, etc.):
-  • list_documents        — see what files are indexed
-  • query_documents       — ask a question against indexed files
-  • upload_document       — index a new file from a local path
+Exposes six tools to any MCP-compatible client (Claude Desktop, etc.):
+  • list_documents           — see what files are indexed
+  • query_documents          — ask a question against indexed files
+  • upload_document          — index a new file from a local path
+  • upload_document_from_url — download from a URL and index (ideal for GitHub/Notion)
+  • upload_document_content  — index from base64 content (for direct file attachments)
+  • check_indexing_status    — poll indexing progress for a previously uploaded file
+
+All upload tools return immediately — indexing runs in the background.
+Call check_indexing_status(filename) to know when a file is ready to query.
 
 Setup
 -----
@@ -30,6 +36,8 @@ Setup
 4.  Restart Claude Desktop.
 """
 
+import base64
+import io
 import json
 import os
 import sys
@@ -44,8 +52,9 @@ from mcp.server.fastmcp import FastMCP
 
 load_dotenv(Path(__file__).parent / ".env")
 
-BASE_URL     = os.getenv("MCP_BASE_URL",  "http://localhost:8000")
-EMAIL        = os.getenv("MCP_EMAIL",     "")
+BASE_URL      = os.getenv("MCP_BASE_URL",  "http://localhost:8000")
+EMAIL         = os.getenv("MCP_EMAIL",     "")
+GITHUB_TOKEN  = os.getenv("GITHUB_PERSONAL_ACCESS_TOKEN", "")
 PASSWORD     = os.getenv("MCP_PASSWORD",  "")
 SSE_TIMEOUT  = 180   # seconds to wait for /ask to finish streaming
 
@@ -214,12 +223,34 @@ def query_documents(
     return answer
 
 
+# ── Shared upload helper ──────────────────────────────────────────────────────
+
+def _post_file(name: str, content: bytes, provider: str) -> str:
+    """
+    POST file bytes to /upload and return immediately — do NOT poll.
+    Returns the indexed filename on success, or raises RuntimeError on failure.
+    """
+    resp = requests.post(
+        f"{BASE_URL}/upload",
+        files={"file": (name, io.BytesIO(content))},
+        data={"provider": provider},
+        headers=_headers(),
+        timeout=120,   # generous for large files; just the HTTP POST, not indexing
+    )
+    if resp.status_code != 200:
+        raise RuntimeError(f"Upload failed ({resp.status_code}): {resp.text[:200]}")
+    return resp.json().get("name", name)
+
+
 # ── Tool 3: upload_document ───────────────────────────────────────────────────
 
 @mcp.tool()
 def upload_document(file_path: str, provider: str = "local") -> str:
     """
     Upload and index a document from a local file path.
+
+    Returns immediately once the file is accepted — indexing runs in the
+    background. Call check_indexing_status(filename) to monitor progress.
 
     Parameters
     ----------
@@ -229,11 +260,6 @@ def upload_document(file_path: str, provider: str = "local") -> str:
         Supported formats: PDF, DOCX, PPTX, XLSX, PNG, JPG, TXT, MD, CSV, PUML.
     provider : str
         "local" or "cloud" — which vision model to use for image/scanned PDF pages.
-
-    Returns
-    -------
-    str
-        Confirmation message with the file name once indexing is complete.
     """
     path = Path(file_path)
     if not path.exists():
@@ -241,43 +267,170 @@ def upload_document(file_path: str, provider: str = "local") -> str:
     if not path.is_file():
         return f"Not a file: {file_path}"
 
-    # Upload
     with open(path, "rb") as fh:
-        resp = requests.post(
-            f"{BASE_URL}/upload",
-            files={"file": (path.name, fh)},
-            data={"provider": provider},
-            headers=_headers(),
-            timeout=30,
-        )
-    if resp.status_code != 200:
-        return f"Upload failed ({resp.status_code}): {resp.text[:200]}"
+        content = fh.read()
 
-    filename = resp.json().get("name", path.name)
+    try:
+        indexed_name = _post_file(path.name, content, provider)
+    except RuntimeError as e:
+        return str(e)
 
-    # Poll until indexing finishes (max 10 minutes)
-    deadline = time.time() + 600
-    while time.time() < deadline:
+    return (
+        f"✓ '{indexed_name}' uploaded — indexing started in the background.\n"
+        f"Call check_indexing_status('{indexed_name}') in ~30 s to see when it's ready."
+    )
+
+
+# ── Tool 4: upload_document_from_url ─────────────────────────────────────────
+
+@mcp.tool()
+def upload_document_from_url(
+    url: str,
+    filename: str = "",
+    provider: str = "local",
+) -> str:
+    """
+    Download a file from a URL and index it in the RAG assistant.
+
+    Perfect for the GitHub → RAG workflow:
+      1. Use the GitHub MCP to get the raw download URL of a file.
+      2. Pass that URL here — the MCP server downloads and uploads it directly.
+
+    Returns immediately once the file is accepted — indexing runs in the
+    background. Call check_indexing_status(filename) to monitor progress.
+
+    For private GitHub repos the server automatically adds your
+    GITHUB_PERSONAL_ACCESS_TOKEN from .env.
+
+    Parameters
+    ----------
+    url : str
+        Direct download URL. For GitHub use the raw URL:
+        https://raw.githubusercontent.com/owner/repo/main/path/file.py
+    filename : str
+        Override the file name. If omitted, inferred from the URL.
+    provider : str
+        "local" or "cloud" — vision model for image/scanned PDF pages.
+    """
+    dl_headers: dict = {}
+    if GITHUB_TOKEN and ("github.com" in url or "githubusercontent.com" in url):
+        dl_headers["Authorization"] = f"token {GITHUB_TOKEN}"
+
+    try:
+        resp = requests.get(url, headers=dl_headers, timeout=60)
+        if resp.status_code != 200:
+            return f"Failed to download file ({resp.status_code}): {url}"
+        content = resp.content
+    except Exception as e:
+        return f"Download error: {e}"
+
+    if not filename:
+        filename = url.rstrip("/").split("/")[-1].split("?")[0]
+    if not filename:
+        return "Could not infer a filename from the URL. Please pass filename= explicitly."
+
+    try:
+        indexed_name = _post_file(filename, content, provider)
+    except RuntimeError as e:
+        return str(e)
+
+    return (
+        f"✓ '{indexed_name}' uploaded — indexing started in the background.\n"
+        f"Call check_indexing_status('{indexed_name}') in ~30 s to see when it's ready."
+    )
+
+
+# ── Tool 5: upload_document_content ──────────────────────────────────────────
+
+@mcp.tool()
+def upload_document_content(
+    filename: str,
+    content_base64: str,
+    provider: str = "local",
+) -> str:
+    """
+    Upload and index a document from base64-encoded bytes.
+
+    Use this when the user attaches a file directly to the conversation.
+    Returns immediately — call check_indexing_status(filename) to monitor.
+
+    Parameters
+    ----------
+    filename : str
+        The file name including extension (e.g. "report.pdf").
+    content_base64 : str
+        Base64-encoded file content.
+    provider : str
+        "local" or "cloud".
+    """
+    try:
+        content = base64.b64decode(content_base64)
+    except Exception as e:
+        return f"Failed to decode base64 content: {e}"
+
+    try:
+        indexed_name = _post_file(filename, content, provider)
+    except RuntimeError as e:
+        return str(e)
+
+    return (
+        f"✓ '{indexed_name}' uploaded — indexing started in the background.\n"
+        f"Call check_indexing_status('{indexed_name}') in ~30 s to see when it's ready."
+    )
+
+
+# ── Tool 6: check_indexing_status ────────────────────────────────────────────
+
+@mcp.tool()
+def check_indexing_status(filename: str) -> str:
+    """
+    Check whether a previously uploaded document has finished indexing.
+
+    Call this after any upload tool returns. For large files (e.g. 3000-line
+    Python files) embedding can take 1–5 minutes locally — poll every 30 s.
+
+    Parameters
+    ----------
+    filename : str
+        The file name returned by the upload tool (e.g. "main.py").
+
+    Returns
+    -------
+    str
+        Current status: ready / processing (with page progress) / error / unknown.
+    """
+    try:
         s = requests.get(
             f"{BASE_URL}/status/{filename}",
             headers=_headers(),
             timeout=10,
         )
-        if s.status_code != 200:
-            break
-        status = s.json().get("status", "")
-        if status == "ready":
-            return f"✓ '{filename}' indexed successfully and ready to query."
-        if status == "error":
-            return f"✗ Indexing failed for '{filename}'."
-        progress = s.json().get("progress", {})
-        cur = progress.get("current", 0)
-        tot = progress.get("total", 0)
-        if tot:
-            print(f"[mcp_server] indexing {filename}: {cur}/{tot} pages", file=sys.stderr)
-        time.sleep(3)
+    except Exception as e:
+        return f"Could not reach backend: {e}"
 
-    return f"'{filename}' was uploaded but indexing is still in progress. Check the web UI."
+    if s.status_code == 404:
+        return f"'{filename}' not found. Has it been uploaded yet?"
+    if s.status_code != 200:
+        return f"Status check failed ({s.status_code}): {s.text[:200]}"
+
+    data     = s.json()
+    status   = data.get("status", "unknown")
+    progress = data.get("progress") or {}   # backend sends null when no progress yet
+    cur      = progress.get("current", 0)
+    tot      = progress.get("total", 0)
+
+    if status == "ready":
+        return f"✓ '{filename}' is fully indexed and ready to query."
+    if status == "error":
+        return f"✗ Indexing failed for '{filename}'. Try re-uploading."
+    if status in ("indexing", "processing"):
+        if tot:
+            pct = int(cur / tot * 100)
+            return f"⏳ '{filename}' is indexing: {cur}/{tot} pages ({pct}%). Check again in 30 s."
+        return f"⏳ '{filename}' is indexing (no page count yet). Check again in 30 s."
+    if status == "unknown":
+        return f"'{filename}' is not in the indexing queue — it may already be ready or not uploaded yet."
+    return f"⏳ '{filename}' status: {status}. Check again in 30 s."
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
