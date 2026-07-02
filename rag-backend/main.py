@@ -347,6 +347,60 @@ class _CompatLLM:
         raise RuntimeError("Rate limit reached — too many requests to Groq. Please wait 1–2 minutes and try again.")
 
 
+def _friendly_api_error(e, model_name: str = "") -> str:
+    """
+    Convert raw API exceptions into readable user-facing messages.
+    Handles Groq/OpenAI 413 (request too large) and 429 (rate limit) responses.
+    """
+    raw = str(e)
+    msg_lower = raw.lower()
+
+    # Try to extract structured info from the error JSON if present
+    limit_val = requested_val = reason = ""
+    try:
+        # Groq error bodies look like: {'error': {'message': '...', 'type': 'tokens', ...}}
+        m = re.search(r"'message':\s*'([^']+)'", raw) or re.search(r'"message":\s*"([^"]+)"', raw)
+        if m:
+            err_msg = m.group(1)
+            # Extract "Limit X, Requested Y"
+            lim = re.search(r'Limit\s+([\d]+)', err_msg)
+            req = re.search(r'Requested\s+([\d]+)', err_msg)
+            if lim: limit_val     = lim.group(1)
+            if req: requested_val = req.group(1)
+            # Identify reason (TPM / RPM / TPD)
+            if "tokens per minute" in err_msg.lower() or "tpm" in err_msg.lower():
+                reason = "TPM (tokens per minute)"
+            elif "requests per minute" in err_msg.lower() or "rpm" in err_msg.lower():
+                reason = "RPM (requests per minute)"
+            elif "tokens per day" in err_msg.lower() or "tpd" in err_msg.lower():
+                reason = "TPD (daily token quota)"
+    except Exception:
+        pass
+
+    name = model_name or GROQ_MODEL
+
+    # 413 — request body too large
+    if "413" in raw or "request too large" in msg_lower or "tokens per minute" in msg_lower:
+        if limit_val and requested_val:
+            return (
+                f"Request too large for model '{name}' — "
+                f"limit {limit_val} tokens/min, you sent {requested_val}. "
+                f"Try asking a more specific question or switching to a smaller context."
+            )
+        return f"Request too large for model '{name}'. Reduce context or ask a more specific question."
+
+    # 429 — rate limit (TPM/RPM)
+    if "429" in raw or "rate_limit" in msg_lower or "rate limit" in msg_lower:
+        if reason and limit_val:
+            return (
+                f"Rate limit for '{name}' ({reason}: limit {limit_val}). "
+                f"Wait 1–2 minutes and try again, or switch to a different model."
+            )
+        return f"Rate limit for '{name}'. Wait 1–2 minutes and try again."
+
+    return raw   # fallback: original message
+
+
 def _get_llm(provider: str = "local", groq_model: str | None = None, max_tokens: int | None = None):
     """Return the LLM for the given provider. Embeddings always stay local."""
     if provider in ("cloud", "groq"):
@@ -2425,18 +2479,45 @@ async def ask(q: Question,
                 for fname in question_files:
                     if fname.lower().endswith(".pptx"):
                         all_file_nodes = get_nodes_for_files([fname])
-                        pptx_pin_limit = 5 if q.fast else len(all_file_nodes)
-                        pptx_pinned = 0
-                        for n in all_file_nodes:
-                            content = n.get_content()
-                            is_overview = not content.lstrip().startswith("--- Slide")
-                            if is_overview and n.node_id not in retrieved_ids:
-                                if pptx_pinned >= pptx_pin_limit:
-                                    break
-                                pinned.append(n)
-                                retrieved_ids.add(n.node_id)
-                                pptx_pinned += 1
-                        print(f"[pin] injected {pptx_pinned} overview chunks for {fname}")
+
+                        # Detect slide number reference FIRST — it changes pinning strategy.
+                        slide_ref = re.search(
+                            r'\b(?:slide|diapo(?:sitive)?)\s*(?:n[°o.]?\s*)?(\d+)\b'
+                            r'|\b(\d+)(?:st|nd|rd|th|ème|eme)?\s*(?:slide|diapo(?:sitive)?)\b',
+                            standalone.lower()
+                        )
+
+                        if slide_ref:
+                            # Query is about a specific slide: pin ONLY that slide's chunks,
+                            # placed FIRST so the trimmer keeps them over overview or retrieved.
+                            # Skip overview pinning — it wastes budget and buries the slide content.
+                            slide_num = int(next(g for g in slide_ref.groups() if g))
+                            slide_marker = f"--- Slide {slide_num} "
+                            # No per-slide cap here — pin ALL chunks for this slide.
+                            # The cloud context trimmer below enforces the actual token budget.
+                            slide_pinned = 0
+                            for n in all_file_nodes:
+                                content = n.get_content()
+                                if slide_marker in content and n.node_id not in retrieved_ids:
+                                    pinned.append(n)
+                                    retrieved_ids.add(n.node_id)
+                                    slide_pinned += 1
+                            if slide_pinned:
+                                print(f"[pin] injected {slide_pinned} slide-{slide_num} chunks for {fname} (overview skipped)")
+                        else:
+                            # No slide reference — pin overview chunks as usual.
+                            pptx_pin_limit = 5 if q.fast else len(all_file_nodes)
+                            pptx_pinned = 0
+                            for n in all_file_nodes:
+                                content = n.get_content()
+                                is_overview = not content.lstrip().startswith("--- Slide")
+                                if is_overview and n.node_id not in retrieved_ids:
+                                    if pptx_pinned >= pptx_pin_limit:
+                                        break
+                                    pinned.append(n)
+                                    retrieved_ids.add(n.node_id)
+                                    pptx_pinned += 1
+                            print(f"[pin] injected {pptx_pinned} overview chunks for {fname}")
                     elif (fname.lower().split('.')[-1] in ('puml', 'plantuml', 'uml')
                           or _is_uml_image(fname)):
                         # UML/diagram files: pin ALL chunks — structured data,
@@ -2478,6 +2559,28 @@ async def ask(q: Question,
                                 retrieved_ids.add(n.node_id)
                                 print(f"[pin] injected MLD overview chunk for {fname}")
                 all_nodes_final = pinned + list(nodes)
+
+                # Cloud TPM guard: Groq's free tier allows ~12K tokens/min.
+                # Trim context to stay under budget (pinned nodes take priority;
+                # retrieved nodes are dropped from the end first).
+                if q.provider in ("cloud", "groq"):
+                    # ~6 000 tokens for context leaves room for system prompt,
+                    # history, question, and the answer itself (~6 000 remaining).
+                    CLOUD_CTX_CHARS = 6_000 * 4   # rough 4 chars/token estimate
+                    used = 0
+                    trimmed: list = []
+                    for node in all_nodes_final:
+                        chunk_chars = len(node.get_content())
+                        if used + chunk_chars <= CLOUD_CTX_CHARS:
+                            trimmed.append(node)
+                            used += chunk_chars
+                        # else: skip — budget exhausted
+                    if len(trimmed) < len(all_nodes_final):
+                        dropped = len(all_nodes_final) - len(trimmed)
+                        print(f"[ctx-trim] dropped {dropped} chunk(s) to fit cloud TPM budget "
+                              f"(~{used//4} tokens kept)")
+                    all_nodes_final = trimmed
+
                 context = "\n\n".join(n.get_content() for n in all_nodes_final)
                 sources = list({n.metadata.get("file_name", "unknown") for n in all_nodes_final})
 
@@ -2619,7 +2722,8 @@ async def ask(q: Question,
                     print(f"[eval] error: {eval_err}")
 
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            model_name = (q.groq_model or GROQ_MODEL) if q.provider in ("cloud", "groq") else ""
+            yield f"data: {json.dumps({'type': 'error', 'message': _friendly_api_error(e, model_name)})}\n\n"
 
     if not q.stream:
         # Collect all SSE events and return a single JSON response

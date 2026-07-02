@@ -887,11 +887,13 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                 const data = groqTokens?.models?.[model]
                 const used = data?.total ?? 0
                 const dailyLimit = data?.daily_limit ?? limit
-                const pct = Math.min(Math.round(used / Math.max(dailyLimit, 1) * 100), 100)
+                const rawPct = Math.round(used / Math.max(dailyLimit, 1) * 100)
+                const pct    = Math.min(rawPct, 100)   // ring fill capped at full circle
+                const over   = rawPct > 100
                 const tpmPct = (data?.tpm_limit != null && data?.tpm_remaining != null)
                   ? Math.min(100, Math.round((1 - data.tpm_remaining / data.tpm_limit) * 100)) : null
-                const tpmLow = tpmPct != null && tpmPct >= 80
-                const fillColor = tpmLow || pct >= 90 ? '#ef4444' : pct >= 60 ? '#f59e0b' : '#22c55e'
+                const tpmLow  = tpmPct != null && tpmPct >= 80
+                const fillColor = (over || tpmLow || pct >= 90) ? '#ef4444' : pct >= 60 ? '#f59e0b' : '#22c55e'
                 const trackColor = '#27272a'
                 const r = 13; const circ = 2 * Math.PI * r
                 return (
@@ -899,19 +901,20 @@ function MainApp({ authFetch, currentUser, onLogout }) {
                     <div className="relative flex-shrink-0 w-8 h-8 flex items-center justify-center">
                       <svg width="32" height="32" className="absolute inset-0">
                         <circle cx="16" cy="16" r={r} fill="none" stroke={trackColor} strokeWidth="2.5" />
-                        {pct > 0 && (
-                          <circle cx="16" cy="16" r={r} fill="none" stroke={fillColor} strokeWidth="2.5"
-                            strokeDasharray={circ} strokeDashoffset={circ * (1 - pct / 100)}
-                            strokeLinecap="round" transform="rotate(-90 16 16)"
-                            style={{ transition: 'stroke-dashoffset 0.5s ease' }} />
-                        )}
+                        <circle cx="16" cy="16" r={r} fill="none" stroke={fillColor} strokeWidth="2.5"
+                          strokeDasharray={circ} strokeDashoffset={circ * (1 - pct / 100)}
+                          strokeLinecap="round" transform="rotate(-90 16 16)"
+                          style={{ transition: 'stroke-dashoffset 0.5s ease' }} />
                       </svg>
-                      <span className="text-[8px] font-bold relative z-10" style={{ color: pct > 0 ? fillColor : '#52525b' }}>{pct}%</span>
+                      <span className="text-[8px] font-bold relative z-10" style={{ color: fillColor }}>
+                        {over ? `${rawPct}%` : `${pct}%`}
+                      </span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-[10px] font-medium text-foreground">{label}</div>
-                      <div className="text-[9px] text-muted-foreground truncate">
-                        {used.toLocaleString()} / {dailyLimit.toLocaleString()} tpd{tpmLow ? ' ⚠' : ''}
+                      <div className="text-[9px] truncate" style={{ color: over ? '#ef4444' : '' }}>
+                        {used.toLocaleString()} / {dailyLimit.toLocaleString()} tpd
+                        {over ? ' — limit exceeded' : tpmLow ? ' ⚠' : ''}
                       </div>
                     </div>
                   </div>
