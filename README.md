@@ -399,7 +399,7 @@ All endpoints except `/auth/register` and `/auth/login` require `Authorization: 
 
 ## MCP integration (Claude Desktop)
 
-`mcp_server.py` exposes the RAG assistant as a tool inside Claude Desktop. Once configured, you can query your indexed documents directly from any Claude conversation — no browser needed.
+`mcp_server.py` exposes the RAG assistant as a set of tools inside Claude Desktop. Once configured, you can query indexed documents, upload new files from local paths or URLs, and check indexing progress — all from any Claude conversation without opening the browser.
 
 ### Tools exposed
 
@@ -407,7 +407,12 @@ All endpoints except `/auth/register` and `/auth/login` require `Authorization: 
 |---|---|
 | `list_documents()` | Lists all indexed files ready to query |
 | `query_documents(question, files, provider)` | Runs the full RAG pipeline and returns the answer with citations |
-| `upload_document(file_path, provider)` | Uploads and indexes a file from a local path |
+| `upload_document(file_path, provider)` | Uploads a file from a local path and starts indexing in the background |
+| `upload_document_from_url(url, filename, provider)` | Downloads a file from any URL and indexes it — ideal for the GitHub → RAG workflow |
+| `upload_document_content(filename, content_base64, provider)` | Indexes a file from base64-encoded bytes — use when attaching a file directly to the Claude Desktop conversation |
+| `check_indexing_status(filename)` | Polls indexing progress for a previously uploaded file |
+
+All upload tools return immediately — indexing runs in the background. Call `check_indexing_status` to know when a file is ready.
 
 ### Setup
 
@@ -427,16 +432,22 @@ MCP_PASSWORD=yourpassword
 MCP_BASE_URL=http://localhost:8000
 ```
 
+These must match an existing account in the app. The same files are visible in the web UI under the **Library** section (files indexed via MCP but not yet added to a session).
+
 **3. Configure Claude Desktop**
 
-Open `%APPDATA%\Claude\claude_desktop_config.json` (create it if it doesn't exist) and add:
+Find your config file:
+- **Standard install**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Windows Store install**: `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\claude_desktop_config.json`
+
+Add the RAG assistant server. Use the full Python path from your venv to avoid PATH issues:
 
 ```json
 {
   "mcpServers": {
     "rag-assistant": {
-      "command": "python",
-      "args": ["D:/PROJECTS/rag-assistant/rag-backend/mcp_server.py"]
+      "command": "D:\\PROJECTS\\rag-assistant\\rag-backend\\venv\\Scripts\\python.exe",
+      "args": ["D:\\PROJECTS\\rag-assistant\\rag-backend\\mcp_server.py"]
     }
   }
 }
@@ -449,9 +460,11 @@ cd rag-backend
 uvicorn main:app --reload
 ```
 
-Restart Claude Desktop. A 🔌 icon in the bottom-left of the input bar confirms the MCP server connected. You'll see `list_documents`, `query_documents`, and `upload_document` in the tools list.
+Restart Claude Desktop. A 🔌 icon in the bottom-left of the input bar confirms the MCP server connected.
 
-### Usage example
+### Usage examples
+
+**Querying an indexed document**
 
 ```
 You: What is the net amount to pay in the CCF invoice?
@@ -465,11 +478,76 @@ Claude: [calls list_documents → sees CCF04162026.pdf]
           • CCF04162026.pdf (page 2)
 ```
 
+**GitHub → RAG pipeline**
+
+With the GitHub MCP also configured (see below), Claude can fetch a file from any repo and index it in one turn:
+
+```
+You: Index the requirements.txt from my rag-assistant-for-documents repo.
+
+Claude: [calls get_file_contents → gets raw download URL]
+        [calls upload_document_from_url(url, "requirements.txt")]
+        ✓ 'requirements.txt' uploaded — indexing started.
+
+You: Check if it's ready.
+
+Claude: [calls check_indexing_status("requirements.txt")]
+        ✓ 'requirements.txt' is fully indexed and ready to query.
+```
+
+**Attaching a file directly**
+
+```
+You: [attaches report.pdf] Upload this to the RAG assistant.
+
+Claude: [reads file → base64-encodes it]
+        [calls upload_document_content("report.pdf", "<base64>")]
+        ✓ 'report.pdf' uploaded — call check_indexing_status when ready.
+```
+
+### Adding the GitHub MCP
+
+Lets Claude fetch files from any GitHub repo and pipe them straight into your RAG index.
+
+**1. Generate a GitHub Personal Access Token**
+
+Go to github.com → Settings → Developer settings → Personal access tokens → Generate new token (classic). Check the `repo` scope (or `public_repo` if you only have public repos). Copy the token.
+
+**2. Add to Claude Desktop config**
+
+Node.js must be installed. Find the full path to `npx` by running `where npx` in Command Prompt, then add:
+
+```json
+{
+  "mcpServers": {
+    "rag-assistant": { ... },
+    "github": {
+      "command": "C:\\Program Files\\nodejs\\npx.cmd",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_TOKEN_HERE"
+      }
+    }
+  }
+}
+```
+
+Also add your token to `rag-backend/.env` so the MCP server can download from private repos directly:
+
+```env
+GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_TOKEN_HERE
+```
+
+**3. Restart Claude Desktop**
+
+Both MCPs will appear in the tools panel. The full workflow — *"Index main.py from my repo"* — now resolves in a single conversation turn.
+
 ### Notes
 
-- Your FastAPI backend must be running for the tools to work — the MCP server is a thin proxy to it.
+- Your FastAPI backend must be running for the tools to work.
 - `provider="local"` uses Ollama (default, fully private). `provider="cloud"` uses Groq (faster, requires `GROQ_API_KEY`).
-- The MCP server and the web UI (`localhost:5173`) work simultaneously — the same indexed files are accessible from both.
+- Large files (>500 chunks) can take several minutes to embed locally. Upload returns immediately; poll `check_indexing_status` every 30 s.
+- Files indexed via MCP appear in the web UI under a **Library** section in the Files panel — click `+` to add them to the current session, or the trash icon to delete them.
 
 ---
 
